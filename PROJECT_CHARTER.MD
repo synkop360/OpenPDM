@@ -1,100 +1,42 @@
 # OpenPDM Project Charter
 
-**Version:** 0.1 (Draft)
+**Version:** 1.0 (Draft)
 
 ---
 
 # 1. Purpose
 
-This Project Charter defines the long-term objectives, governance principles, architectural philosophy and development strategy of OpenPDM.
+This Project Charter defines the constitutional rules of the OpenPDM project.
 
-It serves as the reference document for all contributors and maintainers.
+It establishes the project's scope, guiding principles, governance model and quality standards.
 
-Whenever a technical or product decision is questioned, this document takes precedence over implementation details.
+This document is intentionally stable and should evolve only when the long-term direction of the project changes.
 
----
-
-# 2. Project Statement
-
-OpenPDM is an open-source Engineering Collaboration Platform designed to organize, version, relate and secure engineering assets throughout the product development lifecycle.
-
-Rather than focusing on a single engineering discipline, OpenPDM provides a common foundation capable of supporting mechanical design, electronics, software, manufacturing, simulation and technical documentation through a modular architecture.
+Whenever there is uncertainty regarding a product or architectural decision, this Charter takes precedence over implementation details.
 
 ---
 
-# 3. Project Scope
+# 2. Scope
 
-The project provides a collaborative platform for engineering data.
+OpenPDM is an open-source Engineering Collaboration Platform.
 
-Core capabilities include:
+Its purpose is to organize, version, relate and secure engineering assets throughout the product development lifecycle.
 
-* Engineering Asset Management
-* Asset Versioning
-* Asset Relationships (Asset Graph)
-* Check-in / Check-out
-* Revision Management
-* Project Permissions
-* Workflow Management
-* Metadata Management
-* Search
-* Automation APIs
-* Plugin Framework
+The platform is intentionally vendor-neutral and designed to support multiple engineering domains through plugins.
 
-The project intentionally remains independent from any engineering software vendor.
+The Core platform provides generic collaboration capabilities.
+
+Engineering-specific behavior is delegated to extensions.
 
 ---
 
-# 4. Out of Scope
+# 3. Guiding Principles
 
-OpenPDM is not intended to become:
+## 3.1 Domain Agnostic Core
 
-* A CAD application
-* A geometry editor
-* A CAM solution
-* A simulation engine
-* An ERP
-* A complete PLM replacement
-* A source-code hosting platform
+The Core never understands engineering domains.
 
-Integrations with those systems are encouraged, but their functionality is outside the scope of the Core platform.
-
----
-
-# 5. Strategic Objectives
-
-The project aims to achieve the following long-term objectives:
-
-1. Democratize engineering collaboration through open-source technologies.
-2. Reduce dependency on proprietary PDM ecosystems.
-3. Provide a vendor-neutral engineering platform.
-4. Enable organizations to retain full ownership of their engineering data.
-5. Offer a modern developer and user experience.
-6. Foster an active open-source community around engineering collaboration.
-
----
-
-# 6. Guiding Principles
-
-Every architectural and product decision should comply with the following principles:
-
-* Open Source First
-* API First
-* Asset-Centric Design
-* Modular Architecture
-* Self-Hosted by Default
-* Cloud Ready
-* Extensible through Plugins
-* Observable
-* Secure by Design
-* Backward Compatibility whenever practical
-
----
-
-# 7. Core Domain Model
-
-The Core only understands generic concepts.
-
-These include:
+It only manipulates generic concepts such as:
 
 * Asset
 * Blob
@@ -105,190 +47,169 @@ These include:
 * Permission
 * Project
 * Organization
-* User
 * Event
 
-No engineering discipline shall introduce domain-specific concepts into the Core.
-
-Mechanical, electrical and software knowledge belongs to plugins.
+Engineering concepts belong exclusively to plugins.
 
 ---
 
-# 8. Architectural Philosophy
+## 3.2 Engineering Assets
 
-The platform is built around three layers.
+Everything managed by OpenPDM is an Engineering Asset.
 
-## Foundation
+An Asset represents an engineering object.
 
-Third-party infrastructure providing common services.
+Its binary contents are represented independently as one or more Blobs.
 
-Examples:
-
-* PostgreSQL
-* Object Storage
-* Authentication
-* Event Bus
-* Observability
-
-## Core
-
-Business logic owned by OpenPDM.
-
-Examples:
-
-* Asset Graph
-* Version Engine
-* Workflow Engine
-* Metadata Engine
-* Permissions
-* Automation API
-
-## Extensions
-
-Independent plugins implementing domain-specific functionality.
-
-Examples:
-
-* SOLIDWORKS
-* FreeCAD
-* Fusion 360
-* KiCad
-* Blender
-
-The Core must never depend on Extensions.
-
-Extensions depend on the Core.
+This separation allows the platform to remain independent from engineering file formats.
 
 ---
 
-# 9. Engineering Asset Philosophy
+## 3.3 Asset Graph
 
-Every engineering object is represented by an Asset.
+Engineering knowledge is represented as a graph.
 
-Binary contents are represented by Blobs.
+Relationships are first-class citizens.
 
-Relationships are explicit.
+Folders are organizational conveniences.
 
-Versions are immutable.
-
-History is permanent.
-
-Engineering knowledge is never inferred from storage hierarchy.
-
-Folders are organizational tools—not the primary data model.
-
-The graph is the source of truth.
+The Asset Graph is the authoritative representation of engineering knowledge.
 
 ---
 
-# 10. Plugin Philosophy
+## 3.4 Plugin First
 
-Plugins extend the platform without modifying the Core.
+Engineering intelligence belongs to plugins.
 
-Each plugin is responsible for understanding one or more engineering domains.
-
-Typical responsibilities include:
+Plugins may provide capabilities such as:
 
 * Metadata extraction
 * Dependency analysis
 * BOM extraction
 * Preview generation
 * Validation
-* File import/export
+* Import / Export
 
-Plugins must communicate only through public APIs.
-
----
-
-# 11. Governance
-
-The project follows an open governance model.
-
-Technical decisions are documented through ADRs.
-
-Major functional changes require an RFC.
-
-Community discussions take place before implementation whenever possible.
-
-Architecture takes precedence over short-term convenience.
+The Core never parses engineering file formats.
 
 ---
 
-# 12. Documentation Strategy
+## 3.5 API First
 
-Documentation is considered part of the product.
+Every capability exposed through the user interface must also be available through public APIs.
 
-Every significant feature must include:
-
-* Design documentation
-* API documentation
-* User documentation
-* Developer documentation
-* Test documentation (when applicable)
-
-Undocumented features are considered incomplete.
+The Web UI, Desktop Client and plugins are all API consumers.
 
 ---
 
-# 13. Quality Standards
+## 3.6 Modular Architecture
 
-All contributions should satisfy the following requirements:
+The platform is composed of independent modules with well-defined responsibilities.
 
-* Unit tests
-* Integration tests where relevant
-* API documentation
-* Code review
-* Backward compatibility assessment
-* Performance considerations
-* Security review for sensitive features
+Dependencies should always point toward the Core.
+
+The Core must remain independent from infrastructure technologies whenever practical.
 
 ---
 
-# 14. Roadmap Strategy
+## 3.7 Security by Design
 
-The project evolves incrementally.
+Authorization is enforced consistently across every access path.
 
-Major milestones represent stable product capabilities rather than arbitrary release dates.
-
-The initial roadmap focuses on:
-
-1. Core Platform
-2. Engineering Asset Management
-3. Version Engine
-4. Workflow Engine
-5. Desktop Client
-6. CAD Plugins
-7. Public SDK
-8. Stable v1.0
+No plugin or client application may bypass the Core authorization layer.
 
 ---
 
-# 15. Success Metrics
+## 3.8 Observability
 
-The project will be considered successful when:
+Every significant business action should be observable.
 
-* Installation requires less than one hour.
-* A small engineering team can immediately collaborate on engineering assets.
-* New engineering domains can be added through plugins without modifying the Core.
-* Every engineering decision is traceable.
-* The platform remains deployable entirely on self-hosted infrastructure.
+Logs, audit records and domain events are considered part of the platform.
 
 ---
 
-# 16. Amendment Policy
+## 3.9 Long-Term Maintainability
 
-This Charter is a living document.
+Architectural consistency takes precedence over short-term convenience.
+
+Technical debt must be intentional, documented and tracked.
+
+---
+
+# 4. Governance
+
+OpenPDM is developed as an open-source project.
+
+The project values:
+
+* transparency
+* constructive discussion
+* technical excellence
+* long-term maintainability
+* community contributions
+
+Architectural decisions should be discussed before implementation whenever possible.
+
+Major architectural decisions must be documented using an Architecture Decision Record (ADR).
+
+---
+
+# 5. Quality Standards
+
+Every contribution should strive to provide:
+
+* clear and maintainable code
+* automated tests where appropriate
+* adequate documentation
+* backward compatibility whenever practical
+* consistent user experience
+
+A feature is considered complete only when both its implementation and documentation are complete.
+
+---
+
+# 6. Decision Process
+
+When several valid solutions exist, the preferred solution is the one that:
+
+1. Respects the Guiding Principles.
+2. Keeps the Core generic.
+3. Reduces long-term maintenance.
+4. Improves extensibility.
+5. Avoids unnecessary complexity.
+
+---
+
+# 7. Long-Term Objectives
+
+OpenPDM aims to become the reference open-source Engineering Collaboration Platform.
+
+Long-term goals include:
+
+* vendor-neutral engineering collaboration
+* engineering asset management
+* digital thread capabilities
+* workflow automation
+* multidisciplinary engineering support
+* an active open-source ecosystem
+
+These objectives guide the project but should never compromise the simplicity and stability of the Core.
+
+---
+
+# 8. Amendment Policy
+
+This Charter is expected to remain stable over time.
 
 Changes require:
 
-* documented motivation,
-* community discussion,
-* approval by the maintainers.
+* a documented rationale;
+* discussion among maintainers;
+* an accompanying ADR when architectural principles are affected.
 
-Changes affecting architectural principles should be accompanied by one or more Architecture Decision Records (ADRs).
+The Charter should evolve only when the project's long-term direction changes—not to reflect implementation details.
 
 ---
 
-# Motto
+> **Build a simple Core. Extend everything else.**
 
-> *Build the platform that engineering has been waiting for.*
