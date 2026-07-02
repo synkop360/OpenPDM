@@ -1,0 +1,89 @@
+# .github/automation/project/project.yaml
+
+project:
+  name: OpenPDM
+  description: Open-source Engineering Collaboration Platform
+
+repository:
+  owner: synkop360
+  name: OpenPDM
+
+labels: []
+
+fields: []
+
+milestones:
+  - title: Foundation
+    description: Establish the technical foundation of OpenPDM.
+
+  - title: Core Platform
+    description: Deliver the first usable version of OpenPDM.
+
+  - title: Collaboration
+    description: Enable collaborative engineering work.
+
+  - title: Asset Graph
+    description: Introduce relationships between Assets.
+
+  - title: Plugin Platform
+    description: Deliver the Extension API and Official Plugins.
+
+  - title: Mechanical Engineering
+    description: Deliver the first mechanical engineering capabilities.
+
+  - title: Engineering Workflows
+    description: Introduce configurable engineering workflows.
+
+  - title: Multi-Domain Engineering
+    description: Expand OpenPDM to multiple engineering domains.
+
+  - title: Digital Thread
+    description: Connect engineering assets across the complete product lifecycle.
+
+issues: []
+
+roadmap:
+  - phase: Foundation
+    milestone: Foundation
+    description: Establish the technical foundation of OpenPDM.
+    epics: []
+
+  - phase: Core Platform
+    milestone: Core Platform
+    description: Deliver the first usable version of OpenPDM.
+    epics: []
+
+  - phase: Collaboration
+    milestone: Collaboration
+    description: Enable collaborative engineering work.
+    epics: []
+
+  - phase: Asset Graph
+    milestone: Asset Graph
+    description: Introduce relationships between Assets.
+    epics: []
+
+  - phase: Plugin Platform
+    milestone: Plugin Platform
+    description: Deliver the Extension API and Official Plugins.
+    epics: []
+
+  - phase: Mechanical Engineering
+    milestone: Mechanical Engineering
+    description: Deliver the first mechanical engineering capabilities.
+    epics: []
+
+  - phase: Engineering Workflows
+    milestone: Engineering Workflows
+    description: Introduce configurable engineering workflows.
+    epics: []
+
+  - phase: Multi-Domain Engineering
+    milestone: Multi-Domain Engineering
+    description: Expand OpenPDM to multiple engineering domains.
+    epics: []
+
+  - phase: Digital Thread
+    milestone: Digital Thread
+    description: Connect engineering assets across the complete product lifecycle.
+    epics: []
