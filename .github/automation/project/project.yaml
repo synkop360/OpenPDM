@@ -1458,11 +1458,25 @@ roadmap:
               Define the generic metadata model required for the Core Platform MVP.
 
               ## Description
-              Open a decision issue to clarify the initial metadata scope, ownership boundary and update rules while preserving a domain-agnostic Platform Core.
+              Decision made: Phase 1 adopts a generic key/value metadata model with no business semantics in the Platform Core.
+
+              The accepted decision covers:
+              - metadata stored as generic key/value entries;
+              - a `MetadataEntry` model with `id`, `asset_id | revision_id | representation_id`, `key`, `value`, `value_type`, `source`, `created_at`;
+              - allowed value types: `string`, `number`, `boolean`, `date`, `json`;
+              - metadata stored by the Platform Core but never interpreted by it;
+              - explicit preservation of a domain-agnostic Platform Core, even when values look engineering-specific.
+
+              Example:
+              - `material = "7075-T6"`
+
+              The Platform Core knows how to store this metadata value, but it does not know what a material is.
+
+              This decision is recorded in ADR-0010.
 
               ## Acceptance Criteria
               - Metadata scope for Phase 1 is explicit.
-              - The issue records what is intentionally deferred.
+              - ADR-0010 exists and captures the decision.
               - The decision does not introduce engineering-domain knowledge.
 
               ## Dependencies
@@ -1470,6 +1484,7 @@ roadmap:
 
               ## Suggested Labels
               architecture, documentation, P1
+            closed: true
             labels:
               - architecture
               - decision
@@ -1480,7 +1495,7 @@ roadmap:
               Epic: Discoverability and Governance Foundations
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0010
 
           - title: "Phase 1 Task: Deliver metadata API for Assets and Revisions"
             body: |
@@ -1510,7 +1525,7 @@ roadmap:
               Epic: Discoverability and Governance Foundations
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0010
 
           - title: "Phase 1 Task: Define basic search scope and indexing strategy"
             body: |
