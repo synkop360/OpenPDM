@@ -1,0 +1,52 @@
+[project]
+name = "openpdm"
+version = "0.0.0"
+description = "Open-source Engineering Collaboration Platform."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "alembic>=1.14,<2.0",
+  "fastapi[standard]>=0.115,<0.116",
+  "psycopg[binary]>=3.2,<4.0",
+  "pydantic-settings>=2.7,<3.0",
+  "sqlalchemy>=2.0,<3.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<0.29",
+  "PyYAML>=6.0,<7.0",
+  "pytest>=8.3,<9.0",
+  "requests>=2.32,<3.0",
+  "ruff>=0.8,<0.9",
+]
+
+[tool.uv]
+package = true
+
+[tool.setuptools.packages.find]
+where = ["backend/src"]
+
+[tool.setuptools.package-dir]
+"" = "backend/src"
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "tests"]
+pythonpath = ["backend/src"]
+
+[tool.ruff]
+line-length = 100
+src = ["backend/src", "backend/tests", "tests", "scripts"]
+extend-exclude = [".github/automation/project"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
