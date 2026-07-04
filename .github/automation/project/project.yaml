@@ -1605,12 +1605,27 @@ roadmap:
               Define the permission model required for consistent Phase 1 authorization.
 
               ## Description
-              Open a decision issue that clarifies permission ownership, inheritance and enforcement across Organizations, Projects, Assets and Revisions. If the decision affects stable architecture, it should lead to a new ADR.
+              Decision made: Phase 1 adopts a simple RBAC model scoped by Project.
+
+              The accepted decision covers:
+              - `OrganizationRole` and `ProjectRole` as the Phase 1 authorization objects;
+              - Phase 1 roles limited to `Owner`, `Maintainer`, `Contributor`, `Viewer`;
+              - Phase 1 permissions limited to `read_project`, `manage_project`, `create_asset`, `update_asset`, `delete_asset`, `create_revision`, `manage_members`;
+              - permissions calculated by the Platform Core;
+              - no plugin participation in authorization decisions.
+
+              The accepted decision explicitly avoids:
+              - per-Asset permissions;
+              - custom ACLs;
+              - complex inheritance;
+              - dynamic policy systems.
+
+              This decision is recorded in ADR-0012.
 
               ## Acceptance Criteria
               - Permission model scope is explicit for Phase 1.
-              - The issue records what is deferred to later phases.
-              - The issue identifies whether a new ADR is required.
+              - ADR-0012 exists and captures the decision.
+              - The decision keeps authorization inside the Platform Core.
 
               ## Dependencies
               - Phase 1 Task: Define authentication and user identity model
@@ -1618,6 +1633,7 @@ roadmap:
 
               ## Suggested Labels
               architecture, documentation, P1
+            closed: true
             labels:
               - architecture
               - decision
@@ -1628,7 +1644,7 @@ roadmap:
               Epic: Discoverability and Governance Foundations
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0012
 
           - title: "Phase 1 Task: Implement permission enforcement across delivered APIs"
             body: |
@@ -1659,7 +1675,7 @@ roadmap:
               Epic: Discoverability and Governance Foundations
               Platform Area: Platform Core
               Complexity: L
-              ADR: TBD
+              ADR: ADR-0012
 
           - title: "Phase 1 Task: Implement audit log for significant Phase 1 actions"
             body: |
