@@ -1789,18 +1789,46 @@ roadmap:
               Define what plugin infrastructure is actually in scope for Phase 1.
 
               ## Description
-              Open a decision issue that clarifies the minimum extension-readiness behavior that should be present in the Core Platform MVP, and what plugin lifecycle, SDK and runtime capabilities are explicitly deferred to Phase 4.
+              Decision made: Phase 1 provides a plugin infrastructure skeleton only.
+
+              The accepted Phase 1 scope includes:
+              - Plugin manifest
+              - Plugin registry
+              - Plugin discovery
+              - Plugin metadata
+              - Plugin enable/disable
+              - Extension API placeholder
+
+              The minimum manifest shape is:
+              - `id: org.openpdm.freecad`
+              - `name: FreeCAD Provider`
+              - `version: 0.1.0`
+              - `type: official`
+              - `capabilities: []`
+
+              Phase 1 explicitly does not include:
+              - plugin execution
+              - file parsing
+              - BOM extraction
+              - preview generation
+              - sandboxing
+              - plugin marketplace
+
+              The objective is to reserve the architectural boundary cleanly, not to implement the plugin ecosystem.
+
+              This decision is recorded in ADR-0013.
 
               ## Acceptance Criteria
               - The minimal Phase 1 plugin infrastructure scope is explicit.
               - Deferred plugin capabilities are listed clearly.
-              - The issue identifies whether a new ADR is required.
+              - ADR-0013 exists and captures the decision.
 
               ## Dependencies
               - Phase 1 Epic: Extension Readiness Foundations
 
               ## Suggested Labels
               architecture, plugin, documentation, P1
+            closed: true
             labels:
               - architecture
               - plugin
@@ -1812,7 +1840,7 @@ roadmap:
               Epic: Extension Readiness Foundations
               Platform Area: Extension API
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0013
 
           - title: "Phase 1 Task: Define generic lifecycle status primitive scope"
             body: |
@@ -1871,7 +1899,7 @@ roadmap:
               Epic: Extension Readiness Foundations
               Platform Area: Extension API
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0013
 
           - title: "Phase 1 Task: Implement generic lifecycle status primitive"
             body: |
