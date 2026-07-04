@@ -8,9 +8,131 @@ repository:
   owner: synkop360
   name: OpenPDM
 
-labels: []
+labels:
 
-fields: []
+  # Type
+
+  - name: feature
+    color: "0E8A16"
+    description: New functionality.
+
+  - name: bug
+    color: "D73A4A"
+    description: Bug report.
+
+  - name: architecture
+    color: "5319E7"
+    description: Architecture work.
+
+  - name: documentation
+    color: "0075CA"
+    description: Documentation.
+
+  - name: refactor
+    color: "FBCA04"
+    description: Refactoring.
+
+  - name: test
+    color: "C2E0C6"
+    description: Testing.
+
+  - name: ci
+    color: "1D76DB"
+    description: Continuous Integration.
+
+  # Priority
+
+  - name: P0
+    color: "B60205"
+    description: Critical.
+
+  - name: P1
+    color: "D93F0B"
+    description: High.
+
+  - name: P2
+    color: "FBCA04"
+    description: Normal.
+
+  # Area
+
+  - name: core
+    color: "5319E7"
+
+  - name: module
+    color: "6F42C1"
+
+  - name: plugin
+    color: "0E8A16"
+
+  - name: frontend
+    color: "1D76DB"
+
+  - name: desktop
+    color: "0366D6"
+
+  - name: deployment
+    color: "BFDADC"
+
+  # Misc
+
+  - name: blocked
+    color: "B60205"
+
+  - name: help wanted
+    color: "008672"
+
+  - name: good first issue
+    color: "7057FF"
+
+fields:
+
+  - name: Phase
+    type: single_select
+
+    options:
+
+      - Foundation
+      - Core Platform
+      - Collaboration
+      - Asset Graph
+      - Plugin Platform
+      - Mechanical Engineering
+      - Engineering Workflows
+      - Multi-Domain Engineering
+      - Digital Thread
+
+  - name: Epic
+    type: text
+
+  - name: Platform Area
+    type: single_select
+
+    options:
+
+      - Platform Core
+      - Platform Module
+      - Extension API
+      - Official Plugin
+      - Community Plugin
+      - Frontend
+      - Desktop
+      - Infrastructure
+      - Documentation
+
+  - name: Complexity
+    type: single_select
+
+    options:
+
+      - XS
+      - S
+      - M
+      - L
+      - XL
+
+  - name: ADR
+    type: text
 
 milestones:
   - title: Foundation
@@ -45,8 +167,816 @@ issues: []
 roadmap:
   - phase: Foundation
     milestone: Foundation
-    description: Establish the technical foundation of OpenPDM.
-    epics: []
+    description: Establish the technical foundation of OpenPDM so developers can build, test, run and contribute to the modular monolith with a reproducible environment.
+    epics:
+
+      - title: "Phase 0 Epic: Repository and Contributor Foundation"
+        body: |
+          ## Objective
+          Establish the repository structure and contributor standards required for OpenPDM development.
+
+          ## Description
+          This epic creates the non-product foundation for contributors: repository organization, contribution guidance, coding standards and governance expectations. It supports Phase 0 without introducing Platform Core business behavior.
+
+          ## Expected Deliverable
+          A repository layout and contributor guidance that make it clear where application code, tests, documentation, ADRs and automation belong.
+
+          ## Acceptance Criteria
+          - Repository structure is documented and easy for a new contributor to navigate.
+          - Contributor workflow is documented, including setup, validation and pull request expectations.
+          - Coding standards are documented without introducing implementation-specific architecture beyond accepted ADRs.
+          - Existing authoritative terminology is preserved.
+
+          ## Dependencies
+          - AGENTS.md
+          - docs/PROJECT_CHARTER.md
+          - docs/ARCHITECTURE.md
+          - Accepted ADRs
+
+          ## Risks
+          - Repository structure could imply premature architecture decisions if it goes beyond ADR-0001 and ADR-0002.
+          - Contributor documentation could duplicate or conflict with existing project documentation.
+
+          ## Exit Criteria
+          - A contributor can identify where to place code, tests, documentation and ADRs.
+          - Repository guidance references the Project Charter, Architecture and accepted ADRs as the source of truth.
+
+          ## Suggested Labels
+          documentation, P1
+        labels:
+          - documentation
+          - P1
+        fields:
+          Phase: Foundation
+          Epic: Repository and Contributor Foundation
+          Platform Area: Documentation
+          Complexity: M
+          ADR: ADR-0001, ADR-0002
+        sub_issues:
+
+          - title: "Phase 0 Task: Document repository structure"
+            body: |
+              ## Objective
+              Document the intended repository structure for OpenPDM contributors.
+
+              ## Description
+              Add or update documentation that explains the purpose of top-level directories, including application source, tests, documentation, ADRs and automation.
+
+              ## Acceptance Criteria
+              - Repository structure documentation exists.
+              - Documentation avoids introducing architectural concepts not present in accepted ADRs.
+              - Documentation points contributors to authoritative project documents.
+
+              ## Dependencies
+              - Phase 0 Epic: Repository and Contributor Foundation
+
+              ## Suggested Labels
+              documentation, P1
+            labels:
+              - documentation
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Repository and Contributor Foundation
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Phase 0 Task: Document contributor workflow"
+            body: |
+              ## Objective
+              Define the standard workflow for contributing to OpenPDM.
+
+              ## Description
+              Document local setup, validation commands, testing expectations and pull request guidance for contributors.
+
+              ## Acceptance Criteria
+              - Contributor workflow is documented.
+              - Required validation steps are explicit.
+              - Pull request expectations remain aligned with AGENTS.md.
+
+              ## Dependencies
+              - Phase 0 Task: Document repository structure
+
+              ## Suggested Labels
+              documentation, P1
+            labels:
+              - documentation
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Repository and Contributor Foundation
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Define initial coding standards"
+            body: |
+              ## Objective
+              Define initial coding standards for production-ready OpenPDM contributions.
+
+              ## Description
+              Document formatting, linting, testing and code organization expectations without making new architectural decisions.
+
+              ## Acceptance Criteria
+              - Coding standards are documented.
+              - Standards prefer simple, readable and maintainable code.
+              - Standards do not conflict with the Project Charter or accepted ADRs.
+
+              ## Dependencies
+              - Phase 0 Task: Document contributor workflow
+
+              ## Suggested Labels
+              documentation, P2
+            labels:
+              - documentation
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Repository and Contributor Foundation
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001
+
+      - title: "Phase 0 Epic: Reproducible Development Environment"
+        body: |
+          ## Objective
+          Provide a reproducible local development environment for building, testing and running OpenPDM.
+
+          ## Description
+          This epic establishes the developer environment needed before Platform Core feature work begins. It should reduce setup friction while keeping infrastructure replaceable.
+
+          ## Expected Deliverable
+          A documented local environment that can be started consistently by contributors.
+
+          ## Acceptance Criteria
+          - Developers can install dependencies using documented commands.
+          - Developers can run validation and tests locally.
+          - Local environment configuration is versioned where appropriate.
+          - Environment choices do not couple the Platform Core to replaceable infrastructure.
+
+          ## Dependencies
+          - Phase 0 Epic: Repository and Contributor Foundation
+          - ADR-0001
+
+          ## Risks
+          - Tooling choices could become accidental architecture.
+          - Setup could become too heavy for early contributors.
+
+          ## Exit Criteria
+          - A new contributor can prepare the development environment from a clean checkout.
+          - Local setup supports the same validation path expected by CI.
+
+          ## Suggested Labels
+          feature, documentation, P1
+        labels:
+          - feature
+          - documentation
+          - P1
+        fields:
+          Phase: Foundation
+          Epic: Reproducible Development Environment
+          Platform Area: Infrastructure
+          Complexity: L
+          ADR: ADR-0001
+        sub_issues:
+
+          - title: "Phase 0 Task: Define local dependency setup"
+            body: |
+              ## Objective
+              Define how contributors install and manage local development dependencies.
+
+              ## Description
+              Provide the minimal dependency setup needed to build, test and run OpenPDM locally.
+
+              ## Acceptance Criteria
+              - Dependency installation is documented.
+              - Required tool versions are explicit where version sensitivity matters.
+              - Setup avoids unnecessary services or premature operational complexity.
+
+              ## Dependencies
+              - Phase 0 Epic: Reproducible Development Environment
+
+              ## Suggested Labels
+              documentation, P1
+            labels:
+              - documentation
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Reproducible Development Environment
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Provide local run command"
+            body: |
+              ## Objective
+              Provide a documented command for running OpenPDM locally.
+
+              ## Description
+              Establish the first local run path for the application, even if the application only exposes a minimal foundation surface in Phase 0.
+
+              ## Acceptance Criteria
+              - A local run command is documented.
+              - The command works from a clean development setup.
+              - The run path does not require cloud services.
+
+              ## Dependencies
+              - Phase 0 Task: Define local dependency setup
+
+              ## Suggested Labels
+              feature, P1
+            labels:
+              - feature
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Reproducible Development Environment
+              Platform Area: Infrastructure
+              Complexity: M
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Provide local test command"
+            body: |
+              ## Objective
+              Provide a documented command for running the test suite locally.
+
+              ## Description
+              Establish the local test command that contributors and CI use to validate changes.
+
+              ## Acceptance Criteria
+              - A local test command is documented.
+              - The command runs successfully from a clean development setup.
+              - The command is suitable for CI reuse.
+
+              ## Dependencies
+              - Phase 0 Task: Define local dependency setup
+
+              ## Suggested Labels
+              test, P1
+            labels:
+              - test
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Reproducible Development Environment
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0001
+
+      - title: "Phase 0 Epic: Continuous Integration Foundation"
+        body: |
+          ## Objective
+          Establish CI quality gates for the Phase 0 foundation.
+
+          ## Description
+          This epic creates automated validation for formatting, tests and project consistency so future Platform Core work has a reliable safety net.
+
+          ## Expected Deliverable
+          CI workflows that validate the repository on pull requests.
+
+          ## Acceptance Criteria
+          - CI runs on pull requests.
+          - CI executes the documented local validation path.
+          - CI failures are actionable for contributors.
+          - CI does not require secrets for normal pull request validation.
+
+          ## Dependencies
+          - Phase 0 Epic: Reproducible Development Environment
+
+          ## Risks
+          - CI could become too slow or too broad before product code exists.
+          - CI could diverge from local developer commands.
+
+          ## Exit Criteria
+          - Pull requests receive automated validation results.
+          - The default branch is protected by the agreed Phase 0 quality gates where repository settings allow it.
+
+          ## Suggested Labels
+          ci, test, P1
+        labels:
+          - ci
+          - test
+          - P1
+        fields:
+          Phase: Foundation
+          Epic: Continuous Integration Foundation
+          Platform Area: Infrastructure
+          Complexity: M
+          ADR: ADR-0001
+        sub_issues:
+
+          - title: "Phase 0 Task: Add pull request validation workflow"
+            body: |
+              ## Objective
+              Add CI validation for pull requests.
+
+              ## Description
+              Configure a workflow that runs the repository validation commands required for Phase 0.
+
+              ## Acceptance Criteria
+              - Pull request validation workflow exists.
+              - Workflow runs without repository secrets.
+              - Workflow uses the same commands documented for local development.
+
+              ## Dependencies
+              - Phase 0 Task: Provide local test command
+
+              ## Suggested Labels
+              ci, P1
+            labels:
+              - ci
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Continuous Integration Foundation
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Add formatting and lint validation"
+            body: |
+              ## Objective
+              Add automated formatting and lint validation.
+
+              ## Description
+              Ensure code style and basic quality checks run consistently in CI and locally.
+
+              ## Acceptance Criteria
+              - Formatting validation is automated.
+              - Lint validation is automated.
+              - Validation commands are documented.
+
+              ## Dependencies
+              - Phase 0 Task: Add pull request validation workflow
+
+              ## Suggested Labels
+              ci, test, P2
+            labels:
+              - ci
+              - test
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Continuous Integration Foundation
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Add project configuration validation"
+            body: |
+              ## Objective
+              Validate repository project automation configuration in CI.
+
+              ## Description
+              Run projectctl validation so GitHub Project configuration remains internally consistent.
+
+              ## Acceptance Criteria
+              - CI validates `.github/automation/project/project.yaml`.
+              - Validation failures explain the configuration problem.
+              - Documentation tells contributors how to run validation locally.
+
+              ## Dependencies
+              - Phase 0 Task: Add pull request validation workflow
+
+              ## Suggested Labels
+              ci, documentation, P2
+            labels:
+              - ci
+              - documentation
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Continuous Integration Foundation
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0001
+
+      - title: "Phase 0 Epic: Modular Monolith Skeleton"
+        body: |
+          ## Objective
+          Create the initial application skeleton for the OpenPDM modular monolith.
+
+          ## Description
+          This epic establishes the structural foundation for the Platform Core and Platform Modules without implementing Phase 1 business capabilities. The skeleton must express accepted boundaries without adding engineering-specific behavior.
+
+          ## Expected Deliverable
+          A runnable application skeleton with clear places for Platform Core, Platform Modules, public module interfaces, Extension API and infrastructure adapters.
+
+          ## Acceptance Criteria
+          - Application skeleton runs locally.
+          - Platform Core boundaries are visible in the structure.
+          - Platform Modules communicate through public interfaces by convention and tests where practical.
+          - No engineering-domain concepts are added to the Platform Core.
+          - Extension API placeholder is present only as Phase 1/Phase 4 preparation, without privileged plugin behavior.
+
+          ## Dependencies
+          - ADR-0001
+          - ADR-0002
+          - ADR-0003
+
+          ## Risks
+          - Skeleton could over-design future modules before capabilities exist.
+          - Extension API placeholder could imply unsupported plugin contracts too early.
+
+          ## Exit Criteria
+          - The application skeleton builds, tests and runs.
+          - Architecture documentation and code structure agree on boundaries.
+          - No Phase 1 Asset lifecycle behavior is implemented early.
+
+          ## Suggested Labels
+          architecture, core, P1
+        labels:
+          - architecture
+          - core
+          - P1
+        fields:
+          Phase: Foundation
+          Epic: Modular Monolith Skeleton
+          Platform Area: Platform Core
+          Complexity: L
+          ADR: ADR-0001, ADR-0002, ADR-0003
+        sub_issues:
+
+          - title: "Phase 0 Task: Create application entrypoint skeleton"
+            body: |
+              ## Objective
+              Create the minimal application entrypoint for OpenPDM.
+
+              ## Description
+              Add a runnable entrypoint that proves the application can start without implementing Platform Core business capabilities.
+
+              ## Acceptance Criteria
+              - Application entrypoint exists.
+              - Entrypoint can be run locally.
+              - Entrypoint does not include engineering-domain behavior.
+
+              ## Dependencies
+              - Phase 0 Task: Provide local run command
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Modular Monolith Skeleton
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Define Platform Module boundary conventions"
+            body: |
+              ## Objective
+              Define the initial structural conventions for Platform Module boundaries.
+
+              ## Description
+              Establish where public module interfaces and internal implementations belong, following ADR-0001 and ADR-0002.
+
+              ## Acceptance Criteria
+              - Public Module Interface location is documented or represented in structure.
+              - Internal implementation location is separate from public interfaces.
+              - Guidance states that Platform Modules must not access another module's internals.
+
+              ## Dependencies
+              - Phase 0 Task: Create application entrypoint skeleton
+
+              ## Suggested Labels
+              architecture, core, P1
+            labels:
+              - architecture
+              - core
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Modular Monolith Skeleton
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Phase 0 Task: Add architecture boundary smoke tests"
+            body: |
+              ## Objective
+              Add initial tests that protect the intended architectural boundaries.
+
+              ## Description
+              Provide lightweight tests or checks that discourage direct access to another Platform Module's internals.
+
+              ## Acceptance Criteria
+              - Boundary checks run through the local test command.
+              - Checks are understandable and maintainable.
+              - Checks align with ADR-0001 and ADR-0002.
+
+              ## Dependencies
+              - Phase 0 Task: Define Platform Module boundary conventions
+
+              ## Suggested Labels
+              test, architecture, P2
+            labels:
+              - test
+              - architecture
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Modular Monolith Skeleton
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Phase 0 Task: Add Extension API placeholder boundary"
+            body: |
+              ## Objective
+              Reserve the Extension API boundary without implementing plugin capabilities.
+
+              ## Description
+              Add the minimal structural placeholder needed to show that plugins will depend on the Extension API rather than Public Module Interfaces.
+
+              ## Acceptance Criteria
+              - Extension API boundary is represented in structure or documentation.
+              - No plugin lifecycle, SDK or engineering provider behavior is implemented.
+              - Documentation states that full plugin capabilities are deferred to later roadmap phases.
+
+              ## Dependencies
+              - Phase 0 Task: Define Platform Module boundary conventions
+
+              ## Suggested Labels
+              architecture, plugin, P2
+            labels:
+              - architecture
+              - plugin
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Modular Monolith Skeleton
+              Platform Area: Extension API
+              Complexity: S
+              ADR: ADR-0002
+
+      - title: "Phase 0 Epic: Deployment Foundation"
+        body: |
+          ## Objective
+          Provide an initial deployment environment for local and demonstration use.
+
+          ## Description
+          This epic establishes deployment scaffolding suitable for Phase 0 demonstrations. It must keep infrastructure replaceable and avoid production operational complexity.
+
+          ## Expected Deliverable
+          A documented local deployment path that starts the application and required local infrastructure.
+
+          ## Acceptance Criteria
+          - Local deployment command is documented.
+          - Required runtime services are described.
+          - Deployment setup is suitable for demonstrations.
+          - Infrastructure remains replaceable and does not leak into Platform Core design.
+
+          ## Dependencies
+          - Phase 0 Epic: Reproducible Development Environment
+          - Phase 0 Epic: Modular Monolith Skeleton
+
+          ## Risks
+          - Deployment scaffolding could prematurely optimize for production hosting.
+          - Infrastructure choices could accidentally shape Platform Core contracts.
+
+          ## Exit Criteria
+          - A contributor can run OpenPDM locally through the deployment path.
+          - Deployment documentation clearly distinguishes local/demo use from future production hardening.
+
+          ## Suggested Labels
+          deployment, documentation, P1
+        labels:
+          - deployment
+          - documentation
+          - P1
+        fields:
+          Phase: Foundation
+          Epic: Deployment Foundation
+          Platform Area: Infrastructure
+          Complexity: M
+          ADR: ADR-0001
+        sub_issues:
+
+          - title: "Phase 0 Task: Define local deployment services"
+            body: |
+              ## Objective
+              Define the services required to run OpenPDM locally during Phase 0.
+
+              ## Description
+              Document local deployment dependencies and their purpose without hard-coding long-term infrastructure decisions into the Platform Core.
+
+              ## Acceptance Criteria
+              - Required local services are documented.
+              - Each service has a clear Phase 0 purpose.
+              - Documentation notes that infrastructure remains replaceable.
+
+              ## Dependencies
+              - Phase 0 Task: Create application entrypoint skeleton
+
+              ## Suggested Labels
+              deployment, documentation, P1
+            labels:
+              - deployment
+              - documentation
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Deployment Foundation
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Provide local deployment command"
+            body: |
+              ## Objective
+              Provide a command to start the local deployment environment.
+
+              ## Description
+              Add the minimal automation needed to run OpenPDM and local dependencies for development or demonstration.
+
+              ## Acceptance Criteria
+              - Local deployment command exists.
+              - Command starts the Phase 0 application environment.
+              - Command behavior is documented.
+
+              ## Dependencies
+              - Phase 0 Task: Define local deployment services
+
+              ## Suggested Labels
+              deployment, P1
+            labels:
+              - deployment
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Deployment Foundation
+              Platform Area: Infrastructure
+              Complexity: M
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Document deployment limitations"
+            body: |
+              ## Objective
+              Document what the Phase 0 deployment path does and does not guarantee.
+
+              ## Description
+              Clarify that Phase 0 deployment is for local development and demonstration, not full production operations.
+
+              ## Acceptance Criteria
+              - Deployment limitations are documented.
+              - Future production concerns are not implemented early.
+              - Documentation remains aligned with the roadmap.
+
+              ## Dependencies
+              - Phase 0 Task: Provide local deployment command
+
+              ## Suggested Labels
+              documentation, deployment, P2
+            labels:
+              - documentation
+              - deployment
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Deployment Foundation
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001
+
+      - title: "Phase 0 Epic: Foundation Documentation and Demonstration"
+        body: |
+          ## Objective
+          Make Phase 0 demonstrable and clearly complete.
+
+          ## Description
+          This epic gathers the documentation and demonstration criteria that prove the Phase 0 foundation is usable. It closes the loop between roadmap success criteria and contributor experience.
+
+          ## Expected Deliverable
+          A documented Phase 0 demonstration showing that OpenPDM can be built, tested and run locally.
+
+          ## Acceptance Criteria
+          - Phase 0 documentation explains setup, validation, run and deployment paths.
+          - A simple demonstration path exists for maintainers and contributors.
+          - Phase 0 completion criteria are objective and measurable.
+          - Documentation avoids duplicating authoritative architecture content.
+
+          ## Dependencies
+          - Phase 0 Epic: Repository and Contributor Foundation
+          - Phase 0 Epic: Reproducible Development Environment
+          - Phase 0 Epic: Continuous Integration Foundation
+          - Phase 0 Epic: Modular Monolith Skeleton
+          - Phase 0 Epic: Deployment Foundation
+
+          ## Risks
+          - Documentation could drift from actual commands.
+          - Demonstration could accidentally include Phase 1 product behavior.
+
+          ## Exit Criteria
+          - From a clean checkout, a contributor can follow documentation to build, test and run OpenPDM locally.
+          - CI validates the repository.
+          - The application skeleton runs through the documented local or deployment path.
+
+          ## Suggested Labels
+          documentation, test, P1
+        labels:
+          - documentation
+          - test
+          - P1
+        fields:
+          Phase: Foundation
+          Epic: Foundation Documentation and Demonstration
+          Platform Area: Documentation
+          Complexity: M
+          ADR: ADR-0001, ADR-0002, ADR-0003
+        sub_issues:
+
+          - title: "Phase 0 Task: Create foundation quickstart"
+            body: |
+              ## Objective
+              Create a quickstart for Phase 0 contributors.
+
+              ## Description
+              Document the shortest reliable path from clean checkout to validated local run.
+
+              ## Acceptance Criteria
+              - Quickstart includes setup, test and run commands.
+              - Quickstart works from a clean checkout.
+              - Quickstart links to deeper documentation instead of duplicating it.
+
+              ## Dependencies
+              - Phase 0 Task: Provide local run command
+              - Phase 0 Task: Provide local test command
+              - Phase 0 Task: Provide local deployment command
+
+              ## Suggested Labels
+              documentation, P1
+            labels:
+              - documentation
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Foundation Documentation and Demonstration
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001
+
+          - title: "Phase 0 Task: Define Phase 0 demonstration script"
+            body: |
+              ## Objective
+              Define a repeatable demonstration for Phase 0.
+
+              ## Description
+              Document the steps maintainers can use to demonstrate that the foundation works.
+
+              ## Acceptance Criteria
+              - Demonstration script includes build, test and run validation.
+              - Demonstration does not rely on engineering-domain behavior.
+              - Demonstration result is observable and repeatable.
+
+              ## Dependencies
+              - Phase 0 Task: Create foundation quickstart
+
+              ## Suggested Labels
+              documentation, test, P2
+            labels:
+              - documentation
+              - test
+              - P2
+            fields:
+              Phase: Foundation
+              Epic: Foundation Documentation and Demonstration
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Phase 0 Task: Record Phase 0 exit criteria"
+            body: |
+              ## Objective
+              Record objective completion criteria for Phase 0.
+
+              ## Description
+              Document the measurable conditions that must be true before Phase 0 is considered complete.
+
+              ## Acceptance Criteria
+              - Exit criteria are documented.
+              - Criteria include build, test, run, CI and documentation checks.
+              - Criteria explicitly defer Platform Core MVP behavior to Phase 1.
+
+              ## Dependencies
+              - Phase 0 Task: Define Phase 0 demonstration script
+
+              ## Suggested Labels
+              documentation, P1
+            labels:
+              - documentation
+              - P1
+            fields:
+              Phase: Foundation
+              Epic: Foundation Documentation and Demonstration
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001, ADR-0002, ADR-0003
 
   - phase: Core Platform
     milestone: Core Platform

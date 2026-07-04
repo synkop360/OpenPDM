@@ -90,7 +90,7 @@ Examples include:
 
 The platform does not specialize these objects internally.
 
-Instead, domain-specific intelligence is provided by plugins.
+Instead, domain-specific intelligence and relationships are provided by plugins.
 
 ---
 
@@ -128,7 +128,7 @@ Examples:
 * PNG
 * ZIP
 
-An Asset may reference multiple Blobs representing different views or formats of the same engineering object.
+A Revision may own multiple Representations, and each Representation may reference one or more Blobs.
 
 This separation allows OpenPDM to remain independent from file formats while supporting virtually any engineering domain.
 
@@ -159,7 +159,7 @@ This graph forms the foundation for future Digital Thread capabilities.
 
 # Plugin Architecture
 
-The OpenPDM Core understands only generic Engineering Assets.
+The Platform Core understands only generic Engineering Assets and relationships.
 
 Domain-specific knowledge is delegated to plugins.
 
@@ -186,7 +186,7 @@ Plugins may provide:
 * validation
 * import/export
 
-This architecture keeps the Core stable while allowing new engineering domains to be added without modifying the platform.
+This architecture keeps the Platform Core stable while allowing new engineering domains to be added without modifying the platform.
 
 ---
 
@@ -212,7 +212,7 @@ Users should never be locked into proprietary ecosystems.
 
 Every major capability should be replaceable.
 
-The platform is built from independent services with well-defined interfaces.
+The platform is built from Platform Modules with well-defined interfaces.
 
 ---
 
@@ -234,7 +234,7 @@ Cloud hosting is optional, never mandatory.
 
 ## Extensible
 
-The platform should evolve through plugins rather than modifications to the Core whenever possible.
+The platform should evolve through plugins rather than modifications to the Platform Core whenever possible.
 
 ---
 

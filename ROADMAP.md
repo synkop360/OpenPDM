@@ -21,7 +21,7 @@ Each release must satisfy four objectives:
 * preserve architectural consistency;
 * prepare future capabilities without introducing unnecessary complexity.
 
-A capability should only be introduced when the Core is ready to support it.
+A capability should only be introduced when the Platform Core is ready to support it.
 
 ---
 
@@ -47,7 +47,7 @@ Developers can build, test and run OpenPDM locally with a reproducible environme
 
 ---
 
-# Phase 1 — Core Platform (MVP)
+# Phase 1 — Platform Core (MVP)
 
 **Objective**
 
@@ -55,7 +55,7 @@ Deliver the first usable version of OpenPDM.
 
 This version intentionally ignores engineering-specific concepts.
 
-The platform manages generic Assets and Blobs.
+The platform manages the generic Asset lifecycle: Assets, Revisions, Representations and Blobs.
 
 **Primary capabilities**
 
@@ -71,6 +71,8 @@ The platform manages generic Assets and Blobs.
 * Search
 * Permissions
 * Audit log
+* Plugin infrastructure (foundational plumbing for Phase 4)
+* Early Core workflow (only generic lifecycle/status primitives, configurable engineering process deferred in Phase 6)
 
 **Success criteria**
 
@@ -130,9 +132,11 @@ Users can navigate and understand dependencies between assets regardless of thei
 
 Introduce the plugin ecosystem.
 
-The Core remains domain-agnostic.
+The Platform Core remains domain-agnostic.
 
 Engineering knowledge is provided by plugins.
+
+First Official Plugins are developed.
 
 **Primary capabilities**
 
@@ -145,7 +149,7 @@ Engineering knowledge is provided by plugins.
 
 **Success criteria**
 
-Third-party plugins can extend OpenPDM without modifying the Core.
+Third-party plugins can extend OpenPDM without modifying the Platform Core.
 
 ---
 
@@ -207,7 +211,7 @@ Expand OpenPDM beyond mechanical engineering.
 * Simulation
 * Manufacturing assets
 
-These capabilities should reuse the existing Core without requiring architectural changes.
+These capabilities should reuse the existing Platform Core without requiring architectural changes.
 
 **Success criteria**
 
@@ -240,7 +244,7 @@ Users can navigate the complete lifecycle of an engineering product through the 
 
 The following objectives apply throughout every phase of development:
 
-* Keep the Core simple.
+* Keep the Platform Core simple.
 * Preserve backward compatibility whenever practical.
 * Prefer extensibility over specialization.
 * Improve documentation continuously.
@@ -262,7 +266,7 @@ The order of capabilities may change when justified by architectural improvement
 
 The following principles should remain stable:
 
-* Build the Core before specialization.
+* Build the Platform Core before specialization.
 * Deliver usable software as early as possible.
-* Extend through plugins rather than modifying the Core.
+* Extend through plugins rather than modifying the Platform Core.
 * Let architecture guide implementation—not the reverse.

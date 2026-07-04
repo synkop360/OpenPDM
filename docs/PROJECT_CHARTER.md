@@ -24,7 +24,7 @@ Its purpose is to organize, version, relate and secure engineering assets throug
 
 The platform is intentionally vendor-neutral and designed to support multiple engineering domains through plugins.
 
-The Core platform provides generic collaboration capabilities.
+The Platform Core provides generic collaboration capabilities.
 
 Engineering-specific behavior is delegated to extensions.
 
@@ -32,9 +32,9 @@ Engineering-specific behavior is delegated to extensions.
 
 # 3. Guiding Principles
 
-## 3.1 Domain Agnostic Core
+## 3.1 Domain Agnostic Platform Core
 
-The Core never understands engineering domains.
+The Platform Core never understands engineering domains.
 
 It only manipulates generic concepts such as:
 
@@ -59,7 +59,20 @@ Everything managed by OpenPDM is an Engineering Asset.
 
 An Asset represents an engineering object.
 
-Its binary contents are represented independently as one or more Blobs.
+Every engineering object managed by OpenPDM follows the same immutable lifecycle.
+
+```
+Asset
+   │
+   ▼
+Revision
+   │
+   ▼
+Representation
+   │
+   ▼
+Blob
+```
 
 This separation allows the platform to remain independent from engineering file formats.
 
@@ -90,7 +103,7 @@ Plugins may provide capabilities such as:
 * Validation
 * Import / Export
 
-The Core never parses engineering file formats.
+The Platform Core never parses engineering file formats.
 
 ---
 
@@ -98,7 +111,7 @@ The Core never parses engineering file formats.
 
 Every capability exposed through the user interface must also be available through public APIs.
 
-The Web UI, Desktop Client and plugins are all API consumers.
+The Web UI, Desktop Client and plugins are all API consumers. Client applications consume the public application API; plugins consume the Extension API.
 
 ---
 
@@ -106,9 +119,9 @@ The Web UI, Desktop Client and plugins are all API consumers.
 
 The platform is composed of independent modules with well-defined responsibilities.
 
-Dependencies should always point toward the Core.
+Dependencies should always point toward the Platform Core.
 
-The Core must remain independent from infrastructure technologies whenever practical.
+The Platform Core must remain independent from infrastructure technologies whenever practical.
 
 ---
 
@@ -116,7 +129,7 @@ The Core must remain independent from infrastructure technologies whenever pract
 
 Authorization is enforced consistently across every access path.
 
-No plugin or client application may bypass the Core authorization layer.
+No plugin or client application may bypass the Platform Core authorization layer.
 
 ---
 
@@ -173,7 +186,7 @@ A feature is considered complete only when both its implementation and documenta
 When several valid solutions exist, the preferred solution is the one that:
 
 1. Respects the Guiding Principles.
-2. Keeps the Core generic.
+2. Keeps the Platform Core generic.
 3. Reduces long-term maintenance.
 4. Improves extensibility.
 5. Avoids unnecessary complexity.
@@ -193,7 +206,7 @@ Long-term goals include:
 * multidisciplinary engineering support
 * an active open-source ecosystem
 
-These objectives guide the project but should never compromise the simplicity and stability of the Core.
+These objectives guide the project but should never compromise the simplicity and stability of the Platform Core.
 
 ---
 

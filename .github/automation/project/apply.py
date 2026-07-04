@@ -85,6 +85,7 @@ def apply_config(session: requests.Session, config: dict[str, Any]) -> None:
 
     issues = collect_issues(config)
     issue_nodes = sync_issues(session, owner, repo, issues, milestone_map)
+    sync_sub_issues(session, owner, repo, issues, issue_nodes)
     sync_project_items(session, project["id"], project_fields, issues, issue_nodes)
 
 
@@ -279,7 +280,7 @@ def sync_project_fields(
     session: requests.Session, project_id: str, desired_fields: list[dict[str, Any]]
 ) -> dict[str, dict[str, Any]]:
     existing_fields = get_project_fields(session, project_id)
-    fields_by_name = {field["name"]: field for field in existing_fields}
+    fields_by_name = project_fields_by_name(existing_fields)
 
     for field in desired_fields:
         name = field["name"]
@@ -297,7 +298,16 @@ def sync_project_fields(
 
 
 def get_project_fields_by_name(session: requests.Session, project_id: str) -> dict[str, dict[str, Any]]:
-    return {field["name"]: field for field in get_project_fields(session, project_id)}
+    return project_fields_by_name(get_project_fields(session, project_id))
+
+
+def project_fields_by_name(fields: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    fields_by_name: dict[str, dict[str, Any]] = {}
+    for field in fields:
+        name = field.get("name")
+        if name:
+            fields_by_name[name] = field
+    return fields_by_name
 
 
 def get_project_fields(session: requests.Session, project_id: str) -> list[dict[str, Any]]:
@@ -320,6 +330,11 @@ def get_project_fields(session: requests.Session, project_id: str) -> list[dict[
                 dataType
                 options { id name }
               }
+              ... on ProjectV2IterationField {
+                id
+                name
+                dataType
+              }
             }
           }
         }
@@ -339,7 +354,10 @@ def get_project_fields(session: requests.Session, project_id: str) -> list[dict[
 
 
 def ensure_field_type(name: str, existing: dict[str, Any], desired: dict[str, Any]) -> None:
-    existing_type = github_field_type(existing["dataType"])
+    existing_data_type = existing.get("dataType")
+    if existing_data_type is None:
+        raise ApplyFailure(f"project field '{name}' exists but does not expose a supported data type")
+    existing_type = github_field_type(existing_data_type)
     if existing_type != desired["type"]:
         raise ApplyFailure(
             f"project field '{name}' exists with type '{existing_type}', expected '{desired['type']}'"
@@ -441,25 +459,42 @@ def single_select_options_input(field: dict[str, Any]) -> list[dict[str, str]]:
     options = []
     for option in field.get("options", []):
         if isinstance(option, str):
-            options.append({"name": option})
+            options.append({"name": option, "color": "GRAY", "description": ""})
         else:
-            option_input = {"name": option["name"]}
-            if option.get("description"):
-                option_input["description"] = option["description"]
-            if option.get("color"):
-                option_input["color"] = option["color"].upper()
-            options.append(option_input)
+            options.append(
+                {
+                    "name": option["name"],
+                    "color": option.get("color", "GRAY").upper(),
+                    "description": option.get("description", ""),
+                }
+            )
     return options
 
 
 def collect_issues(config: dict[str, Any]) -> list[dict[str, Any]]:
-    issues = list(config.get("issues", []))
+    issues: list[dict[str, Any]] = []
+    for issue in config.get("issues", []):
+        add_issue_tree(issues, issue)
     for phase in config.get("roadmap", []):
         for epic in phase.get("epics", []):
             issue = dict(epic)
             issue.setdefault("milestone", phase.get("milestone"))
-            issues.append(issue)
+            add_issue_tree(issues, issue)
     return issues
+
+
+def add_issue_tree(
+    issues: list[dict[str, Any]], issue: dict[str, Any], inherited_milestone: str | None = None
+) -> None:
+    issue_copy = dict(issue)
+    sub_issues = issue_copy.get("sub_issues", []) or []
+    if inherited_milestone and not issue_copy.get("milestone"):
+        issue_copy["milestone"] = inherited_milestone
+    issues.append(issue_copy)
+
+    child_milestone = issue_copy.get("milestone")
+    for sub_issue in sub_issues:
+        add_issue_tree(issues, sub_issue, child_milestone)
 
 
 def sync_issues(
@@ -501,6 +536,44 @@ def sync_issues(
         issue_nodes[title] = existing
 
     return issue_nodes
+
+
+def sync_sub_issues(
+    session: requests.Session,
+    owner: str,
+    repo: str,
+    issues: list[dict[str, Any]],
+    issue_nodes: dict[str, dict[str, Any]],
+) -> None:
+    for parent_issue in issues:
+        for child_issue in parent_issue.get("sub_issues", []) or []:
+            parent_node = issue_nodes[parent_issue["title"]]
+            child_node = issue_nodes[child_issue["title"]]
+            ensure_sub_issue(session, owner, repo, parent_node, child_node)
+
+
+def ensure_sub_issue(
+    session: requests.Session,
+    owner: str,
+    repo: str,
+    parent_issue: dict[str, Any],
+    child_issue: dict[str, Any],
+) -> None:
+    existing_sub_issues = get_all_pages(
+        session,
+        f"/repos/{owner}/{repo}/issues/{parent_issue['number']}/sub_issues",
+    )
+    if any(sub_issue["id"] == child_issue["id"] for sub_issue in existing_sub_issues):
+        return
+
+    print(f"Adding sub-issue '{child_issue['title']}' to issue: {parent_issue['title']}")
+    rest_request(
+        session,
+        "POST",
+        f"/repos/{owner}/{repo}/issues/{parent_issue['number']}/sub_issues",
+        expected_statuses={201},
+        json={"sub_issue_id": child_issue["id"], "replace_parent": True},
+    )
 
 
 def get_existing_issues_by_title(

@@ -147,6 +147,8 @@ Always validate before applying. `apply.py` also validates before contacting Git
 * `issues`: repository issues to create or update.
 * `roadmap`: roadmap phases; phase `epics` are treated as issues.
 
+Issues and roadmap epics may include nested `sub_issues`. projectctl creates each nested item as an issue, then links it to its parent with the GitHub sub-issues API.
+
 Supported custom field types are:
 
 * `text`

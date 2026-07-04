@@ -91,8 +91,6 @@ The Asset Graph is the authoritative representation of engineering knowledge.
 The Platform Core contains generic business capabilities.
 
 ```
-Platform Core
-
 ┌──────────────────────────────────────────────┐
 │              Platform Modules                │
 ├──────────────────────────────────────────────┤
@@ -161,11 +159,7 @@ Workflow Module
  Asset Module Internals
 ```
 
-The same public interfaces are used by:
-
-* Platform Modules
-* Official Plugins
-* Community Plugins
+The same public interfaces are used by Platform Modules.
 
 No internal shortcut is permitted.
 
@@ -189,7 +183,7 @@ The following rules govern the entire platform.
 
 ### Extension API
 
-* Is the only supported extension mechanism.
+* Is the only supported extension mechanism. Plugins must not directly depend on Public Module Interfaces.
 * Is stable and versioned.
 * Is equally available to Official Plugins and Community Plugins.
 

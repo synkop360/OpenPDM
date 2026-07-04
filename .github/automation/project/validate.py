@@ -16,6 +16,16 @@ import yaml
 
 CONFIG_PATH = Path(__file__).with_name("project.yaml")
 SUPPORTED_FIELD_TYPES = {"text", "number", "date", "single_select"}
+SUPPORTED_FIELD_OPTION_COLORS = {
+    "BLUE",
+    "GRAY",
+    "GREEN",
+    "ORANGE",
+    "PINK",
+    "PURPLE",
+    "RED",
+    "YELLOW",
+}
 
 
 class ValidationFailure(Exception):
@@ -113,6 +123,18 @@ def optional_list(parent: dict[str, Any], key: str, errors: list[str]) -> list[A
     return value
 
 
+def optional_child_list(
+    parent: dict[str, Any], parent_name: str, key: str, errors: list[str]
+) -> list[Any]:
+    if key not in parent or parent[key] is None:
+        return []
+    value = parent[key]
+    if not isinstance(value, list):
+        errors.append(f"{parent_name}.{key} must be a list")
+        return []
+    return value
+
+
 def require_string(parent: dict[str, Any], parent_name: str, key: str, errors: list[str]) -> str | None:
     value = parent.get(key)
     if not isinstance(value, str) or not value.strip():
@@ -204,10 +226,14 @@ def validate_field_options(options: list[Any], field_path: str, errors: list[str
             continue
         if isinstance(option, dict):
             name = require_string(option, option_path, "name", errors)
-            optional_string(option, option_path, "color", errors)
+            color = optional_string(option, option_path, "color", errors)
             optional_string(option, option_path, "description", errors)
             if name is not None:
                 add_unique(option_names, name, option_path, "field option", errors)
+            if color is not None and color.upper() not in SUPPORTED_FIELD_OPTION_COLORS:
+                errors.append(
+                    f"{option_path}.color must be one of {sorted(SUPPORTED_FIELD_OPTION_COLORS)}"
+                )
             continue
         errors.append(f"{option_path} must be a string or mapping")
     return option_names
@@ -274,7 +300,8 @@ def validate_issues(issues: list[Any], parent_name: str, errors: list[str]) -> l
         optional_string(issue, item_name, "body", errors)
         optional_string(issue, item_name, "milestone", errors)
         optional_bool(issue, item_name, "closed", errors)
-        labels = optional_list(issue, "labels", errors)
+        labels = optional_child_list(issue, item_name, "labels", errors)
+        sub_issues = optional_child_list(issue, item_name, "sub_issues", errors)
         fields = issue.get("fields", {})
         if not isinstance(fields, dict):
             errors.append(f"{item_name}.fields must be a mapping")
@@ -285,6 +312,7 @@ def validate_issues(issues: list[Any], parent_name: str, errors: list[str]) -> l
             if not isinstance(label, str) or not label.strip():
                 errors.append(f"{item_name}.labels[{label_index}] must be a non-empty string")
         validated_issues.append(issue)
+        validated_issues.extend(validate_issues(sub_issues, f"{item_name}.sub_issues", errors))
 
     return validated_issues
 

@@ -41,6 +41,7 @@ Always use the official project terminology.
 | Extension API     | Public extension contract.                  |
 | Official Plugins  | Plugins maintained by OpenPDM.              |
 | Community Plugins | Third-party plugins.                        |
+| Engineering Asset | user-facing meaning of the Core Asset       |
 
 Do not invent alternative names.
 
