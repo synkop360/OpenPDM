@@ -466,7 +466,9 @@ def revoke_session_by_id(
     )
 
 
-@router.post("/organizations", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/organizations", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED
+)
 def create_organization(
     payload: CreateOrganizationRequest,
     context: SessionContext = Depends(get_authenticated_session),
@@ -505,7 +507,9 @@ def get_organization(
     return serialize_organization(organization)
 
 
-@router.post("/organizations/{organization_id}/members", response_model=OrganizationMembershipResponse)
+@router.post(
+    "/organizations/{organization_id}/members", response_model=OrganizationMembershipResponse
+)
 def add_organization_member(
     organization_id: str,
     payload: AddOrganizationMemberRequest,
@@ -524,7 +528,9 @@ def add_organization_member(
     return OrganizationMembershipResponse(id=membership.id, role=membership.role)
 
 
-@router.get("/organizations/{organization_id}/members", response_model=list[OrganizationMembershipResponse])
+@router.get(
+    "/organizations/{organization_id}/members", response_model=list[OrganizationMembershipResponse]
+)
 def list_organization_members(
     organization_id: str,
     context: SessionContext = Depends(get_authenticated_session),
@@ -572,15 +578,21 @@ def list_organization_projects(
     return [serialize_project(item) for item in projects]
 
 
-@router.get("/organizations/{organization_id}/projects/me", response_model=list[ProjectMembershipResponse])
+@router.get(
+    "/organizations/{organization_id}/projects/me", response_model=list[ProjectMembershipResponse]
+)
 def list_user_projects(
     organization_id: str,
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> list[ProjectMembershipResponse]:
     return [
-        ProjectMembershipResponse(id=item.id, role=item.role, project=serialize_project(item.project))
-        for item in ProjectModule.list_user_projects(db, organization_id=organization_id, actor=context.user)
+        ProjectMembershipResponse(
+            id=item.id, role=item.role, project=serialize_project(item.project)
+        )
+        for item in ProjectModule.list_user_projects(
+            db, organization_id=organization_id, actor=context.user
+        )
     ]
 
 
@@ -590,7 +602,9 @@ def get_project(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> ProjectResponse:
-    return serialize_project(ProjectModule.get_project(db, project_id=project_id, actor=context.user))
+    return serialize_project(
+        ProjectModule.get_project(db, project_id=project_id, actor=context.user)
+    )
 
 
 @router.post("/projects/{project_id}/members", response_model=ProjectMembershipResponse)
@@ -614,7 +628,10 @@ def list_project_members(
     db: Session = Depends(get_db_session),
 ) -> list[ProjectMembershipResponse]:
     memberships = ProjectModule.list_members(db, project_id=project_id, actor=context.user)
-    return [ProjectMembershipResponse(id=item.id, role=item.role, user=serialize_user(item.user)) for item in memberships]
+    return [
+        ProjectMembershipResponse(id=item.id, role=item.role, user=serialize_user(item.user))
+        for item in memberships
+    ]
 
 
 @router.post("/blobs/uploads", response_model=BlobResponse, status_code=status.HTTP_201_CREATED)
@@ -645,7 +662,11 @@ def download_blob(
     )
 
 
-@router.post("/projects/{project_id}/assets", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/projects/{project_id}/assets",
+    response_model=AssetResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_asset(
     project_id: str,
     payload: CreateAssetRequest,
@@ -653,7 +674,11 @@ def create_asset(
     db: Session = Depends(get_db_session),
 ) -> AssetResponse:
     asset = AssetsModule.create_asset(
-        db, project_id=project_id, name=payload.name, description=payload.description, actor=context.user
+        db,
+        project_id=project_id,
+        name=payload.name,
+        description=payload.description,
+        actor=context.user,
     )
     db.commit()
     return serialize_asset(asset)
@@ -665,7 +690,10 @@ def list_assets(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> list[AssetResponse]:
-    return [serialize_asset(item) for item in AssetsModule.list_assets(db, project_id=project_id, actor=context.user)]
+    return [
+        serialize_asset(item)
+        for item in AssetsModule.list_assets(db, project_id=project_id, actor=context.user)
+    ]
 
 
 @router.get("/assets/{asset_id}", response_model=AssetResponse)
@@ -683,17 +711,26 @@ def get_asset_history(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> list[RevisionResponse]:
-    return [serialize_revision(item) for item in AssetsModule.list_history(db, asset_id=asset_id, actor=context.user)]
+    return [
+        serialize_revision(item)
+        for item in AssetsModule.list_history(db, asset_id=asset_id, actor=context.user)
+    ]
 
 
-@router.post("/assets/{asset_id}/revisions", response_model=RevisionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/assets/{asset_id}/revisions",
+    response_model=RevisionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_revision(
     asset_id: str,
     payload: CreateRevisionRequest,
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> RevisionResponse:
-    revision = AssetsModule.create_revision(db, asset_id=asset_id, comment=payload.comment, actor=context.user)
+    revision = AssetsModule.create_revision(
+        db, asset_id=asset_id, comment=payload.comment, actor=context.user
+    )
     db.commit()
     return serialize_revision(revision)
 
@@ -729,8 +766,12 @@ def update_asset_status(
     db: Session = Depends(get_db_session),
 ) -> AssetResponse:
     if payload.status not in ALLOWED_STATUSES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid lifecycle status.")
-    asset = AssetsModule.update_status(db, asset_id=asset_id, status_value=payload.status, actor=context.user)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid lifecycle status."
+        )
+    asset = AssetsModule.update_status(
+        db, asset_id=asset_id, status_value=payload.status, actor=context.user
+    )
     db.commit()
     return serialize_asset(asset)
 
@@ -766,7 +807,9 @@ def list_metadata(
 ) -> list[MetadataResponse]:
     return [
         serialize_metadata(item)
-        for item in MetadataModule.list_entries(db, target_type=target_type, target_id=target_id, actor=context.user)
+        for item in MetadataModule.list_entries(
+            db, target_type=target_type, target_id=target_id, actor=context.user
+        )
     ]
 
 
@@ -824,7 +867,9 @@ def set_plugin_state(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> PluginResponse:
-    plugin = PluginsModule.set_plugin_enabled(db, plugin_id=plugin_id, enabled=payload.enabled, actor=context.user)
+    plugin = PluginsModule.set_plugin_enabled(
+        db, plugin_id=plugin_id, enabled=payload.enabled, actor=context.user
+    )
     db.commit()
     return serialize_plugin(plugin)
 

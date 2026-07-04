@@ -31,7 +31,9 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(512))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
 
 class SessionToken(Base):
@@ -42,7 +44,9 @@ class SessionToken(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     token: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship()
@@ -56,7 +60,9 @@ class Organization(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(200), unique=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
 
 class OrganizationMembership(Base):
@@ -69,7 +75,9 @@ class OrganizationMembership(Base):
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String(32))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
     organization: Mapped[Organization] = relationship()
     user: Mapped[User] = relationship()
@@ -84,7 +92,9 @@ class Project(Base):
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
     organization: Mapped[Organization] = relationship()
 
@@ -99,7 +109,9 @@ class ProjectMembership(Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String(32))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
     project: Mapped[Project] = relationship()
     user: Mapped[User] = relationship()
@@ -116,7 +128,9 @@ class Blob(Base):
     media_type: Mapped[str] = mapped_column(String(255))
     size_bytes: Mapped[int] = mapped_column(Integer)
     checksum_sha256: Mapped[str] = mapped_column(String(64), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
 
 class Asset(Base):
@@ -130,11 +144,17 @@ class Asset(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="draft")
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
     project: Mapped[Project] = relationship()
-    revisions: Mapped[list["Revision"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+    revisions: Mapped[list["Revision"]] = relationship(
+        back_populates="asset", cascade="all, delete-orphan"
+    )
 
 
 class Revision(Base):
@@ -148,7 +168,9 @@ class Revision(Base):
     number: Mapped[int] = mapped_column(Integer)
     comment: Mapped[str] = mapped_column(Text, default="")
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
     asset: Mapped[Asset] = relationship(back_populates="revisions")
     representations: Mapped[list["Representation"]] = relationship(
@@ -166,7 +188,9 @@ class Representation(Base):
     name: Mapped[str] = mapped_column(String(255))
     media_type: Mapped[str] = mapped_column(String(255))
     blob_id: Mapped[str | None] = mapped_column(ForeignKey("blobs.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
     revision: Mapped[Revision] = relationship(back_populates="representations")
     blob: Mapped[Blob | None] = relationship()
@@ -180,12 +204,16 @@ class MetadataEntry(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), index=True)
     revision_id: Mapped[str | None] = mapped_column(ForeignKey("revisions.id"), index=True)
-    representation_id: Mapped[str | None] = mapped_column(ForeignKey("representations.id"), index=True)
+    representation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("representations.id"), index=True
+    )
     key: Mapped[str] = mapped_column(String(255), index=True)
     value: Mapped[object] = mapped_column(JSON)
     value_type: Mapped[str] = mapped_column(String(32))
     source: Mapped[str] = mapped_column(String(64), default="user")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
 
 class AuditRecord(Base):
@@ -201,7 +229,9 @@ class AuditRecord(Base):
     organization_id: Mapped[str | None] = mapped_column(String(36), index=True)
     project_id: Mapped[str | None] = mapped_column(String(36), index=True)
     details: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
 
 class DomainEvent(Base):
@@ -216,7 +246,9 @@ class DomainEvent(Base):
     organization_id: Mapped[str | None] = mapped_column(String(36), index=True)
     project_id: Mapped[str | None] = mapped_column(String(36), index=True)
     payload: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
-    emitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    emitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
 
 
 class PluginRecord(Base):
@@ -230,4 +262,6 @@ class PluginRecord(Base):
     plugin_type: Mapped[str] = mapped_column(String(64))
     capabilities: Mapped[list[str]] = mapped_column(JSON, default=list)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
