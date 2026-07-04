@@ -1533,18 +1533,30 @@ roadmap:
               Define the minimal search scope that Phase 1 must support.
 
               ## Description
-              Open a decision issue that clarifies which fields are searchable in Phase 1, which results are returned and how the implementation avoids prematurely coupling the Platform Core to future search architecture.
+              Decision made: Phase 1 search uses PostgreSQL only, with no external search engine.
+
+              The accepted decision covers:
+              - searchable Phase 1 scope limited to `asset name`, `asset description`, `metadata keys`, `metadata values`, and `revision comments`;
+              - PostgreSQL full-text search as the search mechanism for Phase 1;
+              - GIN indexes as the primary indexing strategy;
+              - `JSONB` only where it is necessary for the approved metadata or search behavior;
+              - explicit deferral of OpenSearch and other external search engines.
+
+              PostgreSQL GIN indexes are considered sufficient for composite values and full-text search in the initial Core Platform MVP.
+
+              This decision is recorded in ADR-0011.
 
               ## Acceptance Criteria
               - Searchable entities and fields are explicit.
               - Deferred search capabilities are listed.
-              - The issue identifies whether an ADR is required for the chosen implementation path.
+              - ADR-0011 exists and captures the decision.
 
               ## Dependencies
               - Phase 1 Epic: Discoverability and Governance Foundations
 
               ## Suggested Labels
               architecture, documentation, P2
+            closed: true
             labels:
               - architecture
               - decision
@@ -1555,7 +1567,7 @@ roadmap:
               Epic: Discoverability and Governance Foundations
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0011
 
           - title: "Phase 1 Task: Implement basic search for delivered Asset scope"
             body: |
@@ -1585,7 +1597,7 @@ roadmap:
               Epic: Discoverability and Governance Foundations
               Platform Area: Platform Core
               Complexity: L
-              ADR: TBD
+              ADR: ADR-0011
 
           - title: "Phase 1 Task: Define Phase 1 permission model"
             body: |
