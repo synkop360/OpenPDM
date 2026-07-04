@@ -36,8 +36,8 @@ jobs:
 
       - name: Validate Phase 0 and project automation
         run: |
-          python scripts/validate_phase0.py
-          python .github/automation/project/validate.py .github/automation/project/project.yaml
+          uv run python scripts/validate_phase0.py
+          uv run python .github/automation/project/validate.py .github/automation/project/project.yaml
 
   frontend:
     name: Frontend validation
