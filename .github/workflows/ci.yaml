@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend:
+    name: Backend and repository validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: uv sync --all-groups
+
+      - name: Lint Python
+        run: |
+          uv run ruff format --check backend scripts tests
+          uv run ruff check backend scripts tests
+
+      - name: Test backend and architecture boundaries
+        run: uv run pytest
+
+      - name: Validate Phase 0 and project automation
+        run: |
+          python scripts/validate_phase0.py
+          python .github/automation/project/validate.py .github/automation/project/project.yaml
+
+  frontend:
+    name: Frontend validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        run: pnpm --dir frontend run lint
+
+      - name: Test frontend
+        run: pnpm --dir frontend run test
+
+      - name: Build frontend
+        run: pnpm --dir frontend run build
+
+

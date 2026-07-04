@@ -85,6 +85,23 @@ Consistency is more important than personal preference.
 
 If a new convention is required, discuss it before applying it across the project.
 
+For Phase 0:
+
+* Python code is formatted and linted with Ruff.
+* Backend tests use pytest.
+* Frontend tests use Vitest.
+* The Web UI and Desktop Client consume public APIs only.
+* Platform Modules must communicate through Public Module Interfaces.
+* The Platform Core must not contain engineering-domain behavior.
+
+Run local validation before opening a pull request:
+
+```bash
+python scripts/dev.py validate
+python scripts/dev.py lint
+python scripts/dev.py test
+```
+
 ---
 
 # Commit Messages
