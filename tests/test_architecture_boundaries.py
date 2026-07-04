@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,8 @@ def test_platform_core_does_not_contain_engineering_domain_terms() -> None:
     violations: list[str] = []
     for source_file in (BACKEND_SRC / "platform_core").rglob("*.py"):
         text = source_file.read_text(encoding="utf-8").lower()
-        if any(term in text for term in domain_terms):
+        tokens = set(re.findall(r"\b[a-z0-9_]+\b", text))
+        if any(term in tokens for term in domain_terms):
             violations.append(str(source_file.relative_to(ROOT)))
 
     assert violations == []

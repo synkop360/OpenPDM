@@ -1094,11 +1094,24 @@ roadmap:
               Define the public Platform Module interfaces for Organization and Project capabilities.
 
               ## Description
-              Clarify which Platform Modules own Organizations and Projects, what their public contracts expose and how other Platform Modules may depend on them without crossing internal boundaries.
+              Decision made: Phase 1 uses two dedicated Platform Modules for tenancy-related business responsibilities.
+
+              The accepted decision covers:
+              - an Organization Platform Module owning Organization, Organization membership and Organization roles;
+              - a Project Platform Module owning Project and Project-level role assignment;
+              - Project depending on the Organization public interface, but not the reverse;
+              - other Platform Modules depending on public interfaces only.
+
+              The boundary rule is:
+              - who belongs to the tenant belongs to Organization;
+              - what exists inside the tenant belongs to Project.
+
+              This decision is recorded in ADR-0015.
 
               ## Acceptance Criteria
               - Organization and Project ownership is explicit.
               - Public module interface boundaries are documented in the issue.
+              - ADR-0015 exists and captures the decision.
               - The design does not bypass ADR-0001 or ADR-0002.
 
               ## Dependencies
@@ -1106,8 +1119,10 @@ roadmap:
 
               ## Suggested Labels
               architecture, core, P1
+            closed: true
             labels:
               - architecture
+              - decision
               - core
               - P1
             fields:
@@ -1115,7 +1130,7 @@ roadmap:
               Epic: Platform Access and Tenant Foundations
               Platform Area: Platform Module
               Complexity: M
-              ADR: ADR-0001, ADR-0002
+              ADR: ADR-0015
 
           - title: "Phase 1 Task: Implement Organization and Project management API"
             body: |
@@ -1144,7 +1159,7 @@ roadmap:
               Epic: Platform Access and Tenant Foundations
               Platform Area: Platform Core
               Complexity: L
-              ADR: ADR-0001, ADR-0002
+              ADR: ADR-0015
 
           - title: "Phase 1 Task: Implement user membership and baseline authorization"
             body: |
@@ -1260,11 +1275,24 @@ roadmap:
               Define the Platform Module ownership and public interfaces for Asset lifecycle behavior.
 
               ## Description
-              Clarify how Assets, Revisions, Representations and Blobs are owned across Platform Modules and how cross-module access occurs through public contracts only.
+              Decision made: Phase 1 groups the lifecycle into two Platform Modules.
+
+              The accepted decision covers:
+              - an Assets Platform Module owning Asset, Revision, Representation and generic lifecycle status;
+              - a Blobs Platform Module owning Blob records and Blob storage coordination;
+              - Assets depending on the Blobs public interface, but not the reverse;
+              - other Platform Modules depending on public interfaces only.
+
+              The boundary rule is:
+              - lifecycle semantics belong to Assets;
+              - binary storage semantics belong to Blobs.
+
+              This decision is recorded in ADR-0016.
 
               ## Acceptance Criteria
               - Ownership of Asset lifecycle responsibilities is explicit.
               - Public interfaces required by dependent modules are identified.
+              - ADR-0016 exists and captures the decision.
               - The design remains aligned with ADR-0001, ADR-0002 and ADR-0003.
 
               ## Dependencies
@@ -1272,8 +1300,10 @@ roadmap:
 
               ## Suggested Labels
               architecture, core, P1
+            closed: true
             labels:
               - architecture
+              - decision
               - core
               - P1
             fields:
@@ -1281,7 +1311,7 @@ roadmap:
               Epic: Engineering Asset Lifecycle MVP
               Platform Area: Platform Module
               Complexity: M
-              ADR: ADR-0001, ADR-0002, ADR-0003
+              ADR: ADR-0016
 
           - title: "Phase 1 Task: Implement Asset and Revision persistence model"
             body: |
@@ -1310,7 +1340,7 @@ roadmap:
               Epic: Engineering Asset Lifecycle MVP
               Platform Area: Platform Core
               Complexity: L
-              ADR: ADR-0003, ADR-0005
+              ADR: ADR-0003, ADR-0005, ADR-0016
 
           - title: "Phase 1 Task: Implement Representation and Blob reference model"
             body: |
@@ -1339,7 +1369,7 @@ roadmap:
               Epic: Engineering Asset Lifecycle MVP
               Platform Area: Platform Core
               Complexity: L
-              ADR: ADR-0003, ADR-0005, ADR-0006
+              ADR: ADR-0003, ADR-0005, ADR-0006, ADR-0016
 
           - title: "Phase 1 Task: Implement Blob upload and download workflow"
             body: |
@@ -1369,7 +1399,7 @@ roadmap:
               Epic: Engineering Asset Lifecycle MVP
               Platform Area: Infrastructure
               Complexity: L
-              ADR: ADR-0005, ADR-0006
+              ADR: ADR-0005, ADR-0006, ADR-0016
 
           - title: "Phase 1 Task: Implement Asset retrieval and version history API"
             body: |
@@ -1399,7 +1429,7 @@ roadmap:
               Epic: Engineering Asset Lifecycle MVP
               Platform Area: Platform Core
               Complexity: M
-              ADR: ADR-0003
+              ADR: ADR-0003, ADR-0016
 
       - title: "Phase 1 Epic: Discoverability and Governance Foundations"
         body: |

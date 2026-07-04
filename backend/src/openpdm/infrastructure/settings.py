@@ -1,4 +1,6 @@
-"""Runtime settings for the Phase 0 application skeleton."""
+"""Runtime settings for the OpenPDM backend."""
+
+from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,3 +18,4 @@ class Settings(BaseSettings):
     s3_bucket: str = "openpdm-blobs"
     s3_access_key: str = "openpdm"
     s3_secret_key: str = "openpdm-secret"
+    blob_local_root: str = ".openpdm-data/blobs"

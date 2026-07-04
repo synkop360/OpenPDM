@@ -31,6 +31,13 @@ Phase 1 authorization will use the following objects:
 * `OrganizationRole`
 * `ProjectRole`
 
+Tenancy and membership for Phase 1 follow these scoping rules:
+
+* every `Project` belongs to exactly one `Organization`;
+* every `ProjectRole` assignment is scoped within that `Project`'s `Organization`;
+* a user must be an `Organization` member before receiving a `ProjectRole`;
+* Phase 1 does not support standalone `Project` membership outside an `Organization`.
+
 Phase 1 roles are limited to:
 
 * `Owner`
@@ -58,6 +65,7 @@ Phase 1 explicitly avoids:
 * custom ACLs
 * complex inheritance
 * dynamic policy systems
+* direct cross-Organization Project membership
 
 This decision applies only to the Core Platform MVP scope and intentionally favors clarity over fine-grained flexibility.
 
@@ -71,6 +79,7 @@ This decision applies only to the Core Platform MVP scope and intentionally favo
 * Authorization remains centralized in the Platform Core and consistent with the project architecture.
 * Self-hosted teams can adopt the MVP without configuring a complex policy system.
 * The design supports Organization and Project membership while keeping operational and implementation complexity low.
+* Project access remains easier to reason about because it is always scoped within an Organization membership boundary.
 * Plugins cannot bypass or redefine Platform Core authorization behavior.
 
 ## Trade-offs
@@ -78,6 +87,7 @@ This decision applies only to the Core Platform MVP scope and intentionally favo
 * Phase 1 cannot express fine-grained per-Asset access control.
 * More advanced enterprise-style authorization requirements are deferred.
 * Later expansion of authorization capabilities may require additional ADRs for inheritance, exceptions or policy composition.
+* Phase 1 cannot model users who belong directly to a Project without belonging to the containing Organization.
 
 These trade-offs are acceptable because OpenPDM currently prioritizes a simple, usable Core Platform MVP over highly flexible access control.
 
@@ -100,6 +110,10 @@ Rejected because it increases ambiguity and implementation risk in the early Pla
 ## Dynamic Policy Engine
 
 Rejected because it introduces a broader policy architecture that is out of scope for Phase 1.
+
+## Standalone Project Membership
+
+Rejected because it weakens the tenancy boundary between Organization and Project scope and adds avoidable ambiguity to the first Core Platform MVP authorization model.
 
 ---
 
