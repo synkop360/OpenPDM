@@ -1,4 +1,4 @@
-# .github/automation/project/project.yaml
+﻿# .github/automation/project/project.yaml
 
 project:
   name: OpenPDM
@@ -27,6 +27,10 @@ labels:
   - name: documentation
     color: "0075CA"
     description: Documentation.
+
+  - name: decision
+    color: "D4C5F9"
+    description: Decision record or unresolved design choice.
 
   - name: refactor
     color: "FBCA04"
@@ -140,6 +144,19 @@ milestones:
 
   - title: Core Platform
     description: Deliver the first usable version of OpenPDM.
+
+  - title: Platform Access and Tenant Foundations
+    description: Deliver Organizations, Projects, Users, Authentication and baseline authorization for the Core Platform MVP.
+
+  - title: Engineering Asset Lifecycle MVP
+    description: Deliver the generic Asset, Revision, Representation and Blob lifecycle for the Core Platform MVP.
+
+  - title: Discoverability and Governance Foundations
+    description: Deliver Metadata, Search, Permissions hardening, Audit and Events for the Core Platform MVP.
+
+  - title: Extension Readiness Foundations
+    description: Deliver minimal plugin infrastructure and generic lifecycle status primitives for later phases.
+
 
   - title: Collaboration
     description: Enable collaborative engineering work.
@@ -980,8 +997,1065 @@ roadmap:
 
   - phase: Core Platform
     milestone: Core Platform
-    description: Deliver the first usable version of OpenPDM.
-    epics: []
+    description: Deliver the first usable version of OpenPDM as a domain-agnostic Engineering Collaboration Platform with secure access, immutable Asset lifecycle management, auditable storage and foundational extension readiness.
+    epics:
+
+      - title: "Phase 1 Epic: Platform Access and Tenant Foundations"
+        body: |
+          ## Objective
+          Establish the access and tenancy foundations required for a usable Core Platform MVP.
+
+          ## Description
+          This epic delivers the first secure entry point into OpenPDM through Organizations, Projects, Users, Authentication and baseline authorization. It must remain domain-agnostic and avoid introducing collaboration features that belong to later phases.
+
+          ## Expected Deliverable
+          A user can authenticate, belong to an Organization, access one or more Projects and interact with the public application API within baseline authorization rules.
+
+          ## Acceptance Criteria
+          - Organizations and Projects exist as Core Platform capabilities.
+          - User identity and authentication behavior are defined and implemented through the public application API.
+          - Baseline authorization exists for the delivered Organization and Project capabilities.
+          - The design remains consistent with the modular monolith and public Platform Module interface rules.
+          - Any unresolved architectural decision is tracked explicitly as an issue instead of being invented during implementation.
+
+          ## Dependencies
+          - Phase 0 foundation
+          - ADR-0001
+          - ADR-0002
+
+          ## Risks
+          - Authentication and user ownership choices are currently underspecified in accepted ADRs.
+          - Authorization could become entangled with future collaboration or workflow requirements if scope is not controlled.
+
+          ## Exit Criteria
+          - A user can sign in through the public application API.
+          - A user can belong to an Organization and access a Project according to baseline authorization rules.
+          - The Core Platform remains domain-agnostic and no engineering-specific semantics are added.
+
+          ## Suggested Labels
+          feature, architecture, core, P1
+        milestone: Platform Access and Tenant Foundations
+        labels:
+          - feature
+          - architecture
+          - core
+          - P1
+        fields:
+          Phase: Core Platform
+          Epic: Platform Access and Tenant Foundations
+          Platform Area: Platform Core
+          Complexity: XL
+          ADR: ADR-0001, ADR-0002
+        sub_issues:
+
+          - title: "Phase 1 Task: Define authentication and user identity model"
+            body: |
+              ## Objective
+              Define the Phase 1 authentication and user identity model before implementation proceeds.
+
+              ## Description
+              Decision made: Phase 1 adopts local authentication first with a user identity model that remains compatible with common OIDC claims.
+
+              The accepted decision covers:
+              - local authentication first;
+              - User, Organization, Membership and Session / Access Token concepts;
+              - minimum user fields: id, email, display_name, is_active, created_at;
+              - compatibility with common OIDC-style claims such as sub, email and name;
+              - explicit deferral of full OIDC protocol support and external identity provider integration.
+
+              This decision is recorded in ADR-0009.
+
+              ## Acceptance Criteria
+              - The decision issue records the accepted authentication approach for Phase 1.
+              - ADR-0009 exists and captures the decision.
+              - The resulting decision preserves API-first access and modular boundaries.
+
+              ## Dependencies
+              - Phase 1 Epic: Platform Access and Tenant Foundations
+
+              ## Suggested Labels
+              architecture, documentation, P1
+            closed: true
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0009
+
+          - title: "Phase 1 Task: Define Organization and Project public interfaces"
+            body: |
+              ## Objective
+              Define the public Platform Module interfaces for Organization and Project capabilities.
+
+              ## Description
+              Clarify which Platform Modules own Organizations and Projects, what their public contracts expose and how other Platform Modules may depend on them without crossing internal boundaries.
+
+              ## Acceptance Criteria
+              - Organization and Project ownership is explicit.
+              - Public module interface boundaries are documented in the issue.
+              - The design does not bypass ADR-0001 or ADR-0002.
+
+              ## Dependencies
+              - Phase 1 Task: Define authentication and user identity model
+
+              ## Suggested Labels
+              architecture, core, P1
+            labels:
+              - architecture
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Phase 1 Task: Implement Organization and Project management API"
+            body: |
+              ## Objective
+              Deliver the public application API for Organizations and Projects.
+
+              ## Description
+              Implement the initial create, read and list flows needed to manage Organizations and Projects in the Core Platform MVP.
+
+              ## Acceptance Criteria
+              - API endpoints exist for the approved Organization and Project scope.
+              - OpenAPI documentation reflects the delivered behavior.
+              - The implementation respects Platform Module ownership and public interface boundaries.
+
+              ## Dependencies
+              - Phase 1 Task: Define Organization and Project public interfaces
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Phase 1 Task: Implement user membership and baseline authorization"
+            body: |
+              ## Objective
+              Deliver user membership and baseline authorization for Organization and Project access.
+
+              ## Description
+              Implement the minimum authorization rules required for the Core Platform MVP, keeping the model simple and explicitly deferring advanced roles and collaboration semantics.
+
+              ## Acceptance Criteria
+              - Users can belong to Organizations.
+              - Project access is gated by baseline authorization rules.
+              - Authorization checks are enforced consistently through the delivered public API.
+
+              ## Dependencies
+              - Phase 1 Task: Define authentication and user identity model
+              - Phase 1 Task: Implement Organization and Project management API
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0009
+
+          - title: "Phase 1 Task: Deliver authentication API and request security baseline"
+            body: |
+              ## Objective
+              Deliver the first authentication surface and request security baseline for OpenPDM.
+
+              ## Description
+              Implement the approved sign-in flow, request authentication handling and failure behavior through the public application API.
+
+              ## Acceptance Criteria
+              - Authentication endpoints and request handling exist for the approved Phase 1 scope.
+              - Unauthorized requests fail predictably.
+              - Authentication behavior is covered by tests and OpenAPI documentation.
+
+              ## Dependencies
+              - Phase 1 Task: Define authentication and user identity model
+
+              ## Suggested Labels
+              feature, test, P1
+            labels:
+              - feature
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0009
+
+      - title: "Phase 1 Epic: Engineering Asset Lifecycle MVP"
+        body: |
+          ## Objective
+          Deliver the generic immutable Engineering Asset lifecycle defined by accepted ADRs.
+
+          ## Description
+          This epic introduces Assets, Revisions, Representations and Blobs as domain-agnostic Core Platform capabilities. It must implement immutable version history and file storage without introducing engineering-specific file understanding.
+
+          ## Expected Deliverable
+          A team can create and manage generic Engineering Assets through the public application API, upload and download Blob-backed files and inspect immutable version history.
+
+          ## Acceptance Criteria
+          - Assets, Revisions, Representations and Blobs are implemented as separate concepts.
+          - Every Asset modification creates a new immutable Revision.
+          - Revisions can own one or more Representations, and Representations can reference Blob content.
+          - Blob content is stored separately from business data through the S3-compatible storage boundary.
+          - No engineering-domain parsing or semantics are introduced in the Platform Core.
+
+          ## Dependencies
+          - ADR-0003
+          - ADR-0005
+          - ADR-0006
+          - Phase 1 Epic: Platform Access and Tenant Foundations
+
+          ## Risks
+          - Revision, Representation and Blob ownership boundaries could blur if the model is implemented too quickly.
+          - Blob persistence consistency between the database and object storage requires explicit error-handling design.
+
+          ## Exit Criteria
+          - Users can create Assets and add immutable Revisions.
+          - Users can upload and download Blob-backed content through the public API.
+          - Version history is visible through Asset and Revision retrieval flows.
+
+          ## Suggested Labels
+          feature, architecture, core, P1
+        milestone: Engineering Asset Lifecycle MVP
+        labels:
+          - feature
+          - architecture
+          - core
+          - P1
+        fields:
+          Phase: Core Platform
+          Epic: Engineering Asset Lifecycle MVP
+          Platform Area: Platform Core
+          Complexity: XL
+          ADR: ADR-0003, ADR-0005, ADR-0006
+        sub_issues:
+
+          - title: "Phase 1 Task: Define Asset lifecycle module boundaries and public interfaces"
+            body: |
+              ## Objective
+              Define the Platform Module ownership and public interfaces for Asset lifecycle behavior.
+
+              ## Description
+              Clarify how Assets, Revisions, Representations and Blobs are owned across Platform Modules and how cross-module access occurs through public contracts only.
+
+              ## Acceptance Criteria
+              - Ownership of Asset lifecycle responsibilities is explicit.
+              - Public interfaces required by dependent modules are identified.
+              - The design remains aligned with ADR-0001, ADR-0002 and ADR-0003.
+
+              ## Dependencies
+              - Phase 1 Epic: Engineering Asset Lifecycle MVP
+
+              ## Suggested Labels
+              architecture, core, P1
+            labels:
+              - architecture
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Engineering Asset Lifecycle MVP
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0001, ADR-0002, ADR-0003
+
+          - title: "Phase 1 Task: Implement Asset and Revision persistence model"
+            body: |
+              ## Objective
+              Deliver database-backed persistence for Assets and immutable Revisions.
+
+              ## Description
+              Implement the initial schema, repositories and application services required to persist generic Assets and their immutable Revision history.
+
+              ## Acceptance Criteria
+              - Asset and Revision persistence exists in PostgreSQL.
+              - Revision immutability is enforced by the application behavior.
+              - Tests cover the expected create and history flows.
+
+              ## Dependencies
+              - Phase 1 Task: Define Asset lifecycle module boundaries and public interfaces
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Engineering Asset Lifecycle MVP
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0003, ADR-0005
+
+          - title: "Phase 1 Task: Implement Representation and Blob reference model"
+            body: |
+              ## Objective
+              Deliver the generic Representation and Blob reference model.
+
+              ## Description
+              Implement the data model and API behavior required for Revisions to expose one or more Representations backed by Blob references.
+
+              ## Acceptance Criteria
+              - Representations are first-class parts of the lifecycle model.
+              - Blob references are distinct from business metadata.
+              - Tests cover Revision to Representation and Blob reference flows.
+
+              ## Dependencies
+              - Phase 1 Task: Implement Asset and Revision persistence model
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Engineering Asset Lifecycle MVP
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0003, ADR-0005, ADR-0006
+
+          - title: "Phase 1 Task: Implement Blob upload and download workflow"
+            body: |
+              ## Objective
+              Deliver file upload and download for Blob-backed Engineering Assets.
+
+              ## Description
+              Implement the storage workflow that writes Blob content through the S3-compatible boundary and exposes upload and download behavior through the public application API.
+
+              ## Acceptance Criteria
+              - Blob upload works through the public API.
+              - Blob download works through the public API.
+              - Failure handling for storage and database coordination is defined and tested.
+
+              ## Dependencies
+              - Phase 1 Task: Implement Representation and Blob reference model
+
+              ## Suggested Labels
+              feature, deployment, test, P1
+            labels:
+              - feature
+              - deployment
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Engineering Asset Lifecycle MVP
+              Platform Area: Infrastructure
+              Complexity: L
+              ADR: ADR-0005, ADR-0006
+
+          - title: "Phase 1 Task: Implement Asset retrieval and version history API"
+            body: |
+              ## Objective
+              Deliver Asset retrieval and immutable version history visibility.
+
+              ## Description
+              Implement the API behavior required to browse Assets, inspect current state and review past Revisions and Representations.
+
+              ## Acceptance Criteria
+              - Asset retrieval endpoints exist for the approved MVP scope.
+              - Version history can be queried through the public API.
+              - Returned data preserves the Asset, Revision, Representation and Blob separation.
+
+              ## Dependencies
+              - Phase 1 Task: Implement Asset and Revision persistence model
+              - Phase 1 Task: Implement Representation and Blob reference model
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Engineering Asset Lifecycle MVP
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0003
+
+      - title: "Phase 1 Epic: Discoverability and Governance Foundations"
+        body: |
+          ## Objective
+          Deliver the minimum discoverability and governance capabilities required for a usable Core Platform MVP.
+
+          ## Description
+          This epic introduces generic Metadata, Search, Permissions hardening, Audit and observable Events. The scope is intentionally limited to Phase 1 needs and must avoid future relationship graph or workflow semantics.
+
+          ## Expected Deliverable
+          Stored Engineering Assets can be enriched with generic metadata, found through basic search, protected by consistent authorization and traced through audit and event records.
+
+          ## Acceptance Criteria
+          - Metadata is handled as a generic Platform Core capability.
+          - Basic search works for delivered Asset scope.
+          - Authorization is hardened beyond baseline access control for delivered APIs.
+          - Significant business actions generate audit records.
+          - Significant business actions emit observable domain events.
+
+          ## Dependencies
+          - Phase 1 Epic: Platform Access and Tenant Foundations
+          - Phase 1 Epic: Engineering Asset Lifecycle MVP
+          - ADR-0001
+          - ADR-0002
+          - ADR-0003
+
+          ## Risks
+          - Search and metadata could accidentally introduce engineering semantics.
+          - Audit and event scope could become too broad if not bounded to delivered business actions.
+
+          ## Exit Criteria
+          - Users can search and retrieve Assets using generic criteria.
+          - Metadata behavior is available for delivered Asset scope.
+          - Audit and event traces exist for the significant Phase 1 actions.
+          - Authorization checks are applied consistently across delivered APIs.
+
+          ## Suggested Labels
+          feature, architecture, core, P1
+        milestone: Discoverability and Governance Foundations
+        labels:
+          - feature
+          - architecture
+          - core
+          - P1
+        fields:
+          Phase: Core Platform
+          Epic: Discoverability and Governance Foundations
+          Platform Area: Platform Core
+          Complexity: XL
+          ADR: ADR-0001, ADR-0002, ADR-0003
+        sub_issues:
+
+          - title: "Phase 1 Task: Define generic metadata model for Phase 1"
+            body: |
+              ## Objective
+              Define the generic metadata model required for the Core Platform MVP.
+
+              ## Description
+              Open a decision issue to clarify the initial metadata scope, ownership boundary and update rules while preserving a domain-agnostic Platform Core.
+
+              ## Acceptance Criteria
+              - Metadata scope for Phase 1 is explicit.
+              - The issue records what is intentionally deferred.
+              - The decision does not introduce engineering-domain knowledge.
+
+              ## Dependencies
+              - Phase 1 Epic: Discoverability and Governance Foundations
+
+              ## Suggested Labels
+              architecture, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Deliver metadata API for Assets and Revisions"
+            body: |
+              ## Objective
+              Deliver metadata read and write behavior for the approved Phase 1 scope.
+
+              ## Description
+              Implement generic metadata management through the public application API for the Asset lifecycle capabilities delivered in Phase 1.
+
+              ## Acceptance Criteria
+              - Metadata can be read and updated through the public API for the approved scope.
+              - Metadata behavior remains generic and domain-agnostic.
+              - Tests cover allowed and disallowed metadata operations.
+
+              ## Dependencies
+              - Phase 1 Task: Define generic metadata model for Phase 1
+              - Phase 1 Task: Implement Asset and Revision persistence model
+
+              ## Suggested Labels
+              feature, core, P1
+            labels:
+              - feature
+              - core
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Define basic search scope and indexing strategy"
+            body: |
+              ## Objective
+              Define the minimal search scope that Phase 1 must support.
+
+              ## Description
+              Open a decision issue that clarifies which fields are searchable in Phase 1, which results are returned and how the implementation avoids prematurely coupling the Platform Core to future search architecture.
+
+              ## Acceptance Criteria
+              - Searchable entities and fields are explicit.
+              - Deferred search capabilities are listed.
+              - The issue identifies whether an ADR is required for the chosen implementation path.
+
+              ## Dependencies
+              - Phase 1 Epic: Discoverability and Governance Foundations
+
+              ## Suggested Labels
+              architecture, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Implement basic search for delivered Asset scope"
+            body: |
+              ## Objective
+              Deliver the basic search capability required by the Core Platform MVP.
+
+              ## Description
+              Implement the approved search behavior for Organizations, Projects and Engineering Assets within the delivered Phase 1 scope.
+
+              ## Acceptance Criteria
+              - Basic search is available through the public API.
+              - Search results respect authorization.
+              - Search behavior is documented and tested.
+
+              ## Dependencies
+              - Phase 1 Task: Define basic search scope and indexing strategy
+              - Phase 1 Task: Implement Asset and Revision persistence model
+
+              ## Suggested Labels
+              feature, test, P1
+            labels:
+              - feature
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: TBD
+
+          - title: "Phase 1 Task: Define Phase 1 permission model"
+            body: |
+              ## Objective
+              Define the permission model required for consistent Phase 1 authorization.
+
+              ## Description
+              Open a decision issue that clarifies permission ownership, inheritance and enforcement across Organizations, Projects, Assets and Revisions. If the decision affects stable architecture, it should lead to a new ADR.
+
+              ## Acceptance Criteria
+              - Permission model scope is explicit for Phase 1.
+              - The issue records what is deferred to later phases.
+              - The issue identifies whether a new ADR is required.
+
+              ## Dependencies
+              - Phase 1 Task: Define authentication and user identity model
+              - Phase 1 Task: Define Organization and Project public interfaces
+
+              ## Suggested Labels
+              architecture, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Implement permission enforcement across delivered APIs"
+            body: |
+              ## Objective
+              Enforce the approved permission model across the delivered Phase 1 API surface.
+
+              ## Description
+              Harden authorization checks for Organization, Project, Asset, Revision, Representation and Blob-related operations included in the Core Platform MVP.
+
+              ## Acceptance Criteria
+              - Delivered API operations enforce the approved permission model.
+              - Permission failures are predictable and testable.
+              - Enforcement remains aligned with Platform Module boundaries.
+
+              ## Dependencies
+              - Phase 1 Task: Define Phase 1 permission model
+              - Phase 1 Task: Implement user membership and baseline authorization
+              - Phase 1 Task: Implement Asset retrieval and version history API
+
+              ## Suggested Labels
+              feature, test, P1
+            labels:
+              - feature
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: TBD
+
+          - title: "Phase 1 Task: Implement audit log for significant Phase 1 actions"
+            body: |
+              ## Objective
+              Deliver audit logging for significant business actions introduced in Phase 1.
+
+              ## Description
+              Implement audit record creation for security-relevant and business-relevant actions in the delivered Core Platform MVP scope.
+
+              ## Acceptance Criteria
+              - Significant Phase 1 actions produce audit records.
+              - Audit records are queryable through the approved Phase 1 scope.
+              - Tests cover the expected audit behavior for major flows.
+
+              ## Dependencies
+              - Phase 1 Task: Implement user membership and baseline authorization
+              - Phase 1 Task: Implement Blob upload and download workflow
+
+              ## Suggested Labels
+              feature, test, P1
+            labels:
+              - feature
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0001
+
+          - title: "Phase 1 Task: Implement domain events for significant Phase 1 actions"
+            body: |
+              ## Objective
+              Deliver observable domain events for significant business actions introduced in Phase 1.
+
+              ## Description
+              Implement the event emission baseline required for future observability and extension scenarios, limited to the delivered Phase 1 behavior.
+
+              ## Acceptance Criteria
+              - Significant Phase 1 actions emit domain events.
+              - Event payloads remain generic and domain-agnostic.
+              - The issue records what event behaviors are intentionally deferred.
+
+              ## Dependencies
+              - Phase 1 Task: Implement audit log for significant Phase 1 actions
+
+              ## Suggested Labels
+              feature, architecture, P2
+            labels:
+              - feature
+              - architecture
+              - P2
+            fields:
+              Phase: Core Platform
+              Epic: Discoverability and Governance Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0001, ADR-0002
+
+      - title: "Phase 1 Epic: Extension Readiness Foundations"
+        body: |
+          ## Objective
+          Prepare the Core Platform MVP for later plugin and workflow phases without introducing engineering-specific behavior.
+
+          ## Description
+          This epic establishes the minimal plugin infrastructure plumbing and generic lifecycle status primitives that later phases will build upon. It must not introduce privileged plugin access, unsupported SDK promises or configurable engineering workflows ahead of the roadmap.
+
+          ## Expected Deliverable
+          The Core Platform contains a minimal Extension API direction, plugin integration placeholders and generic lifecycle status behavior suitable for later roadmap phases.
+
+          ## Acceptance Criteria
+          - The Phase 1 extension readiness scope is explicitly defined.
+          - The design does not grant privileged access to Official Plugins.
+          - Generic lifecycle status primitives exist only for the approved MVP scope.
+          - Future plugin and workflow behavior is tracked without being implemented early.
+
+          ## Dependencies
+          - ADR-0002
+          - Phase 1 Epic: Engineering Asset Lifecycle MVP
+          - Phase 1 Epic: Discoverability and Governance Foundations
+
+          ## Risks
+          - Plugin infrastructure could promise more stability than the current docs support.
+          - Lifecycle status work could drift into workflow engine design that belongs to Phase 6.
+
+          ## Exit Criteria
+          - A minimal extension-readiness direction exists in issues and delivered scope.
+          - Generic lifecycle status behavior for delivered Assets is available if approved.
+          - Deferred plugin and workflow decisions are explicitly tracked.
+
+          ## Suggested Labels
+          architecture, plugin, core, P2
+        milestone: Extension Readiness Foundations
+        labels:
+          - architecture
+          - plugin
+          - core
+          - P2
+        fields:
+          Phase: Core Platform
+          Epic: Extension Readiness Foundations
+          Platform Area: Extension API
+          Complexity: L
+          ADR: ADR-0002
+        sub_issues:
+
+          - title: "Phase 1 Task: Define minimal Phase 1 plugin infrastructure scope"
+            body: |
+              ## Objective
+              Define what plugin infrastructure is actually in scope for Phase 1.
+
+              ## Description
+              Open a decision issue that clarifies the minimum extension-readiness behavior that should be present in the Core Platform MVP, and what plugin lifecycle, SDK and runtime capabilities are explicitly deferred to Phase 4.
+
+              ## Acceptance Criteria
+              - The minimal Phase 1 plugin infrastructure scope is explicit.
+              - Deferred plugin capabilities are listed clearly.
+              - The issue identifies whether a new ADR is required.
+
+              ## Dependencies
+              - Phase 1 Epic: Extension Readiness Foundations
+
+              ## Suggested Labels
+              architecture, plugin, documentation, P1
+            labels:
+              - architecture
+              - plugin
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Extension Readiness Foundations
+              Platform Area: Extension API
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Define generic lifecycle status primitive scope"
+            body: |
+              ## Objective
+              Define the generic lifecycle status behavior allowed in Phase 1.
+
+              ## Description
+              Open a decision issue that clarifies whether Phase 1 should include a minimal status primitive for Assets or Revisions, who owns it and what remains deferred to Engineering Workflows in Phase 6.
+
+              ## Acceptance Criteria
+              - Status primitive scope is explicit.
+              - Deferred workflow capabilities are listed clearly.
+              - The decision preserves the roadmap boundary with Phase 6.
+
+              ## Dependencies
+              - Phase 1 Epic: Extension Readiness Foundations
+
+              ## Suggested Labels
+              architecture, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Extension Readiness Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Implement minimal extension registration and configuration boundary"
+            body: |
+              ## Objective
+              Deliver the minimum extension-readiness boundary approved for Phase 1.
+
+              ## Description
+              Implement only the approved placeholder or registration behavior required to keep future Extension API work on a stable path without delivering a full plugin runtime early.
+
+              ## Acceptance Criteria
+              - The delivered behavior matches the approved minimal scope.
+              - No privileged internal APIs are introduced for Official Plugins.
+              - Documentation states which extension behaviors are not yet supported.
+
+              ## Dependencies
+              - Phase 1 Task: Define minimal Phase 1 plugin infrastructure scope
+
+              ## Suggested Labels
+              feature, plugin, P2
+            labels:
+              - feature
+              - plugin
+              - P2
+            fields:
+              Phase: Core Platform
+              Epic: Extension Readiness Foundations
+              Platform Area: Extension API
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 1 Task: Implement generic lifecycle status primitive"
+            body: |
+              ## Objective
+              Deliver the approved generic lifecycle status primitive for Phase 1.
+
+              ## Description
+              Implement the approved status behavior for the Asset lifecycle scope while explicitly deferring configurable workflow logic to Phase 6.
+
+              ## Acceptance Criteria
+              - Status behavior exists for the approved Phase 1 scope.
+              - The implementation remains generic and domain-agnostic.
+              - Tests cover allowed state changes and deferred behaviors.
+
+              ## Dependencies
+              - Phase 1 Task: Define generic lifecycle status primitive scope
+              - Phase 1 Task: Implement Asset and Revision persistence model
+
+              ## Suggested Labels
+              feature, core, test, P2
+            labels:
+              - feature
+              - core
+              - test
+              - P2
+            fields:
+              Phase: Core Platform
+              Epic: Extension Readiness Foundations
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+      - title: "Phase 1 Epic: Core Platform MVP Web UI"
+        body: |
+          ## Objective
+          Expose the delivered Core Platform MVP capabilities through the Web UI as a normal API consumer.
+
+          ## Description
+          This epic provides the minimum Web UI surface required to demonstrate and use the delivered Phase 1 public application API. The Web UI must not bypass authorization or depend on Platform Module internals.
+
+          ## Expected Deliverable
+          A basic Web UI that supports authentication, Project selection, Engineering Asset browsing, upload and version history for the approved Phase 1 scope.
+
+          ## Acceptance Criteria
+          - The Web UI consumes the public application API only.
+          - Authentication state is represented in the UI for the approved Phase 1 scope.
+          - Users can navigate Organizations, Projects and Engineering Assets delivered in Phase 1.
+          - Users can upload files and inspect version history through the UI.
+          - UI behavior matches delivered backend capability and does not promise future roadmap features early.
+
+          ## Dependencies
+          - ADR-0007
+          - Phase 1 Epic: Platform Access and Tenant Foundations
+          - Phase 1 Epic: Engineering Asset Lifecycle MVP
+          - Phase 1 Epic: Discoverability and Governance Foundations
+
+          ## Risks
+          - The UI could accidentally imply unsupported workflow, graph or collaboration features.
+          - Frontend state and API contracts could drift without clear OpenAPI-driven alignment.
+
+          ## Exit Criteria
+          - A user can use the Web UI to exercise the delivered Phase 1 MVP path.
+          - The UI remains a normal API consumer with no privileged access.
+
+          ## Suggested Labels
+          feature, frontend, P1
+        milestone: Core Platform
+        labels:
+          - feature
+          - frontend
+          - P1
+        fields:
+          Phase: Core Platform
+          Epic: Core Platform MVP Web UI
+          Platform Area: Frontend
+          Complexity: L
+          ADR: ADR-0007
+        sub_issues:
+
+          - title: "Phase 1 Task: Define Core Platform MVP Web UI scope"
+            body: |
+              ## Objective
+              Define the minimum Web UI scope required to demonstrate Phase 1.
+
+              ## Description
+              Clarify which user journeys must exist in the Web UI for the Core Platform MVP and which journeys remain API-only or are deferred.
+
+              ## Acceptance Criteria
+              - Required Phase 1 UI journeys are explicit.
+              - Deferred UI behavior is listed clearly.
+              - The UI scope remains aligned with the delivered backend capabilities.
+
+              ## Dependencies
+              - Phase 1 Epic: Core Platform MVP Web UI
+
+              ## Suggested Labels
+              documentation, frontend, P2
+            labels:
+              - documentation
+              - frontend
+              - P2
+            fields:
+              Phase: Core Platform
+              Epic: Core Platform MVP Web UI
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0007
+
+          - title: "Phase 1 Task: Implement authentication and session handling in the Web UI"
+            body: |
+              ## Objective
+              Deliver the Web UI authentication flow for the approved Phase 1 scope.
+
+              ## Description
+              Implement the user-facing sign-in experience and authenticated request handling using the delivered public application API.
+
+              ## Acceptance Criteria
+              - Users can sign in through the Web UI using the approved backend flow.
+              - Authenticated and unauthenticated states are represented clearly.
+              - The UI does not bypass the backend authorization model.
+
+              ## Dependencies
+              - Phase 1 Task: Deliver authentication API and request security baseline
+              - Phase 1 Task: Define Core Platform MVP Web UI scope
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Core Platform MVP Web UI
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007, ADR-0009
+
+          - title: "Phase 1 Task: Implement Organization and Project navigation in the Web UI"
+            body: |
+              ## Objective
+              Deliver the Web UI flows for Organization and Project access.
+
+              ## Description
+              Implement the views and navigation needed for users to select Organizations and Projects within the delivered Phase 1 scope.
+
+              ## Acceptance Criteria
+              - Users can reach their Organizations and Projects through the Web UI.
+              - Navigation reflects authorization constraints from the backend.
+              - The UI remains consistent with the MVP scope.
+
+              ## Dependencies
+              - Phase 1 Task: Implement Organization and Project management API
+              - Phase 1 Task: Implement authentication and session handling in the Web UI
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Core Platform MVP Web UI
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
+
+          - title: "Phase 1 Task: Implement Asset browsing and version history in the Web UI"
+            body: |
+              ## Objective
+              Deliver the Web UI flows for browsing Engineering Assets and inspecting version history.
+
+              ## Description
+              Implement the views needed to list Assets, inspect Asset details and review immutable Revisions and Representations in the delivered MVP scope.
+
+              ## Acceptance Criteria
+              - Users can browse Assets and inspect version history through the Web UI.
+              - UI data matches the delivered backend lifecycle model.
+              - The UI does not add engineering-specific semantics.
+
+              ## Dependencies
+              - Phase 1 Task: Implement Asset retrieval and version history API
+              - Phase 1 Task: Implement Organization and Project navigation in the Web UI
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Core Platform MVP Web UI
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
+
+          - title: "Phase 1 Task: Implement file upload and download flows in the Web UI"
+            body: |
+              ## Objective
+              Deliver the Web UI file transfer flows for Blob-backed Engineering Assets.
+
+              ## Description
+              Implement upload and download interactions that use the delivered public API for Blob-backed content.
+
+              ## Acceptance Criteria
+              - Users can upload files through the Web UI for the approved MVP scope.
+              - Users can download files through the Web UI for the approved MVP scope.
+              - Error handling reflects backend failure behavior clearly.
+
+              ## Dependencies
+              - Phase 1 Task: Implement Blob upload and download workflow
+              - Phase 1 Task: Implement Asset browsing and version history in the Web UI
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Core Platform MVP Web UI
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
 
   - phase: Collaboration
     milestone: Collaboration
