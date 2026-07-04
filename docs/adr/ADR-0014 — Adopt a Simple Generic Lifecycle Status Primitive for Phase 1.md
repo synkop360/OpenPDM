@@ -87,3 +87,4 @@ Rejected because configurable transitions and approvals belong to the later Engi
 # Review
 
 This decision should be revisited when OpenPDM introduces the Engineering Workflows phase and needs configurable lifecycle transitions, approvals or richer process-driven state management.
+

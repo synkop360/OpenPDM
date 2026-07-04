@@ -95,3 +95,4 @@ Rejected because even limited execution introduces lifecycle, security and compa
 # Review
 
 This decision should be revisited when OpenPDM enters the Plugin Platform phase and needs executable plugins, lifecycle management, isolation or distribution capabilities beyond the Phase 1 boundary skeleton.
+
