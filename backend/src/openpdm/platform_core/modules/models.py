@@ -128,9 +128,13 @@ class Blob(Base):
     media_type: Mapped[str] = mapped_column(String(255))
     size_bytes: Mapped[int] = mapped_column(Integer)
     checksum_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )
+
+    created_by: Mapped[User] = relationship()
+    representations: Mapped[list["Representation"]] = relationship(back_populates="blob")
 
 
 class Asset(Base):
@@ -196,7 +200,7 @@ class Representation(Base):
     )
 
     revision: Mapped[Revision] = relationship(back_populates="representations")
-    blob: Mapped[Blob | None] = relationship()
+    blob: Mapped[Blob | None] = relationship(back_populates="representations")
 
 
 class MetadataEntry(Base):

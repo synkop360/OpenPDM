@@ -11,6 +11,7 @@ from openpdm.platform_core.modules.models import (
     AuditRecord,
     DomainEvent,
     NotificationRecord,
+    PluginRecord,
     ProjectMembership,
     User,
 )
@@ -153,6 +154,10 @@ def test_asset_lifecycle_blob_and_metadata_flow(tmp_path: Path) -> None:
         headers=auth_header(token),
         files={"file": ("wing.step", b"solid-data", "application/step")},
     ).json()
+    own_blob_download = client.get(f"/blobs/{blob['id']}/download", headers=auth_header(token))
+    assert own_blob_download.status_code == 200
+    assert own_blob_download.content == b"solid-data"
+
     representation = client.post(
         f"/revisions/{revision['id']}/representations",
         headers=auth_header(token),
@@ -185,7 +190,90 @@ def test_asset_lifecycle_blob_and_metadata_flow(tmp_path: Path) -> None:
     assert blob_download.content == b"solid-data"
 
 
-def test_search_and_plugin_registry_flow(tmp_path: Path) -> None:
+def test_blob_download_requires_access_to_the_linked_project(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client,
+        email="blob-owner@example.com",
+        display_name="Blob Owner",
+        password="secret123",
+    )
+    other_token = register_and_sign_in(
+        client,
+        email="blob-other@example.com",
+        display_name="Blob Other",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-blob-access"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
+    ).json()
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Wing", "description": "Main wing"},
+    ).json()
+    revision = client.post(
+        f"/assets/{asset['id']}/revisions",
+        headers=auth_header(owner_token),
+        json={"comment": "Initial release"},
+    ).json()
+    blob = client.post(
+        "/blobs/uploads",
+        headers=auth_header(owner_token),
+        files={"file": ("wing.step", b"solid-data", "application/step")},
+    ).json()
+    assert (
+        client.post(
+            f"/revisions/{revision['id']}/representations",
+            headers=auth_header(owner_token),
+            json={"name": "native", "media_type": "application/step", "blob_id": blob["id"]},
+        ).status_code
+        == 201
+    )
+
+    unauthorized_download = client.get(
+        f"/blobs/{blob['id']}/download",
+        headers=auth_header(other_token),
+    )
+    assert unauthorized_download.status_code == 403
+
+
+def test_blob_upload_normalizes_filename_and_keeps_local_storage_within_bucket(
+    tmp_path: Path,
+) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="blob-sanitize@example.com",
+        display_name="Blob Sanitizer",
+        password="secret123",
+    )
+
+    blob = client.post(
+        "/blobs/uploads",
+        headers=auth_header(token),
+        files={"file": ("safe/../../../../../escape.txt", b"escape-data", "text/plain")},
+    ).json()
+
+    assert blob["filename"] == "escape.txt"
+    assert ".." not in blob["storage_key"]
+
+    bucket_root = (tmp_path / "blobs" / "openpdm-blobs").resolve()
+    stored_path = (bucket_root / blob["storage_key"]).resolve()
+    assert stored_path.is_file()
+    assert stored_path.read_bytes() == b"escape-data"
+    assert stored_path.is_relative_to(bucket_root)
+
+
+def test_search_and_plugin_registry_is_read_only_in_phase_1(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     token = register_and_sign_in(
         client,
@@ -228,7 +316,7 @@ def test_search_and_plugin_registry_flow(tmp_path: Path) -> None:
     assert search.status_code == 200
     assert search.json()[0]["id"] == asset["id"]
 
-    plugin = client.post(
+    read_only_write = client.post(
         "/plugins",
         headers=auth_header(token),
         json={
@@ -239,15 +327,32 @@ def test_search_and_plugin_registry_flow(tmp_path: Path) -> None:
             "capabilities": [],
         },
     )
-    assert plugin.status_code == 201
+    assert read_only_write.status_code == 403
+    assert "read-only" in read_only_write.json()["detail"]
+
+    with session_scope() as db:
+        db.add(
+            PluginRecord(
+                id="org.openpdm.sample",
+                name="Sample Provider",
+                version="0.1.0",
+                plugin_type="official",
+                capabilities=[],
+                enabled=True,
+            )
+        )
+
+    listed_plugins = client.get("/plugins", headers=auth_header(token))
+    assert listed_plugins.status_code == 200
+    assert listed_plugins.json()[0]["id"] == "org.openpdm.sample"
 
     plugin_state = client.post(
         "/plugins/org.openpdm.sample/state",
         headers=auth_header(token),
         json={"enabled": False},
     )
-    assert plugin_state.status_code == 200
-    assert plugin_state.json()["enabled"] is False
+    assert plugin_state.status_code == 403
+    assert "read-only" in plugin_state.json()["detail"]
 
 
 def test_sign_out_revokes_session(tmp_path: Path) -> None:

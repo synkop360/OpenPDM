@@ -40,13 +40,21 @@ class LocalFileBlobStorage(BlobStorage):
         self._base_path = Path(root).resolve() / bucket
         self._base_path.mkdir(parents=True, exist_ok=True)
 
+    def _resolve_target(self, storage_key: str) -> Path:
+        target = (self._base_path / storage_key).resolve()
+        try:
+            target.relative_to(self._base_path)
+        except ValueError as exc:
+            raise ValueError("Blob storage key escapes the configured bucket root.") from exc
+        return target
+
     def put_bytes(self, storage_key: str, content: bytes, media_type: str | None = None) -> None:
-        target = self._base_path / storage_key
+        target = self._resolve_target(storage_key)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
 
     def get_bytes(self, storage_key: str) -> bytes:
-        target = self._base_path / storage_key
+        target = self._resolve_target(storage_key)
         return target.read_bytes()
 
 
