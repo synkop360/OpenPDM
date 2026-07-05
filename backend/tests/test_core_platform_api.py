@@ -7,7 +7,13 @@ from sqlalchemy import select
 
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
 from openpdm.infrastructure.database import dispose_engines, session_scope
-from openpdm.platform_core.modules.models import AuditRecord, DomainEvent, NotificationRecord
+from openpdm.platform_core.modules.models import (
+    AuditRecord,
+    DomainEvent,
+    NotificationRecord,
+    ProjectMembership,
+    User,
+)
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -627,6 +633,80 @@ def test_stale_lock_when_owner_loses_write_role(tmp_path: Path) -> None:
     assert force_unlock.json()["state"] == "available"
 
 
+def test_stale_lock_when_owner_is_inactive(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client,
+        email="owner-inactive@example.com",
+        display_name="Owner",
+        password="secret123",
+    )
+    maintainer_token = register_and_sign_in(
+        client,
+        email="maintainer-inactive@example.com",
+        display_name="Maintainer",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-stale-inactive"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
+    ).json()
+    maintainer_user = client.get("/auth/session", headers=auth_header(maintainer_token)).json()["user"]
+
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": maintainer_user["id"], "role": "Maintainer"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/projects/{project['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": maintainer_user["id"], "role": "Maintainer"},
+        ).status_code
+        == 200
+    )
+
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Nacelle", "description": "Engine nacelle"},
+    ).json()
+    owner_user = client.get("/auth/session", headers=auth_header(owner_token)).json()["user"]
+
+    assert client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)).status_code == 200
+
+    with session_scope() as db:
+        persisted_owner = db.get(User, owner_user["id"])
+        assert persisted_owner is not None
+        persisted_owner.is_active = False
+
+    stale_state = client.get(
+        f"/assets/{asset['id']}/collaboration-state",
+        headers=auth_header(maintainer_token),
+    )
+    assert stale_state.status_code == 200
+    assert stale_state.json()["state"] == "stale_lock"
+
+    force_unlock = client.post(
+        f"/assets/{asset['id']}/unlock",
+        headers=auth_header(maintainer_token),
+        json={"force": True},
+    )
+    assert force_unlock.status_code == 200
+    assert force_unlock.json()["state"] == "available"
+
+
 def test_collaboration_notifications_are_generated_visible_and_mark_read(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     owner_token = register_and_sign_in(
@@ -721,6 +801,20 @@ def test_collaboration_notifications_are_generated_visible_and_mark_read(tmp_pat
     member_notifications = client.get("/notifications", headers=auth_header(member_token))
     assert member_notifications.status_code == 200
     assert "revision.created" in [item["event_type"] for item in member_notifications.json()]
+
+    with session_scope() as db:
+        membership = db.scalar(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == project["id"],
+                ProjectMembership.user_id == member_user["id"],
+            )
+        )
+        assert membership is not None
+        db.delete(membership)
+
+    hidden_notifications = client.get("/notifications", headers=auth_header(member_token))
+    assert hidden_notifications.status_code == 200
+    assert hidden_notifications.json() == []
 
     with session_scope() as db:
         persisted = list(

@@ -59,6 +59,24 @@ The Phase 0 API is available at:
 * `http://localhost:8000/foundation`
 * `http://localhost:8000/docs`
 
+The delivered Phase 2 collaboration API now includes:
+
+* `GET /assets/{id}/collaboration-state`
+* `POST /assets/{id}/checkout`
+* `POST /assets/{id}/checkin`
+* `POST /assets/{id}/unlock`
+* `GET /assets/{id}/timeline`
+* `GET /notifications`
+* `POST /notifications/{id}/read`
+
+Notification behavior stays within the approved v1 scope:
+
+* notifications are in-app only;
+* recipients are derived from current readable Project membership;
+* successful collaboration events do not notify the acting user;
+* `conflict detected` notifications target only the acting user;
+* notifications remain visible after they are marked as read.
+
 ## Run the Web UI
 
 ```bash
