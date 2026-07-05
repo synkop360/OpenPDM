@@ -256,3 +256,190 @@ def test_sign_out_revokes_session(tmp_path: Path) -> None:
 
     after_sign_out = client.get("/auth/session", headers=auth_header(token))
     assert after_sign_out.status_code == 401
+
+
+def test_collaboration_checkout_checkin_unlock_and_timeline_flow(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client,
+        email="owner@example.com",
+        display_name="Owner",
+        password="secret123",
+    )
+    other_token = register_and_sign_in(
+        client,
+        email="other@example.com",
+        display_name="Other",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-collab"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
+    ).json()
+    other_user = client.get("/auth/session", headers=auth_header(other_token)).json()["user"]
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": other_user["id"], "role": "Contributor"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/projects/{project['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": other_user["id"], "role": "Contributor"},
+        ).status_code
+        == 200
+    )
+
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Wing", "description": "Main wing"},
+    ).json()
+    blob = client.post(
+        "/blobs/uploads",
+        headers=auth_header(owner_token),
+        files={"file": ("wing.step", b"solid-data", "application/step")},
+    ).json()
+
+    initial_state = client.get(
+        f"/assets/{asset['id']}/collaboration-state",
+        headers=auth_header(owner_token),
+    )
+    assert initial_state.status_code == 200
+    assert initial_state.json()["state"] == "available"
+
+    checkout = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token))
+    assert checkout.status_code == 200
+    assert checkout.json()["state"] == "locked"
+    assert checkout.json()["lock"]["owner_user_id"] == client.get(
+        "/auth/session", headers=auth_header(owner_token)
+    ).json()["user"]["id"]
+
+    locked_conflict = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(other_token))
+    assert locked_conflict.status_code == 409
+    assert locked_conflict.json()["detail"]["code"] == "asset_locked"
+
+    no_lock_checkin = client.post(
+        f"/assets/{asset['id']}/checkin",
+        headers=auth_header(other_token),
+        json={"comment": "Trying anyway", "representations": []},
+    )
+    assert no_lock_checkin.status_code == 409
+    assert no_lock_checkin.json()["detail"]["code"] == "checkin_by_non_owner"
+
+    checkin = client.post(
+        f"/assets/{asset['id']}/checkin",
+        headers=auth_header(owner_token),
+        json={
+            "comment": "Updated wing geometry",
+            "representations": [
+                {"name": "native", "media_type": "application/step", "blob_id": blob["id"]}
+            ],
+        },
+    )
+    assert checkin.status_code == 201
+    assert checkin.json()["comment"] == "Updated wing geometry"
+    assert checkin.json()["number"] == 1
+    assert checkin.json()["representations"][0]["blob_id"] == blob["id"]
+
+    available_again = client.get(
+        f"/assets/{asset['id']}/collaboration-state",
+        headers=auth_header(owner_token),
+    )
+    assert available_again.status_code == 200
+    assert available_again.json()["state"] == "available"
+    assert available_again.json()["lock"] is None
+
+    second_checkout = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token))
+    assert second_checkout.status_code == 200
+
+    unlock_by_other = client.post(
+        f"/assets/{asset['id']}/unlock",
+        headers=auth_header(other_token),
+        json={"force": False},
+    )
+    assert unlock_by_other.status_code == 403
+    assert unlock_by_other.json()["detail"]["code"] == "unlock_not_allowed"
+
+    force_unlock = client.post(
+        f"/assets/{asset['id']}/unlock",
+        headers=auth_header(owner_token),
+        json={"force": True},
+    )
+    assert force_unlock.status_code == 200
+    assert force_unlock.json()["state"] == "available"
+
+    timeline = client.get(f"/assets/{asset['id']}/timeline", headers=auth_header(owner_token))
+    assert timeline.status_code == 200
+    event_types = {entry["event_type"] for entry in timeline.json()}
+    assert "AssetCreated" in event_types
+    assert "AssetLocked" in event_types
+    assert "CheckInCompleted" in event_types
+    assert "ForceUnlocked" in event_types or "AssetUnlocked" in event_types
+
+
+def test_collaboration_requires_comment_and_rejects_archived_asset_checkin(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="builder@example.com",
+        display_name="Builder",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(token),
+        json={"name": "Acme", "slug": "acme-archived"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
+    ).json()
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "Tail", "description": "Tail"},
+    ).json()
+
+    assert client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(token)).status_code == 200
+
+    missing_comment = client.post(
+        f"/assets/{asset['id']}/checkin",
+        headers=auth_header(token),
+        json={"comment": "", "representations": []},
+    )
+    assert missing_comment.status_code == 400
+
+    assert (
+        client.post(
+            f"/assets/{asset['id']}/status",
+            headers=auth_header(token),
+            json={"status": "archived"},
+        ).status_code
+        == 200
+    )
+
+    archived_checkin = client.post(
+        f"/assets/{asset['id']}/checkin",
+        headers=auth_header(token),
+        json={"comment": "Archived change", "representations": []},
+    )
+    assert archived_checkin.status_code == 409
+    assert archived_checkin.json()["detail"]["code"] == "asset_archived"
+
+    state = client.get(f"/assets/{asset['id']}/collaboration-state", headers=auth_header(token))
+    assert state.status_code == 200
+    assert state.json()["state"] == "stale_lock"

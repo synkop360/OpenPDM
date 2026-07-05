@@ -2714,6 +2714,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: L
               ADR: ADR-0017
+            closed: true
 
           - title: "Phase 2 Task: Document deferred collaboration capabilities beyond v1"
             body: |
@@ -2861,6 +2862,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: L
               ADR: ADR-0018
+            closed: true
 
           - title: "Phase 2 Task: Enforce concurrency protection on collaboration write paths"
             body: |
@@ -2890,6 +2892,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0018, ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Expose lock state through delivered read APIs"
             body: |
@@ -2920,6 +2923,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0018, ADR-0019
+            closed: true
 
       - title: "Phase 2 Epic: Web UI Collaboration Controls"
         body: |
@@ -3213,6 +3217,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0020
+            closed: true
 
           - title: "Phase 2 Task: Expose revision comments in the Web UI"
             body: |
@@ -3359,6 +3364,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0020
+            closed: true
 
           - title: "Phase 2 Task: Expose collaboration activity timeline in the Web UI"
             body: |
@@ -3809,6 +3815,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Standardize collaboration conflict API responses"
             body: |
@@ -3839,6 +3846,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0019, ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Surface collaboration conflict feedback in the Web UI"
             body: |

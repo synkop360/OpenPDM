@@ -155,6 +155,9 @@ class Asset(Base):
     revisions: Mapped[list["Revision"]] = relationship(
         back_populates="asset", cascade="all, delete-orphan"
     )
+    collaboration_lock: Mapped["AssetCollaborationLock | None"] = relationship(
+        back_populates="asset", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class Revision(Base):
@@ -214,6 +217,22 @@ class MetadataEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )
+
+
+class AssetCollaborationLock(Base):
+    """Active collaboration lock for a Phase 2 Asset workflow."""
+
+    __tablename__ = "asset_collaboration_locks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), unique=True, index=True)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    asset: Mapped[Asset] = relationship(back_populates="collaboration_lock")
+    owner: Mapped[User] = relationship()
 
 
 class AuditRecord(Base):

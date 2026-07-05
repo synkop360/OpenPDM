@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.platform_core.modules.models import (
     Asset,
+    AssetCollaborationLock,
     AuditRecord,
     Blob,
     DomainEvent,
@@ -44,10 +45,21 @@ PROJECT_PERMISSION_ROLES = {
 ALLOWED_STATUSES = {"draft", "active", "archived"}
 ALLOWED_METADATA_TYPES = {"string", "number", "boolean", "date", "json"}
 ALLOWED_PLUGIN_TYPES = {"official", "community"}
+COLLABORATION_STATES = {"available", "locked", "stale_lock"}
+FORCE_UNLOCK_ROLES = {"Owner", "Maintainer"}
 METADATA_TARGET_FIELDS = {
     "asset": "asset_id",
     "revision": "revision_id",
     "representation": "representation_id",
+}
+TIMELINE_EVENT_MAP = {
+    "asset.created": "AssetCreated",
+    "asset.checked_out": "AssetLocked",
+    "asset.unlocked": "AssetUnlocked",
+    "asset.force_unlocked": "ForceUnlocked",
+    "revision.created": "RevisionCreated",
+    "asset.checked_in": "CheckInCompleted",
+    "collaboration.conflict_detected": "ConflictDetected",
 }
 
 
@@ -81,6 +93,20 @@ def require(condition: bool, message: str, code: int = status.HTTP_400_BAD_REQUE
     """Raise an HTTPException when a precondition fails."""
     if not condition:
         raise HTTPException(status_code=code, detail=message)
+
+
+def collaboration_error(
+    *,
+    code: str,
+    message: str,
+    status_code: int = status.HTTP_409_CONFLICT,
+    context: dict[str, object] | None = None,
+) -> HTTPException:
+    """Return a standardized collaboration error."""
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message, "context": context or {}},
+    )
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
@@ -839,6 +865,311 @@ class AssetsModule:
         return list(db.execute(statement).unique().scalars())
 
 
+class CollaborationModule:
+    """Public collaboration module service for Phase 2."""
+
+    @staticmethod
+    def _get_asset_for_collaboration(db: Session, *, asset_id: str, actor: User) -> Asset:
+        return db.scalar(
+            select(Asset)
+            .options(
+                joinedload(Asset.project),
+                joinedload(Asset.collaboration_lock).joinedload(AssetCollaborationLock.owner),
+                joinedload(Asset.revisions).joinedload(Revision.representations).joinedload(
+                    Representation.blob
+                ),
+            )
+            .where(Asset.id == asset_id)
+        ) or AssetsModule.get_asset(db, asset_id=asset_id, actor=actor)
+
+    @staticmethod
+    def _get_project_role(db: Session, *, project_id: str, user_id: str) -> str | None:
+        return ProjectModule.check_project_role(db, project_id=project_id, user_id=user_id)
+
+    @staticmethod
+    def _resolve_state(asset: Asset) -> str:
+        lock = asset.collaboration_lock
+        if lock is None:
+            return "available"
+        if asset.status == "archived" or not lock.owner.is_active:
+            return "stale_lock"
+        return "locked"
+
+    @staticmethod
+    def get_collaboration_state(
+        db: Session, *, asset_id: str, actor: User
+    ) -> CollaborationState:
+        asset = CollaborationModule._get_asset_for_collaboration(db, asset_id=asset_id, actor=actor)
+        ProjectModule.require_project_permission(
+            db, project_id=asset.project_id, actor=actor, permission="read_project"
+        )
+        project_role = CollaborationModule._get_project_role(
+            db, project_id=asset.project_id, user_id=actor.id
+        )
+        state = CollaborationModule._resolve_state(asset)
+        lock = asset.collaboration_lock
+        is_owner = lock is not None and lock.owner_user_id == actor.id
+        can_force_unlock = project_role in FORCE_UNLOCK_ROLES and lock is not None and not is_owner
+        return CollaborationState(
+            asset=asset,
+            state=state,
+            lock=lock,
+            project_role=project_role,
+            can_checkin=is_owner and state == "locked",
+            can_unlock=is_owner and state in {"locked", "stale_lock"},
+            can_force_unlock=can_force_unlock,
+        )
+
+    @staticmethod
+    def _record_conflict(
+        db: Session,
+        *,
+        actor: User,
+        asset: Asset,
+        code: str,
+        message: str,
+        details: dict[str, object] | None = None,
+    ) -> None:
+        payload = {"code": code, **(details or {})}
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="collaboration.conflict_detected",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="collaboration.conflict_detected",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=payload,
+        )
+        db.flush()
+        raise collaboration_error(code=code, message=message, context=payload)
+
+    @staticmethod
+    def checkout(db: Session, *, asset_id: str, actor: User) -> CollaborationState:
+        state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+        asset = state.asset
+        ProjectModule.require_project_permission(
+            db, project_id=asset.project_id, actor=actor, permission="update_asset"
+        )
+        if asset.status == "archived":
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="asset_archived",
+                message="Archived Assets cannot be checked out.",
+            )
+        lock = asset.collaboration_lock
+        if lock is not None and lock.owner_user_id == actor.id:
+            return state
+        if lock is not None:
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="asset_locked",
+                message="Asset is already locked by another user.",
+                details={"lock_owner_user_id": lock.owner_user_id},
+            )
+        lock = AssetCollaborationLock(asset_id=asset.id, owner_user_id=actor.id)
+        db.add(lock)
+        db.flush()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="asset.checked_out",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details={"lock_owner_user_id": actor.id},
+        )
+        emit_event(
+            db,
+            event_type="asset.checked_out",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload={"lock_owner_user_id": actor.id},
+        )
+        db.refresh(asset)
+        return CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+
+    @staticmethod
+    def unlock(
+        db: Session, *, asset_id: str, actor: User, force: bool = False
+    ) -> CollaborationState:
+        state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+        asset = state.asset
+        lock = state.lock
+        if lock is None:
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="no_active_lock",
+                message="Asset does not have an active collaboration lock.",
+            )
+        is_owner = lock.owner_user_id == actor.id
+        can_force = state.project_role in FORCE_UNLOCK_ROLES
+        if not is_owner and not (force and can_force):
+            raise collaboration_error(
+                code="unlock_not_allowed",
+                message="Only the lock owner can unlock unless a Maintainer or Owner force-unlocks.",
+                status_code=status.HTTP_403_FORBIDDEN,
+                context={"lock_owner_user_id": lock.owner_user_id},
+            )
+        action = "asset.force_unlocked" if not is_owner else "asset.unlocked"
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action=action,
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details={"lock_owner_user_id": lock.owner_user_id},
+        )
+        emit_event(
+            db,
+            event_type=action,
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload={"lock_owner_user_id": lock.owner_user_id},
+        )
+        db.delete(lock)
+        db.flush()
+        db.expire(asset, ["collaboration_lock"])
+        return CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+
+    @staticmethod
+    def checkin(
+        db: Session,
+        *,
+        asset_id: str,
+        comment: str,
+        representations: list[dict[str, object]],
+        actor: User,
+    ) -> Revision:
+        state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+        asset = state.asset
+        lock = state.lock
+        require(comment.strip(), "Check-in comment is required.")
+        if asset.status == "archived":
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="asset_archived",
+                message="Archived Assets cannot be checked in.",
+            )
+        if lock is None:
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="checkin_without_lock",
+                message="Asset must be checked out before check-in.",
+            )
+        if lock.owner_user_id != actor.id:
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="checkin_by_non_owner",
+                message="Only the lock owner can check in changes.",
+                details={"lock_owner_user_id": lock.owner_user_id},
+            )
+        revision = AssetsModule.create_revision(db, asset_id=asset.id, comment=comment, actor=actor)
+        for item in representations:
+            AssetsModule.add_representation(
+                db,
+                revision_id=revision.id,
+                name=str(item["name"]),
+                media_type=str(item["media_type"]),
+                blob_id=str(item["blob_id"]) if item.get("blob_id") is not None else None,
+                actor=actor,
+            )
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="asset.checked_in",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details={"revision_id": revision.id, "revision_number": revision.number},
+        )
+        emit_event(
+            db,
+            event_type="asset.checked_in",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload={"revision_id": revision.id, "revision_number": revision.number},
+        )
+        db.delete(lock)
+        db.flush()
+        db.expire(asset, ["collaboration_lock"])
+        return db.scalar(
+            select(Revision)
+            .options(joinedload(Revision.representations).joinedload(Representation.blob))
+            .where(Revision.id == revision.id)
+        ) or revision
+
+    @staticmethod
+    def list_timeline(db: Session, *, asset_id: str, actor: User) -> list[TimelineEntry]:
+        asset = AssetsModule.get_asset(db, asset_id=asset_id, actor=actor)
+        records = list(
+            db.scalars(
+                select(AuditRecord)
+                .where(
+                    and_(
+                        AuditRecord.project_id == asset.project_id,
+                        AuditRecord.action.in_(tuple(TIMELINE_EVENT_MAP.keys())),
+                    )
+                )
+                .order_by(AuditRecord.occurred_at.desc())
+            )
+        )
+        entries: list[TimelineEntry] = []
+        for record in records:
+            details = dict(record.details or {})
+            is_asset_event = record.resource_type == "asset" and record.resource_id == asset.id
+            is_revision_event = (
+                record.action == "revision.created" and str(details.get("asset_id")) == asset.id
+            )
+            if not (is_asset_event or is_revision_event):
+                continue
+            revision_id = details.get("revision_id")
+            if revision_id is not None:
+                revision_id = str(revision_id)
+            entries.append(
+                TimelineEntry(
+                    event_type=TIMELINE_EVENT_MAP[record.action],
+                    occurred_at=record.occurred_at,
+                    actor_user_id=record.actor_user_id,
+                    asset_id=asset.id,
+                    revision_id=revision_id,
+                    details=details,
+                )
+            )
+        return entries
+
+
 class MetadataModule:
     """Public Metadata module service."""
 
@@ -1123,3 +1454,28 @@ class SessionContext:
 
     session_token: SessionToken
     user: User
+
+
+@dataclass(slots=True)
+class CollaborationState:
+    """Resolved collaboration state for an Asset."""
+
+    asset: Asset
+    state: str
+    lock: AssetCollaborationLock | None
+    project_role: str | None
+    can_checkin: bool
+    can_unlock: bool
+    can_force_unlock: bool
+
+
+@dataclass(slots=True)
+class TimelineEntry:
+    """User-facing collaboration timeline entry."""
+
+    event_type: str
+    occurred_at: datetime
+    actor_user_id: str | None
+    asset_id: str
+    revision_id: str | None
+    details: dict[str, object]
