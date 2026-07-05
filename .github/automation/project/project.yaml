@@ -2971,7 +2971,22 @@ roadmap:
               Define the minimum Web UI collaboration flow for Phase 2.
 
               ## Description
-              Clarify which collaboration controls, states and empty or blocked states must be visible in the Web UI for the approved v1 collaboration path.
+              Decision made: Phase 2 defines a minimal Web UI collaboration control surface for the approved v1 path.
+
+              The accepted Web UI collaboration scope includes:
+              - visible collaboration states limited to `available`, `locked` and `stale_lock`;
+              - visible lock ownership cues that distinguish current-user locks from locks held by another user;
+              - the ability to trigger `checkout`, `checkin` and `unlock` through the public application API;
+              - blocked-state messaging before a conflicting write action proceeds;
+              - visible entry points to revision comments and the Asset timeline from the collaboration path.
+
+              The accepted Web UI collaboration scope explicitly does **not** include:
+              - desktop-specific collaboration behavior;
+              - local file synchronization state;
+              - workflow approval or review controls;
+              - out-of-app notification delivery.
+
+              This decision applies the public API and collaboration ADR set to the v1 Web UI surface.
 
               ## Acceptance Criteria
               - Required Web UI collaboration journeys are explicit.
@@ -2982,8 +2997,9 @@ roadmap:
               - Phase 2 Task: Define collaboration API contract surface
 
               ## Suggested Labels
-              documentation, frontend, P1
+              decision, documentation, frontend, P1
             labels:
+              - decision
               - documentation
               - frontend
               - P1
@@ -2992,7 +3008,8 @@ roadmap:
               Epic: Web UI Collaboration Controls
               Platform Area: Frontend
               Complexity: S
-              ADR: ADR-0007
+              ADR: ADR-0007, ADR-0017, ADR-0018, ADR-0019
+            closed: true
 
           - title: "Phase 2 Task: Implement lock and check-out controls in the Web UI"
             body: |
