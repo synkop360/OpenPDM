@@ -237,6 +237,11 @@ textarea {
   color: var(--accent);
 }
 
+.warning-button {
+  background: rgba(158, 68, 32, 0.12);
+  color: var(--warning);
+}
+
 .primary-button:disabled,
 .secondary-button:disabled {
   cursor: wait;
@@ -299,6 +304,66 @@ textarea {
   list-style: none;
   margin: 16px 0 0;
   padding: 0;
+}
+
+.collaboration-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.notification-card,
+.recovery-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.collaboration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.collaboration-pill {
+  text-transform: uppercase;
+}
+
+.collaboration-available {
+  background: #d8efe5;
+  color: var(--accent);
+}
+
+.collaboration-locked {
+  background: #f6eadf;
+  color: #9e4420;
+}
+
+.collaboration-stale_lock {
+  background: #f7e2d8;
+  color: #8c3412;
+}
+
+.notification-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.notification-pill {
+  text-transform: uppercase;
+}
+
+.notification-unread {
+  background: #e2ecff;
+  color: #2350a8;
+}
+
+.notification-read {
+  background: #edf0ef;
+  color: #5a6d69;
 }
 
 .representation-list li {

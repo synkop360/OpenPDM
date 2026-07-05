@@ -18,6 +18,7 @@ from openpdm.infrastructure.database import get_db_session, initialize_database
 from openpdm.platform_core.modules.models import (
     Asset,
     MetadataEntry,
+    NotificationRecord,
     PluginRecord,
     Representation,
     Revision,
@@ -28,12 +29,16 @@ from openpdm.platform_core.modules.services import (
     AssetsModule,
     AuthModule,
     BlobModule,
+    CollaborationModule,
+    CollaborationState,
     MetadataModule,
+    NotificationsModule,
     OrganizationModule,
     PluginsModule,
     ProjectModule,
     SearchModule,
     SessionContext,
+    TimelineEntry,
 )
 
 router = APIRouter(tags=["Core Platform"])
@@ -153,6 +158,31 @@ class MetadataResponse(ApiModel):
     created_at: str
 
 
+class CollaborationLockResponse(BaseModel):
+    id: str
+    asset_id: str
+    owner_user_id: str
+    created_at: str
+
+
+class CollaborationStateResponse(BaseModel):
+    asset_id: str
+    state: str
+    can_checkin: bool
+    can_unlock: bool
+    can_force_unlock: bool
+    lock: CollaborationLockResponse | None = None
+
+
+class TimelineEntryResponse(BaseModel):
+    event_type: str
+    occurred_at: str
+    actor_user_id: str | None
+    asset_id: str
+    revision_id: str | None
+    details: dict[str, Any]
+
+
 class PluginResponse(BaseModel):
     id: str
     name: str
@@ -163,6 +193,21 @@ class PluginResponse(BaseModel):
     created_at: str
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class NotificationResponse(BaseModel):
+    id: str
+    recipient_user_id: str
+    actor_user_id: str | None
+    organization_id: str | None
+    project_id: str
+    asset_id: str | None
+    revision_id: str | None
+    event_type: str
+    is_read: bool
+    read_at: str | None
+    details: dict[str, Any]
+    created_at: str
 
 
 class RegisterUserRequest(BaseModel):
@@ -210,6 +255,21 @@ class CreateRepresentationRequest(BaseModel):
     name: str
     media_type: str
     blob_id: str | None = None
+
+
+class CollaborationRepresentationRequest(BaseModel):
+    name: str
+    media_type: str
+    blob_id: str | None = None
+
+
+class CheckInRequest(BaseModel):
+    comment: str
+    representations: list[CollaborationRepresentationRequest] = Field(default_factory=list)
+
+
+class UnlockRequest(BaseModel):
+    force: bool = False
 
 
 class UpdateStatusRequest(BaseModel):
@@ -333,6 +393,38 @@ def serialize_metadata(entry: MetadataEntry) -> MetadataResponse:
     )
 
 
+def serialize_collaboration_state(state: CollaborationState) -> CollaborationStateResponse:
+    lock = state.lock
+    return CollaborationStateResponse(
+        asset_id=state.asset.id,
+        state=state.state,
+        can_checkin=state.can_checkin,
+        can_unlock=state.can_unlock,
+        can_force_unlock=state.can_force_unlock,
+        lock=(
+            CollaborationLockResponse(
+                id=lock.id,
+                asset_id=lock.asset_id,
+                owner_user_id=lock.owner_user_id,
+                created_at=_iso(lock.created_at),
+            )
+            if lock is not None
+            else None
+        ),
+    )
+
+
+def serialize_timeline_entry(entry: TimelineEntry) -> TimelineEntryResponse:
+    return TimelineEntryResponse(
+        event_type=entry.event_type,
+        occurred_at=_iso(entry.occurred_at),
+        actor_user_id=entry.actor_user_id,
+        asset_id=entry.asset_id,
+        revision_id=entry.revision_id,
+        details=entry.details,
+    )
+
+
 def serialize_plugin(plugin: PluginRecord) -> PluginResponse:
     return PluginResponse(
         id=plugin.id,
@@ -342,6 +434,23 @@ def serialize_plugin(plugin: PluginRecord) -> PluginResponse:
         capabilities=plugin.capabilities,
         enabled=plugin.enabled,
         created_at=_iso(plugin.created_at),
+    )
+
+
+def serialize_notification(notification: NotificationRecord) -> NotificationResponse:
+    return NotificationResponse(
+        id=notification.id,
+        recipient_user_id=notification.recipient_user_id,
+        actor_user_id=notification.actor_user_id,
+        organization_id=notification.organization_id,
+        project_id=notification.project_id,
+        asset_id=notification.asset_id,
+        revision_id=notification.revision_id,
+        event_type=notification.event_type,
+        is_read=notification.is_read,
+        read_at=_iso(notification.read_at) if notification.read_at is not None else None,
+        details=notification.details,
+        created_at=_iso(notification.created_at),
     )
 
 
@@ -634,6 +743,30 @@ def list_project_members(
     ]
 
 
+@router.get("/notifications", response_model=list[NotificationResponse])
+def list_notifications(
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[NotificationResponse]:
+    return [
+        serialize_notification(item)
+        for item in NotificationsModule.list_notifications(db, actor=context.user)
+    ]
+
+
+@router.post("/notifications/{notification_id}/read", response_model=NotificationResponse)
+def mark_notification_read(
+    notification_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> NotificationResponse:
+    notification = NotificationsModule.mark_read(
+        db, notification_id=notification_id, actor=context.user
+    )
+    db.commit()
+    return serialize_notification(notification)
+
+
 @router.post("/blobs/uploads", response_model=BlobResponse, status_code=status.HTTP_201_CREATED)
 async def upload_blob(
     context: SessionContext = Depends(get_authenticated_session),
@@ -705,6 +838,53 @@ def get_asset(
     return serialize_asset(AssetsModule.get_asset(db, asset_id=asset_id, actor=context.user))
 
 
+@router.get("/assets/{asset_id}/collaboration-state", response_model=CollaborationStateResponse)
+def get_collaboration_state(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> CollaborationStateResponse:
+    state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=context.user)
+    return serialize_collaboration_state(state)
+
+
+@router.post("/assets/{asset_id}/checkout", response_model=CollaborationStateResponse)
+def checkout_asset(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> CollaborationStateResponse:
+    state = CollaborationModule.checkout(db, asset_id=asset_id, actor=context.user)
+    db.commit()
+    return serialize_collaboration_state(state)
+
+
+@router.post("/assets/{asset_id}/unlock", response_model=CollaborationStateResponse)
+def unlock_asset(
+    asset_id: str,
+    payload: UnlockRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> CollaborationStateResponse:
+    state = CollaborationModule.unlock(
+        db, asset_id=asset_id, actor=context.user, force=payload.force
+    )
+    db.commit()
+    return serialize_collaboration_state(state)
+
+
+@router.get("/assets/{asset_id}/timeline", response_model=list[TimelineEntryResponse])
+def get_asset_timeline(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[TimelineEntryResponse]:
+    return [
+        serialize_timeline_entry(item)
+        for item in CollaborationModule.list_timeline(db, asset_id=asset_id, actor=context.user)
+    ]
+
+
 @router.get("/assets/{asset_id}/history", response_model=list[RevisionResponse])
 def get_asset_history(
     asset_id: str,
@@ -730,6 +910,28 @@ def create_revision(
 ) -> RevisionResponse:
     revision = AssetsModule.create_revision(
         db, asset_id=asset_id, comment=payload.comment, actor=context.user
+    )
+    db.commit()
+    return serialize_revision(revision)
+
+
+@router.post(
+    "/assets/{asset_id}/checkin",
+    response_model=RevisionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def checkin_asset(
+    asset_id: str,
+    payload: CheckInRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> RevisionResponse:
+    revision = CollaborationModule.checkin(
+        db,
+        asset_id=asset_id,
+        comment=payload.comment,
+        representations=[item.model_dump() for item in payload.representations],
+        actor=context.user,
     )
     db.commit()
     return serialize_revision(revision)

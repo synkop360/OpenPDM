@@ -2714,6 +2714,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: L
               ADR: ADR-0017
+            closed: true
 
           - title: "Phase 2 Task: Document deferred collaboration capabilities beyond v1"
             body: |
@@ -2742,6 +2743,7 @@ roadmap:
               Platform Area: Documentation
               Complexity: S
               ADR: ADR-0017, ADR-0019
+            closed: true
 
       - title: "Phase 2 Epic: Asset Locking and Concurrency Enforcement"
         body: |
@@ -2831,6 +2833,47 @@ roadmap:
               ADR: ADR-0018
             closed: true
 
+          - title: "Phase 2 Task: Define stale lock transition conditions"
+            body: |
+              ## Objective
+              Define exactly when an Asset must enter the `stale_lock` collaboration state in Phase 2.
+
+              ## Description
+              Decision made: Phase 2 treats `stale_lock` as an exceptional invalid-lock state with explicit, non-time-based entry conditions.
+
+              The accepted decision covers:
+              - `stale_lock` applies only when an active collaboration lock exists and can no longer be honored as a normal working lock;
+              - archived Assets, inactive lock owners, and lost tenancy or write authority qualify as `stale_lock` conditions;
+              - time, heartbeat, browser refresh, or desktop sync behavior do not create `stale_lock`;
+              - only explicit unlock or force-unlock resolves the stale state in Phase 2;
+              - API and Web UI behavior must distinguish `stale_lock` from a normal `locked` state.
+
+              This decision is recorded in ADR-0024.
+
+              ## Acceptance Criteria
+              - `stale_lock` entry conditions are explicit and objectively testable.
+              - Resolution authority and allowed actions are explicit.
+              - API and Web UI expectations for `stale_lock` are clear for the approved v1 scope.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+              - Phase 2 Task: Define lock scope and ownership rules
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Asset Locking and Concurrency Enforcement
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0017, ADR-0018, ADR-0024
+            closed: true
+
           - title: "Phase 2 Task: Implement lock persistence and lifecycle enforcement"
             body: |
               ## Objective
@@ -2861,6 +2904,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: L
               ADR: ADR-0018
+            closed: true
 
           - title: "Phase 2 Task: Enforce concurrency protection on collaboration write paths"
             body: |
@@ -2890,6 +2934,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0018, ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Expose lock state through delivered read APIs"
             body: |
@@ -2920,6 +2965,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0018, ADR-0019
+            closed: true
 
       - title: "Phase 2 Epic: Web UI Collaboration Controls"
         body: |
@@ -2963,6 +3009,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: M
           ADR: ADR-0007
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define Web UI collaboration control scope"
@@ -3040,6 +3087,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
           - title: "Phase 2 Task: Implement lock visibility and ownership cues in the Web UI"
             body: |
@@ -3069,6 +3117,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
           - title: "Phase 2 Task: Implement check-in and lock release flows in the Web UI"
             body: |
@@ -3099,6 +3148,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Revision Comments Capability"
         body: |
@@ -3142,6 +3192,7 @@ roadmap:
           Platform Area: Platform Module
           Complexity: M
           ADR: ADR-0020
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define revision comment scope and moderation boundaries"
@@ -3213,6 +3264,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0020
+            closed: true
 
           - title: "Phase 2 Task: Expose revision comments in the Web UI"
             body: |
@@ -3242,6 +3294,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Collaboration Activity Timeline"
         body: |
@@ -3285,6 +3338,7 @@ roadmap:
           Platform Area: Platform Module
           Complexity: M
           ADR: ADR-0020
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define collaboration timeline event scope"
@@ -3359,6 +3413,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0020
+            closed: true
 
           - title: "Phase 2 Task: Expose collaboration activity timeline in the Web UI"
             body: |
@@ -3388,6 +3443,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Audit-Aligned Collaboration Observability"
         body: |
@@ -3431,6 +3487,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: M
           ADR: ADR-0001, ADR-0002, ADR-0023
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define collaboration audit and event coverage"
@@ -3514,6 +3571,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0001
+            closed: true
 
           - title: "Phase 2 Task: Implement collaboration domain event emission"
             body: |
@@ -3545,6 +3603,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0002
+            closed: true
 
       - title: "Phase 2 Epic: In-App Collaboration Notifications"
         body: |
@@ -3588,6 +3647,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: M
           ADR: ADR-0021
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define Phase 2 in-app notification scope"
@@ -3633,6 +3693,86 @@ roadmap:
               ADR: ADR-0021
             closed: true
 
+          - title: "Phase 2 Task: Define notification read and dismissal behavior"
+            body: |
+              ## Objective
+              Define how users acknowledge or clear in-app collaboration notifications in Phase 2.
+
+              ## Description
+              Decision made: Phase 2 collaboration notifications use a simple per-user read model.
+
+              The accepted decision covers:
+              - notifications are per-user and move only between `unread` and `read`;
+              - acknowledgment is per-user mark-as-read;
+              - Phase 2 does not support dismiss, delete, archive or snooze behavior;
+              - read notifications remain visible in the approved v1 surface;
+              - the Web UI shows a simple empty state when no notifications are available.
+
+              This decision is recorded in ADR-0025.
+
+              ## Acceptance Criteria
+              - Notification acknowledgment behavior is explicit for the approved Phase 2 scope.
+              - Per-user visibility expectations are clear.
+              - Backend and Web UI implementation can proceed without inventing notification lifecycle semantics.
+
+              ## Dependencies
+              - Phase 2 Task: Define Phase 2 in-app notification scope
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0021, ADR-0025
+            closed: true
+
+          - title: "Phase 2 Task: Define notification recipient targeting rules"
+            body: |
+              ## Objective
+              Define which users should receive each approved collaboration notification in Phase 2.
+
+              ## Description
+              Decision made: Phase 2 notification recipients are derived from current Project membership with explicit actor rules.
+
+              The accepted decision covers:
+              - notifications are generated only for users who have `read_project` access in the related Project;
+              - successful collaboration events notify all current Project members except the actor;
+              - `conflict detected` notifies only the acting user whose action was rejected;
+              - force unlock follows the same current-Project-member targeting rule;
+              - notifications are not visible outside Project scope and are not backfilled for later members.
+
+              This decision is recorded in ADR-0025.
+
+              ## Acceptance Criteria
+              - Notification recipient rules are explicit for each approved Phase 2 notification event.
+              - Actor visibility versus non-actor visibility is clear.
+              - Notification generation can proceed without inventing user-targeting semantics.
+
+              ## Dependencies
+              - Phase 2 Task: Define Phase 2 in-app notification scope
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0021, ADR-0025
+            closed: true
+
           - title: "Phase 2 Task: Implement notification generation for approved collaboration events"
             body: |
               ## Objective
@@ -3663,6 +3803,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0021
+            closed: true
 
           - title: "Phase 2 Task: Expose in-app collaboration notifications in the Web UI"
             body: |
@@ -3692,6 +3833,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Conflict Detection and User Feedback"
         body: |
@@ -3735,6 +3877,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: L
           ADR: ADR-0022
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define conflict conditions for Phase 2 collaboration"
@@ -3809,6 +3952,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Standardize collaboration conflict API responses"
             body: |
@@ -3839,6 +3983,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0019, ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Surface collaboration conflict feedback in the Web UI"
             body: |
@@ -3869,6 +4014,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Collaboration Error Handling and Recovery Paths"
         body: |
@@ -3911,6 +4057,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: M
           ADR: ADR-0022
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define recovery behavior for approved collaboration failures"
@@ -3985,6 +4132,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0019, ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Implement recovery guidance and retry flows in the Web UI"
             body: |
@@ -4016,6 +4164,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
   - phase: Asset Graph
     milestone: Asset Graph

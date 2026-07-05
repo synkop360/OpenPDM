@@ -1,6 +1,8 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
 import {
   ApiError,
+  checkinAsset,
+  checkoutAsset,
   addRepresentation,
   createAsset,
   createOrganization,
@@ -10,21 +12,29 @@ import {
   fetchFoundationStatus,
   getAsset,
   getAssetHistory,
+  getAssetTimeline,
+  getCollaborationState,
   getCurrentSession,
   listAssets,
+  listNotifications,
   listOrganizationProjects,
   listOrganizations,
   listProjectsForUser,
+  markNotificationRead,
   registerUser,
   signIn,
   signOut,
+  unlockAsset,
   uploadBlob,
   type Asset,
+  type CollaborationState,
   type FoundationStatus,
+  type NotificationRecord,
   type OrganizationMembership,
   type Project,
   type Revision,
   type SessionInfo,
+  type TimelineEntry,
 } from "./api";
 import "./styles.css";
 
@@ -85,6 +95,74 @@ async function triggerBrowserDownload(
   URL.revokeObjectURL(objectUrl);
 }
 
+function collaborationGuidance(error: ApiError): string {
+  const contextualGuidance = error.context?.user_guidance;
+  if (typeof contextualGuidance === "string" && contextualGuidance.trim()) {
+    return contextualGuidance;
+  }
+  switch (error.code) {
+    case "asset_locked":
+      return "This Asset is already locked by another user. Wait for release or ask a Maintainer to coordinate.";
+    case "checkin_without_lock":
+      return "Check out the Asset before checking in changes.";
+    case "checkin_by_non_owner":
+      return "Only the current lock owner can check in changes for this Asset.";
+    case "unlock_not_allowed":
+      return "Only the lock owner can unlock this Asset unless a Maintainer or Owner force-unlocks.";
+    case "asset_archived":
+      return "Archived Assets cannot be changed through the collaboration flow.";
+    case "no_active_lock":
+      return "This Asset no longer has an active collaboration lock. Refresh the state and try again if needed.";
+    default:
+      return error.message;
+  }
+}
+
+function collaborationRecoveryAction(error: ApiError): string | null {
+  const value = error.context?.recovery_action;
+  return typeof value === "string" ? value : null;
+}
+
+function collaborationRequestId(error: ApiError): string | null {
+  const value = error.context?.request_id;
+  return typeof value === "string" ? value : null;
+}
+
+function collaborationShouldRefresh(error: ApiError): boolean {
+  return error.context?.should_refresh === true;
+}
+
+function formatNotificationEvent(eventType: string): string {
+  switch (eventType) {
+    case "asset.checked_out":
+      return "Asset locked";
+    case "asset.unlocked":
+      return "Asset unlocked";
+    case "asset.force_unlocked":
+      return "Force unlock";
+    case "revision.created":
+      return "Revision created";
+    case "collaboration.conflict_detected":
+      return "Conflict detected";
+    default:
+      return eventType;
+  }
+}
+
+function notificationSummary(notification: NotificationRecord): string {
+  if (notification.event_type === "collaboration.conflict_detected") {
+    const guidance = notification.details.user_guidance;
+    if (typeof guidance === "string" && guidance.trim()) {
+      return guidance;
+    }
+  }
+  const assetId = typeof notification.asset_id === "string" ? notification.asset_id : null;
+  if (assetId) {
+    return `Related Asset: ${assetId}`;
+  }
+  return "Project collaboration update.";
+}
+
 export function App() {
   const [foundation, setFoundation] = useState<Loadable<FoundationStatus | null>>(
     createLoadable<FoundationStatus | null>(null),
@@ -103,6 +181,16 @@ export function App() {
   const [assetHistory, setAssetHistory] = useState<Loadable<Revision[]>>(
     createLoadable<Revision[]>([]),
   );
+  const [collaborationState, setCollaborationState] = useState<Loadable<CollaborationState | null>>(
+    createLoadable<CollaborationState | null>(null),
+  );
+  const [assetTimeline, setAssetTimeline] = useState<Loadable<TimelineEntry[]>>(
+    createLoadable<TimelineEntry[]>([]),
+  );
+  const [notifications, setNotifications] = useState<Loadable<NotificationRecord[]>>(
+    createLoadable<NotificationRecord[]>([]),
+  );
+  const [collaborationError, setCollaborationError] = useState<ApiError | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [authError, setAuthError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -170,6 +258,10 @@ export function App() {
       setAssets(createLoadable([]));
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
+      setCollaborationState(createLoadable(null));
+      setAssetTimeline(createLoadable([]));
+      setNotifications(createLoadable([]));
+      setCollaborationError(null);
       return;
     }
     setOrganizations((current) => ({ ...current, status: "loading", error: null }));
@@ -201,6 +293,26 @@ export function App() {
         });
       });
   }, [session.data?.token, selectedOrganizationId]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token) {
+      setNotifications(createLoadable([]));
+      return;
+    }
+    setNotifications((current) => ({ ...current, status: "loading", error: null }));
+    listNotifications(token)
+      .then((result) => {
+        setNotifications({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setNotifications({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Notifications could not be loaded.",
+        });
+      });
+  }, [session.data?.token]);
 
   useEffect(() => {
     writeStoredValue(ORG_KEY, selectedOrganizationId);
@@ -279,10 +391,14 @@ export function App() {
     if (!token || !selectedAssetId) {
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
+      setCollaborationState(createLoadable(null));
+      setAssetTimeline(createLoadable([]));
       return;
     }
     setAssetDetail((current) => ({ ...current, status: "loading", error: null }));
     setAssetHistory((current) => ({ ...current, status: "loading", error: null }));
+    setCollaborationState((current) => ({ ...current, status: "loading", error: null }));
+    setAssetTimeline((current) => ({ ...current, status: "loading", error: null }));
     getAsset(token, selectedAssetId)
       .then((result) => {
         setAssetDetail({ status: "ready", data: result, error: null });
@@ -305,12 +421,35 @@ export function App() {
           error: error instanceof Error ? error.message : "Revision history could not be loaded.",
         });
       });
+    getCollaborationState(token, selectedAssetId)
+      .then((result) => {
+        setCollaborationState({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setCollaborationState({
+          status: "error",
+          data: null,
+          error: error instanceof Error ? error.message : "Collaboration state could not be loaded.",
+        });
+      });
+    getAssetTimeline(token, selectedAssetId)
+      .then((result) => {
+        setAssetTimeline({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setAssetTimeline({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Collaboration timeline could not be loaded.",
+        });
+      });
   }, [selectedAssetId, session.data?.token]);
 
   const isAuthenticated = Boolean(session.data?.token);
   const hasOrganizations = organizations.data.length > 0;
   const hasProjects = projects.data.length > 0;
   const hasAssets = assets.data.length > 0;
+  const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
 
   async function handleRegister(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -451,6 +590,48 @@ export function App() {
     }
   }
 
+  async function refreshNotifications(token: string): Promise<void> {
+    const refreshed = await listNotifications(token);
+    setNotifications({ status: "ready", data: refreshed, error: null });
+  }
+
+  async function handleMarkNotificationRead(notificationId: string): Promise<void> {
+    if (!session.data?.token) {
+      return;
+    }
+    setBusyAction(`read-notification-${notificationId}`);
+    setBanner(null);
+    try {
+      const updated = await markNotificationRead(session.data.token, notificationId);
+      setNotifications((current) => ({
+        status: "ready",
+        error: null,
+        data: current.data.map((item) => (item.id === updated.id ? updated : item)),
+      }));
+      setBanner("Notification marked as read.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Notification could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRefreshNotifications(): Promise<void> {
+    if (!session.data?.token) {
+      return;
+    }
+    setBusyAction("refresh-notifications");
+    setBanner(null);
+    try {
+      await refreshNotifications(session.data.token);
+      setBanner("Notifications refreshed.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Notifications could not be refreshed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleUpload(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!session.data?.token || !selectedAssetId || !uploadForm.file) {
@@ -458,28 +639,126 @@ export function App() {
     }
     setBusyAction("upload");
     setBanner(null);
+    setCollaborationError(null);
     try {
       const blob = await uploadBlob(session.data.token, uploadForm.file);
-      const revision = await createRevision(session.data.token, selectedAssetId, {
+      await checkinAsset(session.data.token, selectedAssetId, {
         comment: uploadForm.comment,
-      });
-      await addRepresentation(session.data.token, revision.id, {
-        name: uploadForm.representationName || uploadForm.file.name,
-        media_type: uploadForm.file.type || "application/octet-stream",
-        blob_id: blob.id,
+        representations: [
+          {
+            name: uploadForm.representationName || uploadForm.file.name,
+            media_type: uploadForm.file.type || "application/octet-stream",
+            blob_id: blob.id,
+          },
+        ],
       });
       setUploadForm({ file: null, comment: "", representationName: "" });
-      setBanner("File uploaded into a new immutable Revision.");
-      const [nextAsset, nextHistory] = await Promise.all([
+      setBanner("Changes checked in as a new immutable Revision.");
+      const [nextAsset, nextHistory, nextCollaborationState, nextTimeline] = await Promise.all([
         getAsset(session.data.token, selectedAssetId),
         getAssetHistory(session.data.token, selectedAssetId),
+        getCollaborationState(session.data.token, selectedAssetId),
+        getAssetTimeline(session.data.token, selectedAssetId),
       ]);
+      await refreshNotifications(session.data.token);
       setAssetDetail({ status: "ready", data: nextAsset, error: null });
       setAssetHistory({ status: "ready", data: nextHistory, error: null });
+      setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
+      setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
       const refreshed = await listAssets(session.data.token, selectedProjectId!);
       setAssets({ status: "ready", data: refreshed, error: null });
     } catch (error: unknown) {
-      setBanner(error instanceof Error ? error.message : "Upload failed.");
+      if (error instanceof ApiError) {
+        await refreshNotifications(session.data.token);
+        setCollaborationError(error);
+        setBanner(collaborationGuidance(error));
+      } else {
+        setBanner(error instanceof Error ? error.message : "Upload failed.");
+      }
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleCheckout(): Promise<void> {
+    if (!session.data?.token || !selectedAssetId) {
+      return;
+    }
+    setBusyAction("checkout");
+    setBanner(null);
+    setCollaborationError(null);
+    try {
+      const nextState = await checkoutAsset(session.data.token, selectedAssetId);
+      setCollaborationState({ status: "ready", data: nextState, error: null });
+      const nextTimeline = await getAssetTimeline(session.data.token, selectedAssetId);
+      await refreshNotifications(session.data.token);
+      setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+      setBanner("Asset checked out for collaboration.");
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        await refreshNotifications(session.data.token);
+        setCollaborationError(error);
+        setBanner(collaborationGuidance(error));
+      } else {
+        setBanner(error instanceof Error ? error.message : "Checkout failed.");
+      }
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleUnlock(force: boolean): Promise<void> {
+    if (!session.data?.token || !selectedAssetId) {
+      return;
+    }
+    setBusyAction(force ? "force-unlock" : "unlock");
+    setBanner(null);
+    setCollaborationError(null);
+    try {
+      const nextState = await unlockAsset(session.data.token, selectedAssetId, { force });
+      setCollaborationState({ status: "ready", data: nextState, error: null });
+      const nextTimeline = await getAssetTimeline(session.data.token, selectedAssetId);
+      await refreshNotifications(session.data.token);
+      setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+      setBanner(force ? "Asset force-unlocked." : "Asset unlocked.");
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        await refreshNotifications(session.data.token);
+        setCollaborationError(error);
+        setBanner(collaborationGuidance(error));
+      } else {
+        setBanner(error instanceof Error ? error.message : "Unlock failed.");
+      }
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRefreshAssetState(): Promise<void> {
+    if (!session.data?.token || !selectedAssetId || !selectedProjectId) {
+      return;
+    }
+    setBusyAction("refresh-state");
+    setBanner(null);
+    try {
+      const [nextAsset, nextHistory, nextCollaborationState, nextTimeline, refreshedAssets] =
+        await Promise.all([
+          getAsset(session.data.token, selectedAssetId),
+          getAssetHistory(session.data.token, selectedAssetId),
+          getCollaborationState(session.data.token, selectedAssetId),
+          getAssetTimeline(session.data.token, selectedAssetId),
+          listAssets(session.data.token, selectedProjectId),
+        ]);
+      await refreshNotifications(session.data.token);
+      setAssetDetail({ status: "ready", data: nextAsset, error: null });
+      setAssetHistory({ status: "ready", data: nextHistory, error: null });
+      setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
+      setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+      setAssets({ status: "ready", data: refreshedAssets, error: null });
+      setCollaborationError(null);
+      setBanner("Collaboration state refreshed.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Refresh failed.");
     } finally {
       setBusyAction(null);
     }
@@ -856,6 +1135,77 @@ export function App() {
                 </div>
               </header>
 
+              <article className="detail-card notification-card">
+                <div className="detail-row">
+                  <div>
+                    <h3>Collaboration notifications</h3>
+                    <p>
+                      {unreadNotifications > 0
+                        ? `${unreadNotifications} unread notification${unreadNotifications === 1 ? "" : "s"}`
+                        : "No unread notifications"}
+                    </p>
+                  </div>
+                  <button
+                    className="secondary-button"
+                    disabled={busyAction === "refresh-notifications"}
+                    onClick={() => void handleRefreshNotifications()}
+                    type="button"
+                  >
+                    {busyAction === "refresh-notifications" ? "Refreshing..." : "Refresh"}
+                  </button>
+                </div>
+
+                {notifications.status === "error" ? (
+                  <p className="error-message" role="alert">
+                    {notifications.error}
+                  </p>
+                ) : null}
+
+                {notifications.data.length > 0 ? (
+                  <div className="timeline">
+                    {notifications.data.map((notification) => (
+                      <article key={notification.id} className="timeline-card notification-item">
+                        <div className="timeline-header">
+                          <div>
+                            <h3>{formatNotificationEvent(notification.event_type)}</h3>
+                            <p>{notificationSummary(notification)}</p>
+                          </div>
+                          <small>{formatTimestamp(notification.created_at)}</small>
+                        </div>
+                        <div className="notification-meta">
+                          <span
+                            className={
+                              notification.is_read
+                                ? "status-pill notification-pill notification-read"
+                                : "status-pill notification-pill notification-unread"
+                            }
+                          >
+                            {notification.is_read ? "read" : "unread"}
+                          </span>
+                          {!notification.is_read ? (
+                            <button
+                              className="secondary-button"
+                              disabled={busyAction === `read-notification-${notification.id}`}
+                              onClick={() => void handleMarkNotificationRead(notification.id)}
+                              type="button"
+                            >
+                              {busyAction === `read-notification-${notification.id}`
+                                ? "Marking..."
+                                : "Mark as read"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">
+                    Collaboration notifications will appear here when approved Phase 2 events target
+                    your account.
+                  </p>
+                )}
+              </article>
+
               {selectedAssetId && assetDetail.data ? (
                 <>
                   <article className="detail-card">
@@ -872,11 +1222,66 @@ export function App() {
                     </p>
                   </article>
 
+                  <article className="detail-card collaboration-card">
+                    <div className="detail-row">
+                      <div>
+                        <h3>Collaboration state</h3>
+                        <p>
+                          {collaborationState.data
+                            ? `State: ${collaborationState.data.state}`
+                            : "Loading collaboration state..."}
+                        </p>
+                      </div>
+                      <span
+                        className={`status-pill collaboration-pill collaboration-${collaborationState.data?.state ?? "unknown"}`}
+                      >
+                        {collaborationState.data?.state ?? "loading"}
+                      </span>
+                    </div>
+                    {collaborationState.data?.lock ? (
+                      <p className="muted-text">
+                        Lock owner:{" "}
+                        {collaborationState.data.lock.owner_user_id === session.data?.user.id
+                          ? "You"
+                          : collaborationState.data.lock.owner_user_id}
+                      </p>
+                    ) : (
+                      <p className="muted-text">No active collaboration lock.</p>
+                    )}
+                    <div className="collaboration-actions">
+                      <button
+                        className="primary-button"
+                        disabled={busyAction === "checkout" || collaborationState.data?.state === "locked"}
+                        onClick={() => void handleCheckout()}
+                        type="button"
+                      >
+                        {busyAction === "checkout" ? "Checking out..." : "Check out"}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={busyAction === "unlock" || !collaborationState.data?.can_unlock}
+                        onClick={() => void handleUnlock(false)}
+                        type="button"
+                      >
+                        {busyAction === "unlock" ? "Unlocking..." : "Unlock"}
+                      </button>
+                      <button
+                        className="secondary-button warning-button"
+                        disabled={busyAction === "force-unlock" || !collaborationState.data?.can_force_unlock}
+                        onClick={() => void handleUnlock(true)}
+                        type="button"
+                      >
+                        {busyAction === "force-unlock" ? "Force-unlocking..." : "Force unlock"}
+                      </button>
+                    </div>
+                  </article>
+
                   <form className="form-grid compact-form" onSubmit={handleUpload}>
-                    <h3>Upload file into a new Revision</h3>
+                    <h3>Check in a new Revision</h3>
                     <label>
                       Revision comment
                       <input
+                        required
                         value={uploadForm.comment}
                         onChange={(event) =>
                           setUploadForm((current) => ({ ...current, comment: event.target.value }))
@@ -910,10 +1315,90 @@ export function App() {
                         }
                       />
                     </label>
-                    <button className="primary-button" disabled={busyAction === "upload"} type="submit">
-                      {busyAction === "upload" ? "Uploading..." : "Create Revision and upload"}
+                    <button
+                      className="primary-button"
+                      disabled={busyAction === "upload" || !collaborationState.data?.can_checkin}
+                      type="submit"
+                    >
+                      {busyAction === "upload" ? "Checking in..." : "Check in revision"}
                     </button>
+                    <p className="muted-text">
+                      Check-in is available only while you own the collaboration lock.
+                    </p>
                   </form>
+
+                  {collaborationState.status === "error" ? (
+                    <p className="error-message" role="alert">
+                      {collaborationState.error}
+                    </p>
+                  ) : null}
+
+                  {collaborationError ? (
+                    <article className="detail-card recovery-card">
+                      <h3>Recovery guidance</h3>
+                      <p>{collaborationGuidance(collaborationError)}</p>
+                      {collaborationRequestId(collaborationError) ? (
+                        <p className="muted-text">
+                          Request ID: {collaborationRequestId(collaborationError)}
+                        </p>
+                      ) : null}
+                      <div className="collaboration-actions">
+                        {collaborationShouldRefresh(collaborationError) ? (
+                          <button
+                            className="secondary-button"
+                            disabled={busyAction === "refresh-state"}
+                            onClick={() => void handleRefreshAssetState()}
+                            type="button"
+                          >
+                            {busyAction === "refresh-state" ? "Refreshing..." : "Refresh asset state"}
+                          </button>
+                        ) : null}
+                        {collaborationRecoveryAction(collaborationError) === "checkout_asset" ? (
+                          <button
+                            className="secondary-button"
+                            disabled={
+                              busyAction === "checkout" || collaborationState.data?.state === "locked"
+                            }
+                            onClick={() => void handleCheckout()}
+                            type="button"
+                          >
+                            Check out now
+                          </button>
+                        ) : null}
+                      </div>
+                    </article>
+                  ) : null}
+
+                  {assetTimeline.status === "error" ? (
+                    <p className="error-message" role="alert">
+                      {assetTimeline.error}
+                    </p>
+                  ) : null}
+
+                  <div className="timeline">
+                    <h3>Collaboration timeline</h3>
+                    {assetTimeline.data.map((entry) => (
+                      <article
+                        key={`${entry.event_type}-${entry.occurred_at}-${entry.revision_id ?? "none"}`}
+                        className="timeline-card"
+                      >
+                        <div className="timeline-header">
+                          <div>
+                            <h3>{entry.event_type}</h3>
+                            <p>
+                              {entry.actor_user_id === session.data?.user.id
+                                ? "You"
+                                : entry.actor_user_id ?? "System"}
+                            </p>
+                          </div>
+                          <small>{formatTimestamp(entry.occurred_at)}</small>
+                        </div>
+                        {entry.revision_id ? (
+                          <p className="muted-text">Revision: {entry.revision_id}</p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
 
                   {assetHistory.status === "error" ? (
                     <p className="error-message" role="alert">
@@ -922,6 +1407,7 @@ export function App() {
                   ) : null}
 
                   <div className="timeline">
+                    <h3>Revision comments and history</h3>
                     {assetHistory.data.map((revision) => (
                       <article key={revision.id} className="timeline-card">
                         <div className="timeline-header">

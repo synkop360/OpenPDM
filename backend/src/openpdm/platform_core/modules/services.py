@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -15,10 +16,12 @@ from sqlalchemy.orm import Session, joinedload
 from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.platform_core.modules.models import (
     Asset,
+    AssetCollaborationLock,
     AuditRecord,
     Blob,
     DomainEvent,
     MetadataEntry,
+    NotificationRecord,
     Organization,
     OrganizationMembership,
     PluginRecord,
@@ -44,16 +47,44 @@ PROJECT_PERMISSION_ROLES = {
 ALLOWED_STATUSES = {"draft", "active", "archived"}
 ALLOWED_METADATA_TYPES = {"string", "number", "boolean", "date", "json"}
 ALLOWED_PLUGIN_TYPES = {"official", "community"}
+COLLABORATION_STATES = {"available", "locked", "stale_lock"}
+FORCE_UNLOCK_ROLES = {"Owner", "Maintainer"}
+LOCK_OWNER_WRITE_ROLES = {"Owner", "Maintainer", "Contributor"}
 METADATA_TARGET_FIELDS = {
     "asset": "asset_id",
     "revision": "revision_id",
     "representation": "representation_id",
 }
+TIMELINE_EVENT_MAP = {
+    "asset.created": "AssetCreated",
+    "asset.checked_out": "AssetLocked",
+    "asset.unlocked": "AssetUnlocked",
+    "asset.force_unlocked": "ForceUnlocked",
+    "revision.created": "RevisionCreated",
+    "asset.checked_in": "CheckInCompleted",
+    "collaboration.conflict_detected": "ConflictDetected",
+}
+CURRENT_REQUEST_ID: ContextVar[str | None] = ContextVar("openpdm_request_id", default=None)
 
 
 def utc_now() -> datetime:
     """Return the current UTC time."""
     return datetime.now(UTC)
+
+
+def set_request_id(value: str | None) -> object:
+    """Set the current request identifier for observability helpers."""
+    return CURRENT_REQUEST_ID.set(value)
+
+
+def reset_request_id(token: object) -> None:
+    """Restore the previous request identifier after a request completes."""
+    CURRENT_REQUEST_ID.reset(token)
+
+
+def get_request_id() -> str | None:
+    """Return the active request identifier if one is available."""
+    return CURRENT_REQUEST_ID.get()
 
 
 def hash_password(password: str) -> str:
@@ -83,6 +114,77 @@ def require(condition: bool, message: str, code: int = status.HTTP_400_BAD_REQUE
         raise HTTPException(status_code=code, detail=message)
 
 
+def collaboration_error(
+    *,
+    code: str,
+    message: str,
+    status_code: int = status.HTTP_409_CONFLICT,
+    context: dict[str, object] | None = None,
+) -> HTTPException:
+    """Return a standardized collaboration error."""
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message, "context": context or {}},
+    )
+
+
+def collaboration_recovery_context(
+    code: str, *, details: dict[str, object] | None = None
+) -> dict[str, object]:
+    """Return generic recovery guidance for collaboration API errors."""
+    guidance: dict[str, dict[str, object]] = {
+        "asset_locked": {
+            "recovery_action": "wait_or_coordinate",
+            "user_guidance": "Wait for the current lock owner to release the Asset or ask a Maintainer or Owner to coordinate.",
+            "can_retry": True,
+            "should_refresh": True,
+        },
+        "checkin_without_lock": {
+            "recovery_action": "checkout_asset",
+            "user_guidance": "Check out the Asset before trying to check in changes.",
+            "can_retry": True,
+            "should_refresh": True,
+        },
+        "checkin_by_non_owner": {
+            "recovery_action": "lock_owner_only",
+            "user_guidance": "Only the current lock owner can check in changes for this Asset.",
+            "can_retry": False,
+            "should_refresh": True,
+        },
+        "unlock_not_allowed": {
+            "recovery_action": "lock_owner_only",
+            "user_guidance": "Only the current lock owner can unlock this Asset unless a Maintainer or Owner force-unlocks it.",
+            "can_retry": False,
+            "should_refresh": True,
+        },
+        "asset_archived": {
+            "recovery_action": "read_only",
+            "user_guidance": "This Asset is archived and must remain read-only in the collaboration flow.",
+            "can_retry": False,
+            "should_refresh": True,
+        },
+        "no_active_lock": {
+            "recovery_action": "refresh_state",
+            "user_guidance": "Refresh the collaboration state before retrying this action.",
+            "can_retry": True,
+            "should_refresh": True,
+        },
+        "checkin_comment_required": {
+            "recovery_action": "provide_comment",
+            "user_guidance": "Add a revision comment before retrying the check-in.",
+            "can_retry": True,
+            "should_refresh": False,
+        },
+        "representation_blob_not_found": {
+            "recovery_action": "reupload_blob",
+            "user_guidance": "Upload the file again and retry the check-in with a valid Blob.",
+            "can_retry": True,
+            "should_refresh": False,
+        },
+    }
+    return {**guidance.get(code, {}), **(details or {})}
+
+
 def get_user_by_email(db: Session, email: str) -> User | None:
     """Return a user by email."""
     return db.scalar(select(User).where(User.email == email.lower().strip()))
@@ -108,6 +210,10 @@ def record_audit(
     details: dict[str, object] | None = None,
 ) -> None:
     """Record a significant audit event."""
+    payload = dict(details or {})
+    request_id = get_request_id()
+    if request_id is not None:
+        payload.setdefault("request_id", request_id)
     db.add(
         AuditRecord(
             actor_user_id=actor_user_id,
@@ -116,7 +222,7 @@ def record_audit(
             resource_id=resource_id,
             organization_id=organization_id,
             project_id=project_id,
-            details=details or {},
+            details=payload,
         )
     )
 
@@ -132,6 +238,10 @@ def emit_event(
     payload: dict[str, object] | None = None,
 ) -> None:
     """Record a domain event for a significant action."""
+    event_payload = dict(payload or {})
+    request_id = get_request_id()
+    if request_id is not None:
+        event_payload.setdefault("request_id", request_id)
     db.add(
         DomainEvent(
             event_type=event_type,
@@ -139,7 +249,7 @@ def emit_event(
             resource_id=resource_id,
             organization_id=organization_id,
             project_id=project_id,
-            payload=payload or {},
+            payload=event_payload,
         )
     )
 
@@ -578,6 +688,222 @@ class ProjectModule:
             )
         )
 
+    @staticmethod
+    def list_readable_members(db: Session, *, project_id: str) -> list[ProjectMembership]:
+        """Return current Project members who still have read access."""
+        return list(
+            db.scalars(
+                select(ProjectMembership)
+                .options(joinedload(ProjectMembership.user))
+                .join(Project, Project.id == ProjectMembership.project_id)
+                .join(
+                    OrganizationMembership,
+                    and_(
+                        OrganizationMembership.organization_id == Project.organization_id,
+                        OrganizationMembership.user_id == ProjectMembership.user_id,
+                    ),
+                )
+                .where(
+                    and_(
+                        ProjectMembership.project_id == project_id,
+                        ProjectMembership.role.in_(PROJECT_PERMISSION_ROLES["read_project"]),
+                    )
+                )
+            )
+        )
+
+
+class NotificationsModule:
+    """Public in-app notifications service for Phase 2 collaboration."""
+
+    @staticmethod
+    def _visible_project_ids_for_user(db: Session, *, user_id: str) -> set[str]:
+        rows = db.execute(
+            select(ProjectMembership.project_id)
+            .join(Project, Project.id == ProjectMembership.project_id)
+            .join(
+                OrganizationMembership,
+                and_(
+                    OrganizationMembership.organization_id == Project.organization_id,
+                    OrganizationMembership.user_id == ProjectMembership.user_id,
+                ),
+            )
+            .where(
+                and_(
+                    ProjectMembership.user_id == user_id,
+                    ProjectMembership.role.in_(PROJECT_PERMISSION_ROLES["read_project"]),
+                )
+            )
+        )
+        return {str(project_id) for project_id in rows.scalars()}
+
+    @staticmethod
+    def create_notifications(
+        db: Session,
+        *,
+        organization_id: str | None,
+        project_id: str,
+        asset_id: str | None,
+        revision_id: str | None,
+        event_type: str,
+        actor_user_id: str | None,
+        recipient_user_ids: list[str],
+        details: dict[str, object] | None = None,
+    ) -> list[NotificationRecord]:
+        created: list[NotificationRecord] = []
+        payload = dict(details or {})
+        for recipient_user_id in recipient_user_ids:
+            notification = NotificationRecord(
+                recipient_user_id=recipient_user_id,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                project_id=project_id,
+                asset_id=asset_id,
+                revision_id=revision_id,
+                event_type=event_type,
+                details=payload,
+            )
+            db.add(notification)
+            db.flush()
+            created.append(notification)
+            record_audit(
+                db,
+                actor_user_id=actor_user_id,
+                action="notification.emitted",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=organization_id,
+                project_id=project_id,
+                details={
+                    "recipient_user_id": recipient_user_id,
+                    "notification_event_type": event_type,
+                    **payload,
+                },
+            )
+            emit_event(
+                db,
+                event_type="notification.emitted",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=organization_id,
+                project_id=project_id,
+                payload={
+                    "recipient_user_id": recipient_user_id,
+                    "notification_event_type": event_type,
+                    **payload,
+                },
+            )
+        return created
+
+    @staticmethod
+    def notify_project_members(
+        db: Session,
+        *,
+        organization_id: str | None,
+        project_id: str,
+        asset_id: str | None,
+        revision_id: str | None,
+        event_type: str,
+        actor_user_id: str | None,
+        details: dict[str, object] | None = None,
+        include_actor: bool = False,
+        recipient_user_ids: list[str] | None = None,
+    ) -> list[NotificationRecord]:
+        if recipient_user_ids is None:
+            members = ProjectModule.list_readable_members(db, project_id=project_id)
+            recipient_user_ids = [item.user_id for item in members]
+        unique_recipient_user_ids: list[str] = []
+        seen: set[str] = set()
+        for recipient_user_id in recipient_user_ids:
+            if recipient_user_id in seen:
+                continue
+            seen.add(recipient_user_id)
+            if (
+                actor_user_id is not None
+                and not include_actor
+                and recipient_user_id == actor_user_id
+            ):
+                continue
+            unique_recipient_user_ids.append(recipient_user_id)
+        if not unique_recipient_user_ids:
+            return []
+        return NotificationsModule.create_notifications(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            asset_id=asset_id,
+            revision_id=revision_id,
+            event_type=event_type,
+            actor_user_id=actor_user_id,
+            recipient_user_ids=unique_recipient_user_ids,
+            details=details,
+        )
+
+    @staticmethod
+    def list_notifications(db: Session, *, actor: User) -> list[NotificationRecord]:
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(
+            db, user_id=actor.id
+        )
+        if not visible_project_ids:
+            return []
+        return list(
+            db.scalars(
+                select(NotificationRecord)
+                .where(
+                    and_(
+                        NotificationRecord.recipient_user_id == actor.id,
+                        NotificationRecord.project_id.in_(visible_project_ids),
+                    )
+                )
+                .order_by(NotificationRecord.created_at.desc())
+            )
+        )
+
+    @staticmethod
+    def mark_read(db: Session, *, notification_id: str, actor: User) -> NotificationRecord:
+        notification = db.get(NotificationRecord, notification_id)
+        if notification is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Notification not found.",
+            )
+        require(
+            notification.recipient_user_id == actor.id,
+            "Notification access denied.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(
+            db, user_id=actor.id
+        )
+        require(
+            notification.project_id in visible_project_ids,
+            "Notification access denied.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = utc_now()
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="notification.read",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=notification.organization_id,
+                project_id=notification.project_id,
+                details={"notification_event_type": notification.event_type},
+            )
+            emit_event(
+                db,
+                event_type="notification.read",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=notification.organization_id,
+                project_id=notification.project_id,
+                payload={"notification_event_type": notification.event_type},
+            )
+        return notification
+
 
 class BlobModule:
     """Public Blobs module service."""
@@ -774,6 +1100,16 @@ class AssetsModule:
             project_id=asset.project_id,
             payload={"asset_id": asset.id, "number": next_number},
         )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=revision.id,
+            event_type="revision.created",
+            actor_user_id=actor.id,
+            details={"asset_id": asset.id, "revision_number": next_number},
+        )
         return revision
 
     @staticmethod
@@ -837,6 +1173,508 @@ class AssetsModule:
             .order_by(Revision.number.desc())
         )
         return list(db.execute(statement).unique().scalars())
+
+
+class CollaborationModule:
+    """Public collaboration module service for Phase 2."""
+
+    @staticmethod
+    def _observability_payload(
+        *,
+        result: str,
+        reason: str | None = None,
+        error: str | None = None,
+        details: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        payload = dict(details or {})
+        payload["result"] = result
+        if reason is not None:
+            payload["reason"] = reason
+        if error is not None:
+            payload["error"] = error
+        return payload
+
+    @staticmethod
+    def _get_asset_for_collaboration(db: Session, *, asset_id: str, actor: User) -> Asset:
+        return db.scalar(
+            select(Asset)
+            .options(
+                joinedload(Asset.project),
+                joinedload(Asset.collaboration_lock).joinedload(AssetCollaborationLock.owner),
+                joinedload(Asset.revisions)
+                .joinedload(Revision.representations)
+                .joinedload(Representation.blob),
+            )
+            .where(Asset.id == asset_id)
+        ) or AssetsModule.get_asset(db, asset_id=asset_id, actor=actor)
+
+    @staticmethod
+    def _get_project_role(db: Session, *, project_id: str, user_id: str) -> str | None:
+        return ProjectModule.check_project_role(db, project_id=project_id, user_id=user_id)
+
+    @staticmethod
+    def _resolve_state(db: Session, asset: Asset) -> str:
+        lock = asset.collaboration_lock
+        if lock is None:
+            return "available"
+        org_role = _membership_role(
+            db,
+            model=OrganizationMembership,
+            field_name="organization_id",
+            parent_id=asset.project.organization_id,
+            user_id=lock.owner_user_id,
+        )
+        project_role = CollaborationModule._get_project_role(
+            db, project_id=asset.project_id, user_id=lock.owner_user_id
+        )
+        if (
+            asset.status == "archived"
+            or not lock.owner.is_active
+            or org_role is None
+            or project_role not in LOCK_OWNER_WRITE_ROLES
+        ):
+            return "stale_lock"
+        return "locked"
+
+    @staticmethod
+    def get_collaboration_state(db: Session, *, asset_id: str, actor: User) -> CollaborationState:
+        asset = CollaborationModule._get_asset_for_collaboration(db, asset_id=asset_id, actor=actor)
+        ProjectModule.require_project_permission(
+            db, project_id=asset.project_id, actor=actor, permission="read_project"
+        )
+        project_role = CollaborationModule._get_project_role(
+            db, project_id=asset.project_id, user_id=actor.id
+        )
+        state = CollaborationModule._resolve_state(db, asset)
+        lock = asset.collaboration_lock
+        is_owner = lock is not None and lock.owner_user_id == actor.id
+        can_force_unlock = project_role in FORCE_UNLOCK_ROLES and lock is not None and not is_owner
+        return CollaborationState(
+            asset=asset,
+            state=state,
+            lock=lock,
+            project_role=project_role,
+            can_checkin=is_owner and state == "locked",
+            can_unlock=is_owner and state in {"locked", "stale_lock"},
+            can_force_unlock=can_force_unlock,
+        )
+
+    @staticmethod
+    def _record_conflict(
+        db: Session,
+        *,
+        actor: User,
+        asset: Asset,
+        code: str,
+        message: str,
+        details: dict[str, object] | None = None,
+        status_code: int = status.HTTP_409_CONFLICT,
+    ) -> None:
+        recovery = collaboration_recovery_context(code, details=details)
+        payload = CollaborationModule._observability_payload(
+            result="rejected",
+            reason=code,
+            error=message,
+            details={"code": code, **recovery},
+        )
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="collaboration.conflict_detected",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="collaboration.conflict_detected",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=payload,
+        )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=None,
+            event_type="collaboration.conflict_detected",
+            actor_user_id=actor.id,
+            details=payload,
+            include_actor=True,
+            recipient_user_ids=[actor.id],
+        )
+        db.commit()
+        raise collaboration_error(
+            code=code, message=message, status_code=status_code, context=payload
+        )
+
+    @staticmethod
+    def _record_failed_checkin(
+        db: Session,
+        *,
+        actor: User,
+        asset: Asset,
+        code: str,
+        message: str,
+        details: dict[str, object] | None = None,
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+        emit_conflict: bool = False,
+    ) -> None:
+        payload = CollaborationModule._observability_payload(
+            result="failed",
+            reason=code,
+            error=message,
+            details={"code": code, **collaboration_recovery_context(code, details=details)},
+        )
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="asset.checkin_failed",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="asset.checkin_failed",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=payload,
+        )
+        if emit_conflict:
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="collaboration.conflict_detected",
+                resource_type="asset",
+                resource_id=asset.id,
+                organization_id=asset.project.organization_id,
+                project_id=asset.project_id,
+                details=payload,
+            )
+            emit_event(
+                db,
+                event_type="collaboration.conflict_detected",
+                resource_type="asset",
+                resource_id=asset.id,
+                organization_id=asset.project.organization_id,
+                project_id=asset.project_id,
+                payload=payload,
+            )
+            NotificationsModule.notify_project_members(
+                db,
+                organization_id=asset.project.organization_id,
+                project_id=asset.project_id,
+                asset_id=asset.id,
+                revision_id=None,
+                event_type="collaboration.conflict_detected",
+                actor_user_id=actor.id,
+                details=payload,
+                include_actor=True,
+                recipient_user_ids=[actor.id],
+            )
+        db.commit()
+        raise collaboration_error(
+            code=code, message=message, status_code=status_code, context=payload
+        )
+
+    @staticmethod
+    def _validate_checkin_representations(
+        db: Session, *, asset: Asset, representations: list[dict[str, object]], actor: User
+    ) -> None:
+        for item in representations:
+            blob_id = item.get("blob_id")
+            if blob_id is None:
+                continue
+            blob = db.get(Blob, str(blob_id))
+            if blob is None:
+                CollaborationModule._record_failed_checkin(
+                    db,
+                    actor=actor,
+                    asset=asset,
+                    code="representation_blob_not_found",
+                    message="Referenced Blob does not exist for check-in.",
+                    details={"blob_id": str(blob_id)},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                )
+
+    @staticmethod
+    def checkout(db: Session, *, asset_id: str, actor: User) -> CollaborationState:
+        state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+        asset = state.asset
+        ProjectModule.require_project_permission(
+            db, project_id=asset.project_id, actor=actor, permission="update_asset"
+        )
+        if asset.status == "archived":
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="asset_archived",
+                message="Archived Assets cannot be checked out.",
+            )
+        lock = asset.collaboration_lock
+        if lock is not None and lock.owner_user_id == actor.id:
+            return state
+        if lock is not None:
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="asset_locked",
+                message="Asset is already locked by another user.",
+                details={"lock_owner_user_id": lock.owner_user_id},
+            )
+        lock = AssetCollaborationLock(asset_id=asset.id, owner_user_id=actor.id)
+        db.add(lock)
+        db.flush()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="asset.checked_out",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=CollaborationModule._observability_payload(
+                result="succeeded", details={"lock_owner_user_id": actor.id}
+            ),
+        )
+        emit_event(
+            db,
+            event_type="asset.checked_out",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=CollaborationModule._observability_payload(
+                result="succeeded", details={"lock_owner_user_id": actor.id}
+            ),
+        )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=None,
+            event_type="asset.checked_out",
+            actor_user_id=actor.id,
+            details={"lock_owner_user_id": actor.id},
+        )
+        db.refresh(asset)
+        return CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+
+    @staticmethod
+    def unlock(
+        db: Session, *, asset_id: str, actor: User, force: bool = False
+    ) -> CollaborationState:
+        state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+        asset = state.asset
+        lock = state.lock
+        if lock is None:
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="no_active_lock",
+                message="Asset does not have an active collaboration lock.",
+            )
+        is_owner = lock.owner_user_id == actor.id
+        can_force = state.project_role in FORCE_UNLOCK_ROLES
+        if not is_owner and not (force and can_force):
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
+                code="unlock_not_allowed",
+                message="Only the lock owner can unlock unless a Maintainer or Owner force-unlocks.",
+                details={"lock_owner_user_id": lock.owner_user_id},
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        action = "asset.force_unlocked" if not is_owner else "asset.unlocked"
+        payload = CollaborationModule._observability_payload(
+            result="succeeded", details={"lock_owner_user_id": lock.owner_user_id}
+        )
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action=action,
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type=action,
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=payload,
+        )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=None,
+            event_type=action,
+            actor_user_id=actor.id,
+            details={"lock_owner_user_id": lock.owner_user_id},
+        )
+        db.delete(lock)
+        db.flush()
+        db.expire(asset, ["collaboration_lock"])
+        return CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+
+    @staticmethod
+    def checkin(
+        db: Session,
+        *,
+        asset_id: str,
+        comment: str,
+        representations: list[dict[str, object]],
+        actor: User,
+    ) -> Revision:
+        state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
+        asset = state.asset
+        lock = state.lock
+        if not comment.strip():
+            CollaborationModule._record_failed_checkin(
+                db,
+                actor=actor,
+                asset=asset,
+                code="checkin_comment_required",
+                message="Check-in comment is required.",
+            )
+        if asset.status == "archived":
+            CollaborationModule._record_failed_checkin(
+                db,
+                actor=actor,
+                asset=asset,
+                code="asset_archived",
+                message="Archived Assets cannot be checked in.",
+                status_code=status.HTTP_409_CONFLICT,
+                emit_conflict=True,
+            )
+        if lock is None:
+            CollaborationModule._record_failed_checkin(
+                db,
+                actor=actor,
+                asset=asset,
+                code="checkin_without_lock",
+                message="Asset must be checked out before check-in.",
+                status_code=status.HTTP_409_CONFLICT,
+                emit_conflict=True,
+            )
+        if lock.owner_user_id != actor.id:
+            CollaborationModule._record_failed_checkin(
+                db,
+                actor=actor,
+                asset=asset,
+                code="checkin_by_non_owner",
+                message="Only the lock owner can check in changes.",
+                details={"lock_owner_user_id": lock.owner_user_id},
+                status_code=status.HTTP_409_CONFLICT,
+                emit_conflict=True,
+            )
+        CollaborationModule._validate_checkin_representations(
+            db, asset=asset, representations=representations, actor=actor
+        )
+        revision = AssetsModule.create_revision(db, asset_id=asset.id, comment=comment, actor=actor)
+        for item in representations:
+            AssetsModule.add_representation(
+                db,
+                revision_id=revision.id,
+                name=str(item["name"]),
+                media_type=str(item["media_type"]),
+                blob_id=str(item["blob_id"]) if item.get("blob_id") is not None else None,
+                actor=actor,
+            )
+        payload = CollaborationModule._observability_payload(
+            result="succeeded",
+            details={"revision_id": revision.id, "revision_number": revision.number},
+        )
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="asset.checked_in",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="asset.checked_in",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=payload,
+        )
+        db.delete(lock)
+        db.flush()
+        db.expire(asset, ["collaboration_lock"])
+        return (
+            db.scalar(
+                select(Revision)
+                .options(joinedload(Revision.representations).joinedload(Representation.blob))
+                .where(Revision.id == revision.id)
+            )
+            or revision
+        )
+
+    @staticmethod
+    def list_timeline(db: Session, *, asset_id: str, actor: User) -> list[TimelineEntry]:
+        asset = AssetsModule.get_asset(db, asset_id=asset_id, actor=actor)
+        records = list(
+            db.scalars(
+                select(AuditRecord)
+                .where(
+                    and_(
+                        AuditRecord.project_id == asset.project_id,
+                        AuditRecord.action.in_(tuple(TIMELINE_EVENT_MAP.keys())),
+                    )
+                )
+                .order_by(AuditRecord.occurred_at.desc())
+            )
+        )
+        entries: list[TimelineEntry] = []
+        for record in records:
+            details = dict(record.details or {})
+            is_asset_event = record.resource_type == "asset" and record.resource_id == asset.id
+            is_revision_event = (
+                record.action == "revision.created" and str(details.get("asset_id")) == asset.id
+            )
+            if not (is_asset_event or is_revision_event):
+                continue
+            revision_id = details.get("revision_id")
+            if revision_id is not None:
+                revision_id = str(revision_id)
+            entries.append(
+                TimelineEntry(
+                    event_type=TIMELINE_EVENT_MAP[record.action],
+                    occurred_at=record.occurred_at,
+                    actor_user_id=record.actor_user_id,
+                    asset_id=asset.id,
+                    revision_id=revision_id,
+                    details=details,
+                )
+            )
+        return entries
 
 
 class MetadataModule:
@@ -1123,3 +1961,28 @@ class SessionContext:
 
     session_token: SessionToken
     user: User
+
+
+@dataclass(slots=True)
+class CollaborationState:
+    """Resolved collaboration state for an Asset."""
+
+    asset: Asset
+    state: str
+    lock: AssetCollaborationLock | None
+    project_role: str | None
+    can_checkin: bool
+    can_unlock: bool
+    can_force_unlock: bool
+
+
+@dataclass(slots=True)
+class TimelineEntry:
+    """User-facing collaboration timeline entry."""
+
+    event_type: str
+    occurred_at: datetime
+    actor_user_id: str | None
+    asset_id: str
+    revision_id: str | None
+    details: dict[str, object]
