@@ -1046,6 +1046,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: XL
           ADR: ADR-0001, ADR-0002
+        closed: true
         sub_issues:
 
           - title: "Phase 1 Task: Define authentication and user identity model"
@@ -1160,6 +1161,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0015
+            closed: true
 
           - title: "Phase 1 Task: Implement user membership and baseline authorization"
             body: |
@@ -1190,6 +1192,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0009
+            closed: true
 
           - title: "Phase 1 Task: Deliver authentication API and request security baseline"
             body: |
@@ -1219,6 +1222,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0009
+            closed: true
 
       - title: "Phase 1 Epic: Engineering Asset Lifecycle MVP"
         body: |
@@ -1267,6 +1271,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: XL
           ADR: ADR-0003, ADR-0005, ADR-0006
+        closed: true
         sub_issues:
 
           - title: "Phase 1 Task: Define Asset lifecycle module boundaries and public interfaces"
@@ -1341,6 +1346,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0003, ADR-0005, ADR-0016
+            closed: true
 
           - title: "Phase 1 Task: Implement Representation and Blob reference model"
             body: |
@@ -1370,6 +1376,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0003, ADR-0005, ADR-0006, ADR-0016
+            closed: true
 
           - title: "Phase 1 Task: Implement Blob upload and download workflow"
             body: |
@@ -1400,6 +1407,7 @@ roadmap:
               Platform Area: Infrastructure
               Complexity: L
               ADR: ADR-0005, ADR-0006, ADR-0016
+            closed: true
 
           - title: "Phase 1 Task: Implement Asset retrieval and version history API"
             body: |
@@ -1430,6 +1438,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0003, ADR-0016
+            closed: true
 
       - title: "Phase 1 Epic: Discoverability and Governance Foundations"
         body: |
@@ -1480,6 +1489,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: XL
           ADR: ADR-0001, ADR-0002, ADR-0003
+        closed: true
         sub_issues:
 
           - title: "Phase 1 Task: Define generic metadata model for Phase 1"
@@ -1556,6 +1566,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0010
+            closed: true
 
           - title: "Phase 1 Task: Define basic search scope and indexing strategy"
             body: |
@@ -1628,6 +1639,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0011
+            closed: true
 
           - title: "Phase 1 Task: Define Phase 1 permission model"
             body: |
@@ -1706,6 +1718,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0012
+            closed: true
 
           - title: "Phase 1 Task: Implement audit log for significant Phase 1 actions"
             body: |
@@ -1736,6 +1749,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0001
+            closed: true
 
           - title: "Phase 1 Task: Implement domain events for significant Phase 1 actions"
             body: |
@@ -1765,6 +1779,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0001, ADR-0002
+            closed: true
 
       - title: "Phase 1 Epic: Extension Readiness Foundations"
         body: |
@@ -1811,6 +1826,7 @@ roadmap:
           Platform Area: Extension API
           Complexity: L
           ADR: ADR-0002
+        closed: true
         sub_issues:
 
           - title: "Phase 1 Task: Define minimal Phase 1 plugin infrastructure scope"
@@ -1843,6 +1859,7 @@ roadmap:
               Platform Area: Extension API
               Complexity: M
               ADR: TBD
+            closed: true
 
           - title: "Phase 1 Task: Define generic lifecycle status primitive scope"
             body: |
@@ -1873,6 +1890,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: TBD
+            closed: true
 
           - title: "Phase 1 Task: Implement minimal extension registration and configuration boundary"
             body: |
@@ -1902,6 +1920,7 @@ roadmap:
               Platform Area: Extension API
               Complexity: M
               ADR: TBD
+            closed: true
 
           - title: "Phase 1 Task: Implement generic lifecycle status primitive"
             body: |
@@ -1933,6 +1952,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: TBD
+            closed: true
 
       - title: "Phase 1 Epic: Core Platform MVP Web UI"
         body: |
@@ -1956,12 +1976,15 @@ roadmap:
           - upload Blob-backed file content through the delivered API flow;
           - download Blob-backed content.
 
+          A reusable manual test guide exists for this browser workflow so contributors can validate the prototype consistently on a local instance.
+
           ## Acceptance Criteria
           - The Web UI consumes the public application API only.
           - Authentication state is represented in the UI for the approved Phase 1 scope.
           - Users can navigate Organizations, Projects and Engineering Assets delivered in Phase 1.
           - Users can upload files and inspect version history through the UI.
           - Users can download Blob-backed content through the UI.
+          - A documented manual verification path exists for the prototype journey from sign-in to download.
           - UI behavior matches delivered backend capability and does not promise future roadmap features early.
 
           ## Dependencies
@@ -2003,6 +2026,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: L
           ADR: ADR-0007
+        closed: true
         sub_issues:
 
           - title: "Phase 1 Task: Define Core Platform MVP Web UI scope"
@@ -2021,6 +2045,7 @@ roadmap:
               - The UI scope remains aligned with the delivered backend capabilities.
               - The scope explicitly covers sign-in, Organization selection, Project selection, Asset browsing, Revision history, upload and download.
               - The scope explicitly defers unsupported future-phase behaviors.
+              - The scope identifies the manual browser verification path required to validate the prototype locally.
 
               ## Dependencies
               - Phase 1 Epic: Core Platform MVP Web UI
@@ -2037,6 +2062,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
           - title: "Phase 1 Task: Implement authentication and session handling in the Web UI"
             body: |
@@ -2072,6 +2098,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007, ADR-0009
+            closed: true
             sub_issues:
 
               - title: "Phase 1 UI Task: Build sign-in form and session persistence"
@@ -2102,6 +2129,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007, ADR-0009
+                closed: true
 
               - title: "Phase 1 UI Task: Protect routes and implement sign-out"
                 body: |
@@ -2131,6 +2159,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007, ADR-0009
+                closed: true
 
               - title: "Phase 1 UI Task: Build local user registration flow"
                 body: |
@@ -2161,6 +2190,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007, ADR-0009
+                closed: true
 
           - title: "Phase 1 Task: Implement Organization and Project navigation in the Web UI"
             body: |
@@ -2195,6 +2225,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
             sub_issues:
 
               - title: "Phase 1 UI Task: Build Organization and Project selection views"
@@ -2225,6 +2256,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
               - title: "Phase 1 UI Task: Wire Project context into routing and layout"
                 body: |
@@ -2254,6 +2286,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
               - title: "Phase 1 UI Task: Build empty-state Organization and Project bootstrap flow"
                 body: |
@@ -2284,6 +2317,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
           - title: "Phase 1 Task: Implement Asset browsing and version history in the Web UI"
             body: |
@@ -2318,6 +2352,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
             sub_issues:
 
               - title: "Phase 1 UI Task: Build Asset list and detail views"
@@ -2348,6 +2383,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
               - title: "Phase 1 UI Task: Expose Revision history and Representation actions"
                 body: |
@@ -2377,6 +2413,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
               - title: "Phase 1 UI Task: Build empty-state Asset creation flow"
                 body: |
@@ -2407,6 +2444,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
           - title: "Phase 1 Task: Implement file upload and download flows in the Web UI"
             body: |
@@ -2441,6 +2479,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
             sub_issues:
 
               - title: "Phase 1 UI Task: Build Blob upload interaction"
@@ -2471,6 +2510,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
               - title: "Phase 1 UI Task: Build Blob download interaction and transfer error handling"
                 body: |
@@ -2500,6 +2540,7 @@ roadmap:
                   Platform Area: Frontend
                   Complexity: S
                   ADR: ADR-0007
+                closed: true
 
   - phase: Collaboration
     milestone: Collaboration
