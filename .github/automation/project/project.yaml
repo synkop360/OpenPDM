@@ -3485,6 +3485,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: M
           ADR: ADR-0001, ADR-0002, ADR-0023
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define collaboration audit and event coverage"
@@ -3568,6 +3569,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0001
+            closed: true
 
           - title: "Phase 2 Task: Implement collaboration domain event emission"
             body: |
@@ -3599,6 +3601,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0002
+            closed: true
 
       - title: "Phase 2 Epic: In-App Collaboration Notifications"
         body: |

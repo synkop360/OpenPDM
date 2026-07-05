@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
-from openpdm.infrastructure.database import dispose_engines
+from openpdm.infrastructure.database import dispose_engines, session_scope
+from openpdm.platform_core.modules.models import AuditRecord, DomainEvent
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -443,3 +445,93 @@ def test_collaboration_requires_comment_and_rejects_archived_asset_checkin(tmp_p
     state = client.get(f"/assets/{asset['id']}/collaboration-state", headers=auth_header(token))
     assert state.status_code == 200
     assert state.json()["state"] == "stale_lock"
+
+
+def test_collaboration_audit_and_domain_events_include_request_context(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="audit@example.com",
+        display_name="Audit User",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(token),
+        json={"name": "Acme", "slug": "acme-audit"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Audit"},
+    ).json()
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "Nose", "description": "Nose cone"},
+    ).json()
+
+    request_id = "req-collab-audit-1"
+    checkout = client.post(
+        f"/assets/{asset['id']}/checkout",
+        headers={**auth_header(token), "X-Request-Id": request_id},
+    )
+    assert checkout.status_code == 200
+    assert checkout.headers["X-Request-Id"] == request_id
+
+    failed_checkin = client.post(
+        f"/assets/{asset['id']}/checkin",
+        headers={**auth_header(token), "X-Request-Id": "req-collab-audit-2"},
+        json={"comment": "", "representations": []},
+    )
+    assert failed_checkin.status_code == 400
+    assert failed_checkin.json()["detail"]["code"] == "checkin_comment_required"
+
+    with session_scope() as db:
+        audit_records = list(
+            db.scalars(
+                select(AuditRecord)
+                .where(
+                    AuditRecord.resource_type == "asset",
+                    AuditRecord.resource_id == asset["id"],
+                    AuditRecord.action.in_(
+                        (
+                            "asset.checked_out",
+                            "asset.checkin_failed",
+                        )
+                    ),
+                )
+                .order_by(AuditRecord.occurred_at.asc())
+            )
+        )
+        assert len(audit_records) == 2
+
+        checkout_audit = audit_records[0]
+        assert checkout_audit.action == "asset.checked_out"
+        assert checkout_audit.details["request_id"] == request_id
+        assert checkout_audit.details["result"] == "succeeded"
+
+        failed_audit = audit_records[1]
+        assert failed_audit.action == "asset.checkin_failed"
+        assert failed_audit.details["request_id"] == "req-collab-audit-2"
+        assert failed_audit.details["result"] == "failed"
+        assert failed_audit.details["reason"] == "checkin_comment_required"
+        assert failed_audit.details["error"] == "Check-in comment is required."
+
+        domain_events = list(
+            db.scalars(
+                select(DomainEvent)
+                .where(
+                    DomainEvent.resource_type == "asset",
+                    DomainEvent.resource_id == asset["id"],
+                    DomainEvent.event_type.in_(("asset.checked_out", "asset.checkin_failed")),
+                )
+                .order_by(DomainEvent.emitted_at.asc())
+            )
+        )
+        assert len(domain_events) == 2
+        assert domain_events[0].payload["request_id"] == request_id
+        assert domain_events[0].payload["result"] == "succeeded"
+        assert domain_events[1].payload["request_id"] == "req-collab-audit-2"
+        assert domain_events[1].payload["result"] == "failed"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -61,11 +62,27 @@ TIMELINE_EVENT_MAP = {
     "asset.checked_in": "CheckInCompleted",
     "collaboration.conflict_detected": "ConflictDetected",
 }
+CURRENT_REQUEST_ID: ContextVar[str | None] = ContextVar("openpdm_request_id", default=None)
 
 
 def utc_now() -> datetime:
     """Return the current UTC time."""
     return datetime.now(UTC)
+
+
+def set_request_id(value: str | None) -> object:
+    """Set the current request identifier for observability helpers."""
+    return CURRENT_REQUEST_ID.set(value)
+
+
+def reset_request_id(token: object) -> None:
+    """Restore the previous request identifier after a request completes."""
+    CURRENT_REQUEST_ID.reset(token)
+
+
+def get_request_id() -> str | None:
+    """Return the active request identifier if one is available."""
+    return CURRENT_REQUEST_ID.get()
 
 
 def hash_password(password: str) -> str:
@@ -134,6 +151,10 @@ def record_audit(
     details: dict[str, object] | None = None,
 ) -> None:
     """Record a significant audit event."""
+    payload = dict(details or {})
+    request_id = get_request_id()
+    if request_id is not None:
+        payload.setdefault("request_id", request_id)
     db.add(
         AuditRecord(
             actor_user_id=actor_user_id,
@@ -142,7 +163,7 @@ def record_audit(
             resource_id=resource_id,
             organization_id=organization_id,
             project_id=project_id,
-            details=details or {},
+            details=payload,
         )
     )
 
@@ -158,6 +179,10 @@ def emit_event(
     payload: dict[str, object] | None = None,
 ) -> None:
     """Record a domain event for a significant action."""
+    event_payload = dict(payload or {})
+    request_id = get_request_id()
+    if request_id is not None:
+        event_payload.setdefault("request_id", request_id)
     db.add(
         DomainEvent(
             event_type=event_type,
@@ -165,7 +190,7 @@ def emit_event(
             resource_id=resource_id,
             organization_id=organization_id,
             project_id=project_id,
-            payload=payload or {},
+            payload=event_payload,
         )
     )
 
@@ -869,6 +894,22 @@ class CollaborationModule:
     """Public collaboration module service for Phase 2."""
 
     @staticmethod
+    def _observability_payload(
+        *,
+        result: str,
+        reason: str | None = None,
+        error: str | None = None,
+        details: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        payload = dict(details or {})
+        payload["result"] = result
+        if reason is not None:
+            payload["reason"] = reason
+        if error is not None:
+            payload["error"] = error
+        return payload
+
+    @staticmethod
     def _get_asset_for_collaboration(db: Session, *, asset_id: str, actor: User) -> Asset:
         return db.scalar(
             select(Asset)
@@ -929,8 +970,14 @@ class CollaborationModule:
         code: str,
         message: str,
         details: dict[str, object] | None = None,
+        status_code: int = status.HTTP_409_CONFLICT,
     ) -> None:
-        payload = {"code": code, **(details or {})}
+        payload = CollaborationModule._observability_payload(
+            result="rejected",
+            reason=code,
+            error=message,
+            details={"code": code, **(details or {})},
+        )
         record_audit(
             db,
             actor_user_id=actor.id,
@@ -950,8 +997,88 @@ class CollaborationModule:
             project_id=asset.project_id,
             payload=payload,
         )
-        db.flush()
-        raise collaboration_error(code=code, message=message, context=payload)
+        db.commit()
+        raise collaboration_error(code=code, message=message, status_code=status_code, context=payload)
+
+    @staticmethod
+    def _record_failed_checkin(
+        db: Session,
+        *,
+        actor: User,
+        asset: Asset,
+        code: str,
+        message: str,
+        details: dict[str, object] | None = None,
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+        emit_conflict: bool = False,
+    ) -> None:
+        payload = CollaborationModule._observability_payload(
+            result="failed",
+            reason=code,
+            error=message,
+            details={"code": code, **(details or {})},
+        )
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="asset.checkin_failed",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="asset.checkin_failed",
+            resource_type="asset",
+            resource_id=asset.id,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            payload=payload,
+        )
+        if emit_conflict:
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="collaboration.conflict_detected",
+                resource_type="asset",
+                resource_id=asset.id,
+                organization_id=asset.project.organization_id,
+                project_id=asset.project_id,
+                details=payload,
+            )
+            emit_event(
+                db,
+                event_type="collaboration.conflict_detected",
+                resource_type="asset",
+                resource_id=asset.id,
+                organization_id=asset.project.organization_id,
+                project_id=asset.project_id,
+                payload=payload,
+            )
+        db.commit()
+        raise collaboration_error(code=code, message=message, status_code=status_code, context=payload)
+
+    @staticmethod
+    def _validate_checkin_representations(
+        db: Session, *, asset: Asset, representations: list[dict[str, object]], actor: User
+    ) -> None:
+        for item in representations:
+            blob_id = item.get("blob_id")
+            if blob_id is None:
+                continue
+            blob = db.get(Blob, str(blob_id))
+            if blob is None:
+                CollaborationModule._record_failed_checkin(
+                    db,
+                    actor=actor,
+                    asset=asset,
+                    code="representation_blob_not_found",
+                    message="Referenced Blob does not exist for check-in.",
+                    details={"blob_id": str(blob_id)},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                )
 
     @staticmethod
     def checkout(db: Session, *, asset_id: str, actor: User) -> CollaborationState:
@@ -991,7 +1118,9 @@ class CollaborationModule:
             resource_id=asset.id,
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
-            details={"lock_owner_user_id": actor.id},
+            details=CollaborationModule._observability_payload(
+                result="succeeded", details={"lock_owner_user_id": actor.id}
+            ),
         )
         emit_event(
             db,
@@ -1000,7 +1129,9 @@ class CollaborationModule:
             resource_id=asset.id,
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
-            payload={"lock_owner_user_id": actor.id},
+            payload=CollaborationModule._observability_payload(
+                result="succeeded", details={"lock_owner_user_id": actor.id}
+            ),
         )
         db.refresh(asset)
         return CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
@@ -1023,13 +1154,19 @@ class CollaborationModule:
         is_owner = lock.owner_user_id == actor.id
         can_force = state.project_role in FORCE_UNLOCK_ROLES
         if not is_owner and not (force and can_force):
-            raise collaboration_error(
+            CollaborationModule._record_conflict(
+                db,
+                actor=actor,
+                asset=asset,
                 code="unlock_not_allowed",
                 message="Only the lock owner can unlock unless a Maintainer or Owner force-unlocks.",
+                details={"lock_owner_user_id": lock.owner_user_id},
                 status_code=status.HTTP_403_FORBIDDEN,
-                context={"lock_owner_user_id": lock.owner_user_id},
             )
         action = "asset.force_unlocked" if not is_owner else "asset.unlocked"
+        payload = CollaborationModule._observability_payload(
+            result="succeeded", details={"lock_owner_user_id": lock.owner_user_id}
+        )
         record_audit(
             db,
             actor_user_id=actor.id,
@@ -1038,7 +1175,7 @@ class CollaborationModule:
             resource_id=asset.id,
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
-            details={"lock_owner_user_id": lock.owner_user_id},
+            details=payload,
         )
         emit_event(
             db,
@@ -1047,7 +1184,7 @@ class CollaborationModule:
             resource_id=asset.id,
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
-            payload={"lock_owner_user_id": lock.owner_user_id},
+            payload=payload,
         )
         db.delete(lock)
         db.flush()
@@ -1066,32 +1203,48 @@ class CollaborationModule:
         state = CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
         asset = state.asset
         lock = state.lock
-        require(comment.strip(), "Check-in comment is required.")
+        if not comment.strip():
+            CollaborationModule._record_failed_checkin(
+                db,
+                actor=actor,
+                asset=asset,
+                code="checkin_comment_required",
+                message="Check-in comment is required.",
+            )
         if asset.status == "archived":
-            CollaborationModule._record_conflict(
+            CollaborationModule._record_failed_checkin(
                 db,
                 actor=actor,
                 asset=asset,
                 code="asset_archived",
                 message="Archived Assets cannot be checked in.",
+                status_code=status.HTTP_409_CONFLICT,
+                emit_conflict=True,
             )
         if lock is None:
-            CollaborationModule._record_conflict(
+            CollaborationModule._record_failed_checkin(
                 db,
                 actor=actor,
                 asset=asset,
                 code="checkin_without_lock",
                 message="Asset must be checked out before check-in.",
+                status_code=status.HTTP_409_CONFLICT,
+                emit_conflict=True,
             )
         if lock.owner_user_id != actor.id:
-            CollaborationModule._record_conflict(
+            CollaborationModule._record_failed_checkin(
                 db,
                 actor=actor,
                 asset=asset,
                 code="checkin_by_non_owner",
                 message="Only the lock owner can check in changes.",
                 details={"lock_owner_user_id": lock.owner_user_id},
+                status_code=status.HTTP_409_CONFLICT,
+                emit_conflict=True,
             )
+        CollaborationModule._validate_checkin_representations(
+            db, asset=asset, representations=representations, actor=actor
+        )
         revision = AssetsModule.create_revision(db, asset_id=asset.id, comment=comment, actor=actor)
         for item in representations:
             AssetsModule.add_representation(
@@ -1102,6 +1255,10 @@ class CollaborationModule:
                 blob_id=str(item["blob_id"]) if item.get("blob_id") is not None else None,
                 actor=actor,
             )
+        payload = CollaborationModule._observability_payload(
+            result="succeeded",
+            details={"revision_id": revision.id, "revision_number": revision.number},
+        )
         record_audit(
             db,
             actor_user_id=actor.id,
@@ -1110,7 +1267,7 @@ class CollaborationModule:
             resource_id=asset.id,
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
-            details={"revision_id": revision.id, "revision_number": revision.number},
+            details=payload,
         )
         emit_event(
             db,
@@ -1119,7 +1276,7 @@ class CollaborationModule:
             resource_id=asset.id,
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
-            payload={"revision_id": revision.id, "revision_number": revision.number},
+            payload=payload,
         )
         db.delete(lock)
         db.flush()
