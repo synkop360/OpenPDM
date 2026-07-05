@@ -161,6 +161,15 @@ milestones:
   - title: Collaboration
     description: Enable collaborative engineering work.
 
+  - title: Collaboration Control Model
+    description: Deliver the generic collaboration control primitives for safe multi-user work.
+
+  - title: Collaboration Activity and Discussion
+    description: Deliver revision discussion and collaboration activity visibility.
+
+  - title: Notifications and Conflict Feedback
+    description: Deliver in-app notifications, conflict feedback and recovery guidance for collaboration flows.
+
   - title: Asset Graph
     description: Introduce relationships between Assets.
 
@@ -2545,7 +2554,1337 @@ roadmap:
   - phase: Collaboration
     milestone: Collaboration
     description: Enable collaborative engineering work.
-    epics: []
+    epics:
+
+      - title: "Phase 2 Epic: Collaboration State Model and API Contracts"
+        body: |
+          ## Objective
+          Define and expose the generic collaboration concepts required for Phase 2.
+
+          ## Description
+          This epic establishes the generic collaboration model for check-out, check-in, lock ownership, lock release, lock visibility and conflict rejection. It must remain separate from Phase 6 workflow behavior and explicitly exclude post-v1 desktop synchronization concerns.
+
+          ## Expected Deliverable
+          A documented and implemented API-facing collaboration model that other Phase 2 work can use consistently.
+
+          ## Acceptance Criteria
+          - Collaboration concepts and allowed state transitions are explicit for the approved Phase 2 scope.
+          - Public API contracts for collaboration operations are defined and documented.
+          - Deferred workflow and desktop behaviors are listed clearly.
+
+          ## Dependencies
+          - ADR-0001
+          - ADR-0002
+          - ADR-0012
+          - ADR-0016
+
+          ## Risks
+          - Collaboration concepts could drift into workflow semantics that belong to Phase 6.
+          - API contracts could imply desktop synchronization behavior that is explicitly deferred.
+
+          ## Exit Criteria
+          - Collaboration state terminology is stable for Phase 2 implementation.
+          - API contracts are clear enough for backend and Web UI work to proceed without reopening scope.
+
+          ## Suggested Labels
+          architecture, core, P1
+        milestone: Collaboration Control Model
+        labels:
+          - architecture
+          - core
+          - P1
+        fields:
+          Phase: Collaboration
+          Epic: Collaboration State Model and API Contracts
+          Platform Area: Platform Core
+          Complexity: L
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define generic collaboration state model"
+            body: |
+              ## Objective
+              Define the generic Phase 2 collaboration model.
+
+              ## Description
+              Open a decision issue that defines the collaboration concepts allowed in Phase 2, including check-out, check-in, lock ownership, lock release, lock visibility and conflict rejection, while explicitly deferring workflow approvals and desktop synchronization behavior.
+
+              ## Acceptance Criteria
+              - The Phase 2 collaboration concepts are explicit.
+              - Allowed and disallowed state transitions are listed.
+              - Deferred workflow and desktop behaviors are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Epic: Collaboration State Model and API Contracts
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration State Model and API Contracts
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Define collaboration API contract surface"
+            body: |
+              ## Objective
+              Define the public application API surface for collaboration controls.
+
+              ## Description
+              Open a decision issue that specifies the request and response behavior for check-out, check-in, lock inspection, lock release and collaboration conflict responses so the Web UI and future clients consume a stable public contract.
+
+              ## Acceptance Criteria
+              - Required collaboration endpoints or actions are explicit.
+              - Error and conflict responses are explicit for the approved scope.
+              - The contract uses public API boundaries only.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration State Model and API Contracts
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement collaboration state model in Platform Modules"
+            body: |
+              ## Objective
+              Deliver the approved collaboration state model in the Platform Core.
+
+              ## Description
+              Implement the generic collaboration state behavior required by Phase 2 while preserving the current modular monolith boundaries and keeping authorization decisions inside the Platform Core.
+
+              ## Acceptance Criteria
+              - Collaboration state behavior exists for the approved scope.
+              - Module boundaries remain aligned with accepted ADRs.
+              - Tests cover normal and rejected transitions.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+              - Phase 2 Task: Define collaboration API contract surface
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration State Model and API Contracts
+              Platform Area: Platform Module
+              Complexity: L
+              ADR: TBD
+
+          - title: "Phase 2 Task: Document deferred collaboration capabilities beyond v1"
+            body: |
+              ## Objective
+              Make the v1 collaboration boundary explicit in project and product documentation.
+
+              ## Description
+              Update the relevant planning and user-facing scope documents so desktop synchronization, desktop notifications and local file conflict resolution remain clearly deferred beyond the approved v1 collaboration scope.
+
+              ## Acceptance Criteria
+              - Deferred collaboration capabilities are documented clearly.
+              - Documentation does not imply Desktop Client delivery in Phase 2.
+              - References remain aligned with the roadmap and accepted ADRs.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+
+              ## Suggested Labels
+              documentation, P2
+            labels:
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration State Model and API Contracts
+              Platform Area: Documentation
+              Complexity: S
+              ADR: TBD
+
+      - title: "Phase 2 Epic: Asset Locking and Concurrency Enforcement"
+        body: |
+          ## Objective
+          Prevent unsafe concurrent modification of shared Engineering Assets.
+
+          ## Description
+          This epic delivers the server-side lock ownership, lock release and concurrent modification protection rules for the approved Phase 2 collaboration scope. It must remain generic and must not introduce engineering-domain semantics or desktop file synchronization behavior.
+
+          ## Expected Deliverable
+          API-enforced locking and concurrency controls that preserve the immutable Asset lifecycle during multi-user collaboration.
+
+          ## Acceptance Criteria
+          - Lock ownership and release rules are enforced consistently.
+          - Invalid concurrent collaboration actions are rejected predictably.
+          - Collaboration controls preserve Asset, Revision and Blob boundaries.
+
+          ## Dependencies
+          - Phase 2 Epic: Collaboration State Model and API Contracts
+          - ADR-0003
+          - ADR-0012
+          - ADR-0016
+
+          ## Risks
+          - Locking could become too fine-grained for the approved Phase 2 scope.
+          - Enforcement gaps could allow concurrent modification through different API paths.
+
+          ## Exit Criteria
+          - The platform prevents unsafe concurrent write behavior through the public API.
+          - Lock state is consistent and test-covered across the delivered scope.
+
+          ## Suggested Labels
+          feature, core, P1
+        milestone: Collaboration Control Model
+        labels:
+          - feature
+          - core
+          - P1
+        fields:
+          Phase: Collaboration
+          Epic: Asset Locking and Concurrency Enforcement
+          Platform Area: Platform Core
+          Complexity: L
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define lock scope and ownership rules"
+            body: |
+              ## Objective
+              Define how lock scope and ownership work in Phase 2.
+
+              ## Description
+              Clarify whether locks apply at Asset, working Revision or another approved generic lifecycle scope, who may acquire or release them, and what happens when authorization or lifecycle state prevents the action.
+
+              ## Acceptance Criteria
+              - Lock scope is explicit for the approved Phase 2 model.
+              - Ownership and release rules are explicit.
+              - Authorization interactions are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Asset Locking and Concurrency Enforcement
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement lock persistence and lifecycle enforcement"
+            body: |
+              ## Objective
+              Persist collaboration locks and enforce their lifecycle behavior.
+
+              ## Description
+              Implement the backend behavior required to create, read, release and invalidate collaboration locks for the approved scope while preserving the existing Asset lifecycle model.
+
+              ## Acceptance Criteria
+              - Lock state is persisted reliably for the approved scope.
+              - Lock acquisition and release follow the approved rules.
+              - Tests cover normal, duplicate and unauthorized operations.
+
+              ## Dependencies
+              - Phase 2 Task: Define lock scope and ownership rules
+              - Phase 2 Task: Implement collaboration state model in Platform Modules
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Asset Locking and Concurrency Enforcement
+              Platform Area: Platform Module
+              Complexity: L
+              ADR: TBD
+
+          - title: "Phase 2 Task: Enforce concurrency protection on collaboration write paths"
+            body: |
+              ## Objective
+              Apply collaboration protection rules across write operations.
+
+              ## Description
+              Harden the delivered API write paths so conflicting revisions, updates or lock-bypassing actions are rejected consistently when collaboration rules are violated.
+
+              ## Acceptance Criteria
+              - Delivered write paths enforce lock and conflict rules consistently.
+              - Rejected operations return predictable collaboration errors.
+              - Tests cover concurrent and stale-state scenarios.
+
+              ## Dependencies
+              - Phase 2 Task: Implement lock persistence and lifecycle enforcement
+
+              ## Suggested Labels
+              feature, test, P1
+            labels:
+              - feature
+              - test
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Asset Locking and Concurrency Enforcement
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: TBD
+
+          - title: "Phase 2 Task: Expose lock state through delivered read APIs"
+            body: |
+              ## Objective
+              Make collaboration lock state visible through the public API.
+
+              ## Description
+              Extend the approved read paths so clients can discover lock ownership and collaboration status before attempting conflicting work.
+
+              ## Acceptance Criteria
+              - Lock state is visible through the approved API scope.
+              - Returned state reflects authorization constraints.
+              - API documentation and tests cover the exposed behavior.
+
+              ## Dependencies
+              - Phase 2 Task: Implement lock persistence and lifecycle enforcement
+
+              ## Suggested Labels
+              feature, documentation, test, P2
+            labels:
+              - feature
+              - documentation
+              - test
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Asset Locking and Concurrency Enforcement
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+      - title: "Phase 2 Epic: Web UI Collaboration Controls"
+        body: |
+          ## Objective
+          Expose Phase 2 collaboration controls through the Web UI.
+
+          ## Description
+          This epic delivers the Web UI controls and state visibility needed for users to acquire locks, release locks, check in changes and understand collaboration status before they attempt conflicting work.
+
+          ## Expected Deliverable
+          A Web UI collaboration layer that exercises the delivered public API and keeps desktop-specific workflows out of scope.
+
+          ## Acceptance Criteria
+          - Users can discover collaboration state in the Web UI.
+          - Users can perform the approved collaboration control actions in the Web UI.
+          - The UI does not imply Desktop Client or local sync behavior.
+
+          ## Dependencies
+          - Phase 2 Epic: Collaboration State Model and API Contracts
+          - Phase 2 Epic: Asset Locking and Concurrency Enforcement
+          - ADR-0007
+
+          ## Risks
+          - The UI could hide lock state until after a conflicting action is attempted.
+          - Collaboration controls could imply unsupported desktop-oriented behavior.
+
+          ## Exit Criteria
+          - Web users can complete the approved collaboration control flow end to end.
+          - Lock and conflict state are visible in the main Web UI paths.
+
+          ## Suggested Labels
+          feature, frontend, P1
+        milestone: Collaboration Control Model
+        labels:
+          - feature
+          - frontend
+          - P1
+        fields:
+          Phase: Collaboration
+          Epic: Web UI Collaboration Controls
+          Platform Area: Frontend
+          Complexity: M
+          ADR: ADR-0007
+        sub_issues:
+
+          - title: "Phase 2 Task: Define Web UI collaboration control scope"
+            body: |
+              ## Objective
+              Define the minimum Web UI collaboration flow for Phase 2.
+
+              ## Description
+              Clarify which collaboration controls, states and empty or blocked states must be visible in the Web UI for the approved v1 collaboration path.
+
+              ## Acceptance Criteria
+              - Required Web UI collaboration journeys are explicit.
+              - Required lock and conflict states are listed.
+              - Deferred desktop-oriented behaviors are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Define collaboration API contract surface
+
+              ## Suggested Labels
+              documentation, frontend, P1
+            labels:
+              - documentation
+              - frontend
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Web UI Collaboration Controls
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0007
+
+          - title: "Phase 2 Task: Implement lock and check-out controls in the Web UI"
+            body: |
+              ## Objective
+              Expose lock acquisition and check-out actions in the Web UI.
+
+              ## Description
+              Implement the user interactions needed to acquire collaboration control over an Asset and reflect the resulting state clearly in the active Project context.
+
+              ## Acceptance Criteria
+              - Users can trigger the approved collaboration control actions from the Web UI.
+              - Resulting state is visible without a full workflow restart.
+              - Unauthorized and blocked actions are handled clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Define Web UI collaboration control scope
+              - Phase 2 Task: Expose lock state through delivered read APIs
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Web UI Collaboration Controls
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
+
+          - title: "Phase 2 Task: Implement lock visibility and ownership cues in the Web UI"
+            body: |
+              ## Objective
+              Make collaboration state visible before conflicting actions are attempted.
+
+              ## Description
+              Add the UI cues needed to show whether an Asset is available, locked by the current user or locked by another user within the delivered collaboration scope.
+
+              ## Acceptance Criteria
+              - Lock ownership is visible from the main collaboration path.
+              - Users can distinguish available and blocked Assets clearly.
+              - Empty, loading and stale-state cases are handled clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Implement lock and check-out controls in the Web UI
+
+              ## Suggested Labels
+              feature, frontend, P2
+            labels:
+              - feature
+              - frontend
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Web UI Collaboration Controls
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0007
+
+          - title: "Phase 2 Task: Implement check-in and lock release flows in the Web UI"
+            body: |
+              ## Objective
+              Complete the Web UI collaboration control loop.
+
+              ## Description
+              Implement the user flow for check-in and lock release so the approved collaboration cycle can be completed cleanly through the Web UI.
+
+              ## Acceptance Criteria
+              - Users can complete check-in for the approved scope from the Web UI.
+              - Users can release locks through the approved Web UI path.
+              - Failure responses are visible and understandable.
+
+              ## Dependencies
+              - Phase 2 Task: Implement lock and check-out controls in the Web UI
+              - Phase 2 Task: Enforce concurrency protection on collaboration write paths
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Web UI Collaboration Controls
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
+
+      - title: "Phase 2 Epic: Revision Comments Capability"
+        body: |
+          ## Objective
+          Add generic revision comments for team coordination.
+
+          ## Description
+          This epic delivers revision comment behavior attached to the immutable Revision history, with no engineering-specific semantics and no workflow approval meaning.
+
+          ## Expected Deliverable
+          Revision comments available through the public API and visible in the Web UI for the approved collaboration scope.
+
+          ## Acceptance Criteria
+          - Users can add and read revision comments for the approved scope.
+          - Comments remain attached to the generic Asset lifecycle.
+          - Comment behavior does not imply approval or workflow semantics.
+
+          ## Dependencies
+          - Phase 2 Epic: Collaboration State Model and API Contracts
+          - ADR-0003
+          - ADR-0016
+
+          ## Risks
+          - Comment behavior could drift into workflow approval semantics.
+          - Revision association could become ambiguous if not kept within the generic lifecycle model.
+
+          ## Exit Criteria
+          - Teams can use revision comments for collaboration context in Web/API flows.
+          - Comment behavior is documented and test-covered.
+
+          ## Suggested Labels
+          feature, core, P1
+        milestone: Collaboration Activity and Discussion
+        labels:
+          - feature
+          - core
+          - P1
+        fields:
+          Phase: Collaboration
+          Epic: Revision Comments Capability
+          Platform Area: Platform Module
+          Complexity: M
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define revision comment scope and moderation boundaries"
+            body: |
+              ## Objective
+              Define the generic Phase 2 revision comment capability.
+
+              ## Description
+              Open a decision issue that clarifies what a revision comment contains, who can create or read it, and what comment lifecycle or moderation behaviors are explicitly out of scope for the approved Phase 2 release.
+
+              ## Acceptance Criteria
+              - Revision comment scope is explicit.
+              - Authorization expectations are explicit.
+              - Deferred moderation or workflow behaviors are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Epic: Revision Comments Capability
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Revision Comments Capability
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement revision comments API and persistence"
+            body: |
+              ## Objective
+              Deliver revision comment creation and retrieval through the public API.
+
+              ## Description
+              Implement revision comment storage and public API behavior for the approved Phase 2 scope while preserving the immutable Revision model.
+
+              ## Acceptance Criteria
+              - Users can create and read revision comments through the public API.
+              - Authorization is enforced consistently.
+              - Tests cover normal and rejected comment operations.
+
+              ## Dependencies
+              - Phase 2 Task: Define revision comment scope and moderation boundaries
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Revision Comments Capability
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Expose revision comments in the Web UI"
+            body: |
+              ## Objective
+              Make revision comments visible and usable in the Web UI.
+
+              ## Description
+              Implement the Web UI presentation and input flow needed for users to read and add revision comments in the approved collaboration path.
+
+              ## Acceptance Criteria
+              - Users can read revision comments in the Web UI.
+              - Users can add revision comments in the Web UI.
+              - Comment failures and empty states are handled clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Implement revision comments API and persistence
+
+              ## Suggested Labels
+              feature, frontend, P2
+            labels:
+              - feature
+              - frontend
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Revision Comments Capability
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0007
+
+      - title: "Phase 2 Epic: Collaboration Activity Timeline"
+        body: |
+          ## Objective
+          Make significant collaboration actions visible over time.
+
+          ## Description
+          This epic delivers the user-facing activity timeline for collaboration events such as check-out, check-in, lock changes and revision comments through the public API and Web UI.
+
+          ## Expected Deliverable
+          Project and Asset collaboration history views that help users understand what changed, by whom and when.
+
+          ## Acceptance Criteria
+          - Significant collaboration actions appear in the approved activity timeline scope.
+          - Timeline data is available through the public API and Web UI.
+          - Timeline behavior remains generic and domain-agnostic.
+
+          ## Dependencies
+          - Phase 2 Epic: Collaboration State Model and API Contracts
+          - Phase 2 Epic: Revision Comments Capability
+          - ADR-0001
+
+          ## Risks
+          - Timeline scope could become too broad if all audit behavior is exposed without distinction.
+          - Event ordering or filtering could be inconsistent across Project and Asset views.
+
+          ## Exit Criteria
+          - Users can review recent collaboration activity for the delivered scope.
+          - Timeline events are documented and test-covered.
+
+          ## Suggested Labels
+          feature, core, P2
+        milestone: Collaboration Activity and Discussion
+        labels:
+          - feature
+          - core
+          - P2
+        fields:
+          Phase: Collaboration
+          Epic: Collaboration Activity Timeline
+          Platform Area: Platform Module
+          Complexity: M
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define collaboration timeline event scope"
+            body: |
+              ## Objective
+              Define which collaboration events belong in the user-facing activity timeline.
+
+              ## Description
+              Open a decision issue that clarifies the minimum set of collaboration actions that should appear in Project or Asset timeline views and which events remain audit-only or deferred.
+
+              ## Acceptance Criteria
+              - Timeline event scope is explicit.
+              - Timeline-only versus audit-only distinctions are documented.
+              - Deferred event visibility is listed clearly.
+
+              ## Dependencies
+              - Phase 2 Epic: Collaboration Activity Timeline
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration Activity Timeline
+              Platform Area: Documentation
+              Complexity: S
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement collaboration timeline read model and API"
+            body: |
+              ## Objective
+              Deliver timeline retrieval through the public API.
+
+              ## Description
+              Implement the backend read model and public API behavior needed to expose the approved collaboration timeline events across the delivered scope.
+
+              ## Acceptance Criteria
+              - Timeline data is available through the public API.
+              - Authorization is enforced for timeline visibility.
+              - Tests cover ordering, filtering and empty-state behavior.
+
+              ## Dependencies
+              - Phase 2 Task: Define collaboration timeline event scope
+              - Phase 2 Task: Implement revision comments API and persistence
+
+              ## Suggested Labels
+              feature, core, test, P2
+            labels:
+              - feature
+              - core
+              - test
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration Activity Timeline
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Expose collaboration activity timeline in the Web UI"
+            body: |
+              ## Objective
+              Make collaboration activity visible in the Web UI.
+
+              ## Description
+              Implement the timeline views or panels required to expose the approved collaboration history in the main Web UI collaboration path.
+
+              ## Acceptance Criteria
+              - Users can view collaboration activity in the Web UI.
+              - Timeline entries are readable and attributable.
+              - Empty, loading and error states are handled clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Implement collaboration timeline read model and API
+
+              ## Suggested Labels
+              feature, frontend, P2
+            labels:
+              - feature
+              - frontend
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration Activity Timeline
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0007
+
+      - title: "Phase 2 Epic: Audit-Aligned Collaboration Observability"
+        body: |
+          ## Objective
+          Keep collaboration activity aligned with OpenPDM observability and audit principles.
+
+          ## Description
+          This epic clarifies and delivers the audit and event behavior required for Phase 2 collaboration so user-facing timelines, audit records and domain events remain intentionally separated where necessary.
+
+          ## Expected Deliverable
+          Clear and implemented observability behavior for significant collaboration actions.
+
+          ## Acceptance Criteria
+          - Significant collaboration actions produce the approved audit or event records.
+          - User-facing timeline behavior is not treated as the sole audit mechanism.
+          - Observability remains generic and domain-agnostic.
+
+          ## Dependencies
+          - Phase 2 Epic: Collaboration Activity Timeline
+          - ADR-0001
+          - ADR-0002
+
+          ## Risks
+          - Timeline and audit scopes could be conflated.
+          - Missing event coverage could weaken later extension and observability work.
+
+          ## Exit Criteria
+          - Collaboration observability behavior is explicit and implemented for the delivered scope.
+          - Audit and event responsibilities are documented and test-covered.
+
+          ## Suggested Labels
+          architecture, core, P2
+        milestone: Collaboration Activity and Discussion
+        labels:
+          - architecture
+          - core
+          - P2
+        fields:
+          Phase: Collaboration
+          Epic: Audit-Aligned Collaboration Observability
+          Platform Area: Platform Core
+          Complexity: M
+          ADR: ADR-0001, ADR-0002
+        sub_issues:
+
+          - title: "Phase 2 Task: Define collaboration audit and event coverage"
+            body: |
+              ## Objective
+              Define which collaboration actions must produce audit records, domain events or both.
+
+              ## Description
+              Open a decision issue that clarifies the observability behavior required for check-out, check-in, lock changes, comments and conflict rejections so the implementation stays aligned with the project charter and architecture.
+
+              ## Acceptance Criteria
+              - Required audit and event coverage is explicit.
+              - Differences between timeline, audit and event uses are documented.
+              - Deferred observability enhancements are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Epic: Audit-Aligned Collaboration Observability
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Audit-Aligned Collaboration Observability
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement collaboration audit record generation"
+            body: |
+              ## Objective
+              Deliver audit logging for significant collaboration actions.
+
+              ## Description
+              Implement the approved audit behavior for lock changes, check-in, check-out, comments and relevant collaboration failures within the delivered scope.
+
+              ## Acceptance Criteria
+              - Approved collaboration actions generate audit records.
+              - Audit records remain consistent with authorization and actor identity.
+              - Tests cover the expected audit behavior.
+
+              ## Dependencies
+              - Phase 2 Task: Define collaboration audit and event coverage
+              - Phase 2 Task: Implement lock persistence and lifecycle enforcement
+              - Phase 2 Task: Implement revision comments API and persistence
+
+              ## Suggested Labels
+              feature, test, P2
+            labels:
+              - feature
+              - test
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Audit-Aligned Collaboration Observability
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0001
+
+          - title: "Phase 2 Task: Implement collaboration domain event emission"
+            body: |
+              ## Objective
+              Emit generic domain events for significant collaboration actions.
+
+              ## Description
+              Implement the approved collaboration domain events so later phases and extension points can react to collaboration behavior without depending on internal module details.
+
+              ## Acceptance Criteria
+              - Approved collaboration actions emit generic domain events.
+              - Event payloads remain generic and domain-agnostic.
+              - Documentation and tests cover the emitted behavior.
+
+              ## Dependencies
+              - Phase 2 Task: Define collaboration audit and event coverage
+              - Phase 2 Task: Implement collaboration audit record generation
+
+              ## Suggested Labels
+              feature, architecture, test, P2
+            labels:
+              - feature
+              - architecture
+              - test
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Audit-Aligned Collaboration Observability
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0002
+
+      - title: "Phase 2 Epic: In-App Collaboration Notifications"
+        body: |
+          ## Objective
+          Notify users about collaboration-relevant events inside the supported v1 product surface.
+
+          ## Description
+          This epic delivers the minimum in-app notification behavior for Phase 2 collaboration events such as lock contention, released Assets, new comments or other approved collaboration updates. Desktop and external notification channels remain out of scope.
+
+          ## Expected Deliverable
+          In-app notifications that help users react to collaboration activity in time without expanding into desktop or external delivery systems.
+
+          ## Acceptance Criteria
+          - Approved collaboration events can generate in-app notifications.
+          - Notification behavior is visible through the supported v1 UI surface.
+          - Desktop and external channels are explicitly excluded.
+
+          ## Dependencies
+          - Phase 2 Epic: Collaboration Activity Timeline
+          - Phase 2 Epic: Audit-Aligned Collaboration Observability
+          - ADR-0007
+
+          ## Risks
+          - Notification scope could expand into real-time or multi-channel systems too early.
+          - Notifications could duplicate timeline behavior without clear user value.
+
+          ## Exit Criteria
+          - Users receive the approved collaboration notifications inside the supported v1 surface.
+          - Notification triggers and visibility are documented and test-covered.
+
+          ## Suggested Labels
+          feature, frontend, P2
+        milestone: Notifications and Conflict Feedback
+        labels:
+          - feature
+          - frontend
+          - P2
+        fields:
+          Phase: Collaboration
+          Epic: In-App Collaboration Notifications
+          Platform Area: Frontend
+          Complexity: M
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define Phase 2 in-app notification scope"
+            body: |
+              ## Objective
+              Define the minimum notification model for Phase 2 collaboration.
+
+              ## Description
+              Open a decision issue that clarifies which collaboration events should generate notifications, where those notifications appear in the supported v1 surface and which delivery mechanisms are explicitly deferred.
+
+              ## Acceptance Criteria
+              - Notification-triggering events are explicit.
+              - Notification presentation scope is explicit.
+              - Deferred delivery channels are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Define collaboration timeline event scope
+              - Phase 2 Task: Define collaboration audit and event coverage
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Frontend
+              Complexity: S
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement notification generation for approved collaboration events"
+            body: |
+              ## Objective
+              Generate in-app notifications for the approved collaboration scope.
+
+              ## Description
+              Implement the backend or application-layer behavior required to create notifications from the approved collaboration events without introducing unsupported delivery channels.
+
+              ## Acceptance Criteria
+              - Approved collaboration events generate notifications.
+              - Notification creation respects authorization and tenancy boundaries.
+              - Tests cover expected notification generation behavior.
+
+              ## Dependencies
+              - Phase 2 Task: Define Phase 2 in-app notification scope
+              - Phase 2 Task: Implement collaboration domain event emission
+
+              ## Suggested Labels
+              feature, core, test, P2
+            labels:
+              - feature
+              - core
+              - test
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Expose in-app collaboration notifications in the Web UI"
+            body: |
+              ## Objective
+              Make collaboration notifications visible in the Web UI.
+
+              ## Description
+              Implement the minimum notification surface needed for users to discover new collaboration events within the approved v1 Web UI scope.
+
+              ## Acceptance Criteria
+              - Users can see approved collaboration notifications in the Web UI.
+              - Notification read or dismissal behavior is clear for the approved scope.
+              - Empty and error states are handled clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Implement notification generation for approved collaboration events
+
+              ## Suggested Labels
+              feature, frontend, P2
+            labels:
+              - feature
+              - frontend
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0007
+
+      - title: "Phase 2 Epic: Conflict Detection and User Feedback"
+        body: |
+          ## Objective
+          Detect invalid collaboration attempts and return clear feedback.
+
+          ## Description
+          This epic delivers the conflict detection and user-facing error semantics required when collaboration rules are violated in Phase 2. Scope is limited to server-side collaboration conflicts and explicitly excludes local file synchronization conflicts.
+
+          ## Expected Deliverable
+          Predictable conflict detection and feedback across the public API and Web UI for the approved collaboration scope.
+
+          ## Acceptance Criteria
+          - Conflict conditions are explicit and test-covered.
+          - API conflict responses are predictable and documented.
+          - Web UI feedback reflects the approved conflict model clearly.
+
+          ## Dependencies
+          - Phase 2 Epic: Asset Locking and Concurrency Enforcement
+          - Phase 2 Epic: Web UI Collaboration Controls
+          - Phase 2 Epic: Revision Comments Capability
+
+          ## Risks
+          - Conflict rules could be inconsistent across different write paths.
+          - UI feedback could be too generic to support recovery.
+
+          ## Exit Criteria
+          - Users receive clear feedback for the approved collaboration conflicts.
+          - Conflict detection is consistent across delivered collaboration paths.
+
+          ## Suggested Labels
+          feature, core, P1
+        milestone: Notifications and Conflict Feedback
+        labels:
+          - feature
+          - core
+          - P1
+        fields:
+          Phase: Collaboration
+          Epic: Conflict Detection and User Feedback
+          Platform Area: Platform Core
+          Complexity: L
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define conflict conditions for Phase 2 collaboration"
+            body: |
+              ## Objective
+              Define the conflict conditions that Phase 2 must detect.
+
+              ## Description
+              Open a decision issue that clarifies which collaboration attempts count as conflicts or stale-state failures in the approved scope, and which file synchronization or offline cases remain deferred beyond v1.
+
+              ## Acceptance Criteria
+              - Conflict conditions are explicit for the approved scope.
+              - Stale-state and lock-contention cases are distinguished where needed.
+              - Deferred sync-oriented conflict cases are listed clearly.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+              - Phase 2 Task: Define lock scope and ownership rules
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Conflict Detection and User Feedback
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement conflict detection across collaboration write paths"
+            body: |
+              ## Objective
+              Detect approved collaboration conflicts consistently in backend write flows.
+
+              ## Description
+              Implement the server-side checks needed to identify stale collaboration state, lock contention and other approved conflict conditions before unsafe operations complete.
+
+              ## Acceptance Criteria
+              - Approved conflict conditions are detected consistently.
+              - Conflict detection does not bypass existing authorization rules.
+              - Tests cover the expected conflict matrix.
+
+              ## Dependencies
+              - Phase 2 Task: Define conflict conditions for Phase 2 collaboration
+              - Phase 2 Task: Enforce concurrency protection on collaboration write paths
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Conflict Detection and User Feedback
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: TBD
+
+          - title: "Phase 2 Task: Standardize collaboration conflict API responses"
+            body: |
+              ## Objective
+              Return predictable API responses for collaboration conflicts.
+
+              ## Description
+              Implement and document the public API error semantics for approved collaboration conflict cases so clients can distinguish blocked, stale or invalid actions reliably.
+
+              ## Acceptance Criteria
+              - Conflict responses are explicit and documented.
+              - Response semantics are consistent across delivered write paths.
+              - Tests cover representative client-facing responses.
+
+              ## Dependencies
+              - Phase 2 Task: Implement conflict detection across collaboration write paths
+
+              ## Suggested Labels
+              feature, documentation, test, P1
+            labels:
+              - feature
+              - documentation
+              - test
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Conflict Detection and User Feedback
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Surface collaboration conflict feedback in the Web UI"
+            body: |
+              ## Objective
+              Make collaboration conflicts understandable in the Web UI.
+
+              ## Description
+              Implement the user-facing messaging and blocked-state behavior needed to explain approved collaboration conflicts without implying unsupported desktop sync behavior.
+
+              ## Acceptance Criteria
+              - Web UI conflict messages reflect the approved API conflict model.
+              - Users can distinguish lock contention from stale-state or invalid actions.
+              - The Web UI avoids vague or misleading conflict messaging.
+
+              ## Dependencies
+              - Phase 2 Task: Standardize collaboration conflict API responses
+              - Phase 2 Task: Implement lock and check-out controls in the Web UI
+
+              ## Suggested Labels
+              feature, frontend, P1
+            labels:
+              - feature
+              - frontend
+              - P1
+            fields:
+              Phase: Collaboration
+              Epic: Conflict Detection and User Feedback
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
+
+      - title: "Phase 2 Epic: Collaboration Error Handling and Recovery Paths"
+        body: |
+          ## Objective
+          Help users recover safely from collaboration failures.
+
+          ## Description
+          This epic delivers the user-facing and API-facing recovery guidance needed for lock contention, stale collaboration state, rejected check-ins and related failures in the approved Phase 2 scope.
+
+          ## Expected Deliverable
+          Clear recovery paths that keep users inside Platform Core rules instead of encouraging bypasses.
+
+          ## Acceptance Criteria
+          - Recovery expectations are explicit for the approved failure scenarios.
+          - API and Web UI flows provide actionable next steps.
+          - Recovery behavior remains within the approved v1 collaboration surface.
+
+          ## Dependencies
+          - Phase 2 Epic: Conflict Detection and User Feedback
+          - Phase 2 Epic: In-App Collaboration Notifications
+
+          ## Risks
+          - Error handling could be left too generic to help users recover.
+          - Recovery flows could imply unsupported override or workflow capabilities.
+
+          ## Exit Criteria
+          - Users can understand what to do next after approved collaboration failures.
+          - Recovery behavior is documented and test-covered across the delivered scope.
+
+          ## Suggested Labels
+          feature, frontend, P2
+        milestone: Notifications and Conflict Feedback
+        labels:
+          - feature
+          - frontend
+          - P2
+        fields:
+          Phase: Collaboration
+          Epic: Collaboration Error Handling and Recovery Paths
+          Platform Area: Frontend
+          Complexity: M
+          ADR: TBD
+        sub_issues:
+
+          - title: "Phase 2 Task: Define recovery behavior for approved collaboration failures"
+            body: |
+              ## Objective
+              Define the recovery guidance required for Phase 2 collaboration failures.
+
+              ## Description
+              Open a decision issue that clarifies what next-step guidance the product should provide for lock contention, stale-state failures, rejected check-ins and other approved collaboration errors.
+
+              ## Acceptance Criteria
+              - Recovery guidance is explicit for the approved failure cases.
+              - Unsupported override or escalation paths are not implied.
+              - API and Web UI recovery expectations are aligned.
+
+              ## Dependencies
+              - Phase 2 Task: Define conflict conditions for Phase 2 collaboration
+
+              ## Suggested Labels
+              decision, documentation, frontend, P2
+            labels:
+              - decision
+              - documentation
+              - frontend
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration Error Handling and Recovery Paths
+              Platform Area: Frontend
+              Complexity: S
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement recovery-oriented API error details"
+            body: |
+              ## Objective
+              Return API error details that support safe user recovery.
+
+              ## Description
+              Extend the approved collaboration error responses with the minimum additional detail needed for clients to guide users toward valid recovery actions.
+
+              ## Acceptance Criteria
+              - API error responses provide actionable recovery context for the approved scope.
+              - Error details remain generic and do not leak internal implementation details.
+              - Tests cover representative recovery-oriented responses.
+
+              ## Dependencies
+              - Phase 2 Task: Define recovery behavior for approved collaboration failures
+              - Phase 2 Task: Standardize collaboration conflict API responses
+
+              ## Suggested Labels
+              feature, documentation, test, P2
+            labels:
+              - feature
+              - documentation
+              - test
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration Error Handling and Recovery Paths
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: TBD
+
+          - title: "Phase 2 Task: Implement recovery guidance and retry flows in the Web UI"
+            body: |
+              ## Objective
+              Help users recover from collaboration failures in the Web UI.
+
+              ## Description
+              Implement the on-screen guidance, retry paths and state refresh behavior needed for the approved collaboration recovery scenarios in the Web UI.
+
+              ## Acceptance Criteria
+              - Users receive actionable guidance for the approved failure cases.
+              - Retry or refresh actions are available where the approved scope allows them.
+              - The Web UI does not imply unsupported override or desktop recovery behavior.
+
+              ## Dependencies
+              - Phase 2 Task: Implement recovery-oriented API error details
+              - Phase 2 Task: Surface collaboration conflict feedback in the Web UI
+              - Phase 2 Task: Expose in-app collaboration notifications in the Web UI
+
+              ## Suggested Labels
+              feature, frontend, P2
+            labels:
+              - feature
+              - frontend
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Collaboration Error Handling and Recovery Paths
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007
 
   - phase: Asset Graph
     milestone: Asset Graph
