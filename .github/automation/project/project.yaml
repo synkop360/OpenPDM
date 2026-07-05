@@ -2598,7 +2598,7 @@ roadmap:
           Epic: Collaboration State Model and API Contracts
           Platform Area: Platform Core
           Complexity: L
-          ADR: TBD
+          ADR: ADR-0017, ADR-0019
         sub_issues:
 
           - title: "Phase 2 Task: Define generic collaboration state model"
@@ -2607,7 +2607,17 @@ roadmap:
               Define the generic Phase 2 collaboration model.
 
               ## Description
-              Open a decision issue that defines the collaboration concepts allowed in Phase 2, including check-out, check-in, lock ownership, lock release, lock visibility and conflict rejection, while explicitly deferring workflow approvals and desktop synchronization behavior.
+              Decision made: Phase 2 adopts a minimal Asset collaboration state model.
+
+              The accepted decision covers:
+              - collaboration states limited to `available`, `locked`, `stale_lock`;
+              - collaboration state kept separate from lifecycle workflow semantics;
+              - explicit deferral of workflow-engine concepts such as review, approval and release;
+              - explicit deferral of desktop synchronization state behavior.
+
+              `stale_lock` is an exceptional collaboration state and is not automatic time-based lock expiration.
+
+              This decision is recorded in ADR-0017.
 
               ## Acceptance Criteria
               - The Phase 2 collaboration concepts are explicit.
@@ -2629,7 +2639,8 @@ roadmap:
               Epic: Collaboration State Model and API Contracts
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0017
+            closed: true
 
           - title: "Phase 2 Task: Define collaboration API contract surface"
             body: |
@@ -2637,7 +2648,18 @@ roadmap:
               Define the public application API surface for collaboration controls.
 
               ## Description
-              Open a decision issue that specifies the request and response behavior for check-out, check-in, lock inspection, lock release and collaboration conflict responses so the Web UI and future clients consume a stable public contract.
+              Decision made: Phase 2 exposes collaboration behavior through the public application API only.
+
+              The accepted API surface is:
+              - `POST /assets/{id}/checkout`
+              - `POST /assets/{id}/checkin`
+              - `POST /assets/{id}/unlock`
+              - `GET /assets/{id}/collaboration-state`
+              - `GET /assets/{id}/timeline`
+
+              The Desktop Client, when introduced later, must use these same public APIs.
+
+              This decision is recorded in ADR-0019.
 
               ## Acceptance Criteria
               - Required collaboration endpoints or actions are explicit.
@@ -2659,7 +2681,8 @@ roadmap:
               Epic: Collaboration State Model and API Contracts
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0019
+            closed: true
 
           - title: "Phase 2 Task: Implement collaboration state model in Platform Modules"
             body: |
@@ -2690,7 +2713,7 @@ roadmap:
               Epic: Collaboration State Model and API Contracts
               Platform Area: Platform Module
               Complexity: L
-              ADR: TBD
+              ADR: ADR-0017
 
           - title: "Phase 2 Task: Document deferred collaboration capabilities beyond v1"
             body: |
@@ -2718,7 +2741,7 @@ roadmap:
               Epic: Collaboration State Model and API Contracts
               Platform Area: Documentation
               Complexity: S
-              ADR: TBD
+              ADR: ADR-0017, ADR-0019
 
       - title: "Phase 2 Epic: Asset Locking and Concurrency Enforcement"
         body: |
@@ -2762,7 +2785,7 @@ roadmap:
           Epic: Asset Locking and Concurrency Enforcement
           Platform Area: Platform Core
           Complexity: L
-          ADR: TBD
+          ADR: ADR-0018
         sub_issues:
 
           - title: "Phase 2 Task: Define lock scope and ownership rules"
@@ -2771,7 +2794,19 @@ roadmap:
               Define how lock scope and ownership work in Phase 2.
 
               ## Description
-              Clarify whether locks apply at Asset, working Revision or another approved generic lifecycle scope, who may acquire or release them, and what happens when authorization or lifecycle state prevents the action.
+              Decision made: Phase 2 uses Asset-level locking only.
+
+              The accepted decision covers:
+              - lock scope limited to the Asset;
+              - lock owner stored as `user_id`;
+              - lock target stored as `asset_id`;
+              - lock enforcement scoped by Organization and Project context;
+              - one active lock per Asset;
+              - only the owner may perform normal check-in and unlock;
+              - `Maintainer` and `Owner` may force-unlock;
+              - no automatic lock expiration in Phase 2.
+
+              This decision is recorded in ADR-0018.
 
               ## Acceptance Criteria
               - Lock scope is explicit for the approved Phase 2 model.
@@ -2793,7 +2828,8 @@ roadmap:
               Epic: Asset Locking and Concurrency Enforcement
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0018
+            closed: true
 
           - title: "Phase 2 Task: Implement lock persistence and lifecycle enforcement"
             body: |
@@ -2824,7 +2860,7 @@ roadmap:
               Epic: Asset Locking and Concurrency Enforcement
               Platform Area: Platform Module
               Complexity: L
-              ADR: TBD
+              ADR: ADR-0018
 
           - title: "Phase 2 Task: Enforce concurrency protection on collaboration write paths"
             body: |
@@ -2853,7 +2889,7 @@ roadmap:
               Epic: Asset Locking and Concurrency Enforcement
               Platform Area: Platform Core
               Complexity: L
-              ADR: TBD
+              ADR: ADR-0018, ADR-0022
 
           - title: "Phase 2 Task: Expose lock state through delivered read APIs"
             body: |
@@ -2883,7 +2919,7 @@ roadmap:
               Epic: Asset Locking and Concurrency Enforcement
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0018, ADR-0019
 
       - title: "Phase 2 Epic: Web UI Collaboration Controls"
         body: |
@@ -3088,7 +3124,7 @@ roadmap:
           Epic: Revision Comments Capability
           Platform Area: Platform Module
           Complexity: M
-          ADR: TBD
+          ADR: ADR-0020
         sub_issues:
 
           - title: "Phase 2 Task: Define revision comment scope and moderation boundaries"
@@ -3097,7 +3133,16 @@ roadmap:
               Define the generic Phase 2 revision comment capability.
 
               ## Description
-              Open a decision issue that clarifies what a revision comment contains, who can create or read it, and what comment lifecycle or moderation behaviors are explicitly out of scope for the approved Phase 2 release.
+              Decision made: Phase 2 revision comments are intentionally simple.
+
+              The accepted decision covers:
+              - plain-text comment content;
+              - a required comment on check-in;
+              - immutability after creation;
+              - attachment to the created Revision;
+              - no complex moderation behavior in Phase 2.
+
+              This decision is recorded in ADR-0020.
 
               ## Acceptance Criteria
               - Revision comment scope is explicit.
@@ -3119,7 +3164,8 @@ roadmap:
               Epic: Revision Comments Capability
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0020
+            closed: true
 
           - title: "Phase 2 Task: Implement revision comments API and persistence"
             body: |
@@ -3149,7 +3195,7 @@ roadmap:
               Epic: Revision Comments Capability
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0020
 
           - title: "Phase 2 Task: Expose revision comments in the Web UI"
             body: |
@@ -3221,7 +3267,7 @@ roadmap:
           Epic: Collaboration Activity Timeline
           Platform Area: Platform Module
           Complexity: M
-          ADR: TBD
+          ADR: ADR-0020
         sub_issues:
 
           - title: "Phase 2 Task: Define collaboration timeline event scope"
@@ -3230,7 +3276,18 @@ roadmap:
               Define which collaboration events belong in the user-facing activity timeline.
 
               ## Description
-              Open a decision issue that clarifies the minimum set of collaboration actions that should appear in Project or Asset timeline views and which events remain audit-only or deferred.
+              Decision made: Phase 2 collaboration timeline events are explicitly bounded.
+
+              The approved event set is:
+              - `AssetCreated`
+              - `AssetLocked`
+              - `AssetUnlocked`
+              - `RevisionCreated`
+              - `CheckInCompleted`
+              - `ForceUnlocked`
+              - `ConflictDetected`
+
+              This decision is recorded in ADR-0020.
 
               ## Acceptance Criteria
               - Timeline event scope is explicit.
@@ -3252,7 +3309,8 @@ roadmap:
               Epic: Collaboration Activity Timeline
               Platform Area: Documentation
               Complexity: S
-              ADR: TBD
+              ADR: ADR-0020
+            closed: true
 
           - title: "Phase 2 Task: Implement collaboration timeline read model and API"
             body: |
@@ -3283,7 +3341,7 @@ roadmap:
               Epic: Collaboration Activity Timeline
               Platform Area: Platform Module
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0020
 
           - title: "Phase 2 Task: Expose collaboration activity timeline in the Web UI"
             body: |
@@ -3355,7 +3413,7 @@ roadmap:
           Epic: Audit-Aligned Collaboration Observability
           Platform Area: Platform Core
           Complexity: M
-          ADR: ADR-0001, ADR-0002
+          ADR: ADR-0001, ADR-0002, ADR-0023
         sub_issues:
 
           - title: "Phase 2 Task: Define collaboration audit and event coverage"
@@ -3364,7 +3422,27 @@ roadmap:
               Define which collaboration actions must produce audit records, domain events or both.
 
               ## Description
-              Open a decision issue that clarifies the observability behavior required for check-out, check-in, lock changes, comments and conflict rejections so the implementation stays aligned with the project charter and architecture.
+              Decision made: Phase 2 collaboration audit coverage is explicit.
+
+              The auditable actions are:
+              - checkout
+              - checkin
+              - unlock
+              - force unlock
+              - conflict detection
+              - failed checkin
+              - notification emitted
+
+              Each audit entry must contain:
+              - `actor_id`
+              - `target_asset_id`
+              - `event_type`
+              - `timestamp`
+              - `request_id`
+              - `result`
+              - `reason/error`
+
+              This decision is recorded in ADR-0023.
 
               ## Acceptance Criteria
               - Required audit and event coverage is explicit.
@@ -3386,7 +3464,8 @@ roadmap:
               Epic: Audit-Aligned Collaboration Observability
               Platform Area: Platform Core
               Complexity: S
-              ADR: TBD
+              ADR: ADR-0023
+            closed: true
 
           - title: "Phase 2 Task: Implement collaboration audit record generation"
             body: |
@@ -3491,7 +3570,7 @@ roadmap:
           Epic: In-App Collaboration Notifications
           Platform Area: Frontend
           Complexity: M
-          ADR: TBD
+          ADR: ADR-0021
         sub_issues:
 
           - title: "Phase 2 Task: Define Phase 2 in-app notification scope"
@@ -3500,7 +3579,18 @@ roadmap:
               Define the minimum notification model for Phase 2 collaboration.
 
               ## Description
-              Open a decision issue that clarifies which collaboration events should generate notifications, where those notifications appear in the supported v1 surface and which delivery mechanisms are explicitly deferred.
+              Decision made: Phase 2 collaboration notifications are in-app only.
+
+              The approved notification events are:
+              - `asset locked`
+              - `asset unlocked`
+              - `revision created`
+              - `force unlock`
+              - `conflict detected`
+
+              Deferred channels include email, webhooks, desktop push and Slack/Teams.
+
+              This decision is recorded in ADR-0021.
 
               ## Acceptance Criteria
               - Notification-triggering events are explicit.
@@ -3523,7 +3613,8 @@ roadmap:
               Epic: In-App Collaboration Notifications
               Platform Area: Frontend
               Complexity: S
-              ADR: TBD
+              ADR: ADR-0021
+            closed: true
 
           - title: "Phase 2 Task: Implement notification generation for approved collaboration events"
             body: |
@@ -3554,7 +3645,7 @@ roadmap:
               Epic: In-App Collaboration Notifications
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0021
 
           - title: "Phase 2 Task: Expose in-app collaboration notifications in the Web UI"
             body: |
@@ -3626,7 +3717,7 @@ roadmap:
           Epic: Conflict Detection and User Feedback
           Platform Area: Platform Core
           Complexity: L
-          ADR: TBD
+          ADR: ADR-0022
         sub_issues:
 
           - title: "Phase 2 Task: Define conflict conditions for Phase 2 collaboration"
@@ -3635,7 +3726,17 @@ roadmap:
               Define the conflict conditions that Phase 2 must detect.
 
               ## Description
-              Open a decision issue that clarifies which collaboration attempts count as conflicts or stale-state failures in the approved scope, and which file synchronization or offline cases remain deferred beyond v1.
+              Decision made: Phase 2 collaboration conflicts are explicitly defined.
+
+              The approved conflict conditions are:
+              - check-in without lock
+              - check-in by non-owner
+              - checkout on already locked asset
+              - revision based on outdated revision
+              - deleted or archived asset during collaboration
+              - blob upload failure during check-in
+
+              This decision is recorded in ADR-0022.
 
               ## Acceptance Criteria
               - Conflict conditions are explicit for the approved scope.
@@ -3658,7 +3759,8 @@ roadmap:
               Epic: Conflict Detection and User Feedback
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Implement conflict detection across collaboration write paths"
             body: |
@@ -3689,7 +3791,7 @@ roadmap:
               Epic: Conflict Detection and User Feedback
               Platform Area: Platform Core
               Complexity: L
-              ADR: TBD
+              ADR: ADR-0022
 
           - title: "Phase 2 Task: Standardize collaboration conflict API responses"
             body: |
@@ -3719,7 +3821,7 @@ roadmap:
               Epic: Conflict Detection and User Feedback
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0019, ADR-0022
 
           - title: "Phase 2 Task: Surface collaboration conflict feedback in the Web UI"
             body: |
@@ -3791,7 +3893,7 @@ roadmap:
           Epic: Collaboration Error Handling and Recovery Paths
           Platform Area: Frontend
           Complexity: M
-          ADR: TBD
+          ADR: ADR-0022
         sub_issues:
 
           - title: "Phase 2 Task: Define recovery behavior for approved collaboration failures"
@@ -3800,7 +3902,18 @@ roadmap:
               Define the recovery guidance required for Phase 2 collaboration failures.
 
               ## Description
-              Open a decision issue that clarifies what next-step guidance the product should provide for lock contention, stale-state failures, rejected check-ins and other approved collaboration errors.
+              Decision made: Phase 2 recovery behavior must preserve lifecycle integrity.
+
+              The accepted recovery rules are:
+              - fail safely
+              - preserve uploaded blob content when possible
+              - never create a partial revision
+              - emit an audit event
+              - return an explicit error
+
+              The key rule is: no partial check-in is visible as a valid revision.
+
+              This decision is recorded in ADR-0022.
 
               ## Acceptance Criteria
               - Recovery guidance is explicit for the approved failure cases.
@@ -3822,7 +3935,8 @@ roadmap:
               Epic: Collaboration Error Handling and Recovery Paths
               Platform Area: Frontend
               Complexity: S
-              ADR: TBD
+              ADR: ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Implement recovery-oriented API error details"
             body: |
@@ -3853,7 +3967,7 @@ roadmap:
               Epic: Collaboration Error Handling and Recovery Paths
               Platform Area: Platform Core
               Complexity: M
-              ADR: TBD
+              ADR: ADR-0019, ADR-0022
 
           - title: "Phase 2 Task: Implement recovery guidance and retry flows in the Web UI"
             body: |
