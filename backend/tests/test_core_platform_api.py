@@ -424,6 +424,8 @@ def test_collaboration_requires_comment_and_rejects_archived_asset_checkin(tmp_p
         json={"comment": "", "representations": []},
     )
     assert missing_comment.status_code == 400
+    assert missing_comment.json()["detail"]["context"]["recovery_action"] == "provide_comment"
+    assert missing_comment.json()["detail"]["context"]["can_retry"] is True
 
     assert (
         client.post(
@@ -441,6 +443,8 @@ def test_collaboration_requires_comment_and_rejects_archived_asset_checkin(tmp_p
     )
     assert archived_checkin.status_code == 409
     assert archived_checkin.json()["detail"]["code"] == "asset_archived"
+    assert archived_checkin.json()["detail"]["context"]["recovery_action"] == "read_only"
+    assert archived_checkin.json()["detail"]["context"]["should_refresh"] is True
 
     state = client.get(f"/assets/{asset['id']}/collaboration-state", headers=auth_header(token))
     assert state.status_code == 200
@@ -518,6 +522,8 @@ def test_collaboration_audit_and_domain_events_include_request_context(tmp_path:
         assert failed_audit.details["result"] == "failed"
         assert failed_audit.details["reason"] == "checkin_comment_required"
         assert failed_audit.details["error"] == "Check-in comment is required."
+        assert failed_audit.details["recovery_action"] == "provide_comment"
+        assert failed_audit.details["can_retry"] is True
 
         domain_events = list(
             db.scalars(
@@ -535,3 +541,4 @@ def test_collaboration_audit_and_domain_events_include_request_context(tmp_path:
         assert domain_events[0].payload["result"] == "succeeded"
         assert domain_events[1].payload["request_id"] == "req-collab-audit-2"
         assert domain_events[1].payload["result"] == "failed"
+        assert domain_events[1].payload["recovery_action"] == "provide_comment"

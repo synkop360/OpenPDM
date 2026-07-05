@@ -312,6 +312,12 @@ textarea {
   margin-bottom: 18px;
 }
 
+.recovery-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
 .collaboration-actions {
   display: flex;
   flex-wrap: wrap;

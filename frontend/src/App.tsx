@@ -93,6 +93,10 @@ async function triggerBrowserDownload(
 }
 
 function collaborationGuidance(error: ApiError): string {
+  const contextualGuidance = error.context?.user_guidance;
+  if (typeof contextualGuidance === "string" && contextualGuidance.trim()) {
+    return contextualGuidance;
+  }
   switch (error.code) {
     case "asset_locked":
       return "This Asset is already locked by another user. Wait for release or ask a Maintainer to coordinate.";
@@ -109,6 +113,20 @@ function collaborationGuidance(error: ApiError): string {
     default:
       return error.message;
   }
+}
+
+function collaborationRecoveryAction(error: ApiError): string | null {
+  const value = error.context?.recovery_action;
+  return typeof value === "string" ? value : null;
+}
+
+function collaborationRequestId(error: ApiError): string | null {
+  const value = error.context?.request_id;
+  return typeof value === "string" ? value : null;
+}
+
+function collaborationShouldRefresh(error: ApiError): boolean {
+  return error.context?.should_refresh === true;
 }
 
 export function App() {
@@ -135,6 +153,7 @@ export function App() {
   const [assetTimeline, setAssetTimeline] = useState<Loadable<TimelineEntry[]>>(
     createLoadable<TimelineEntry[]>([]),
   );
+  const [collaborationError, setCollaborationError] = useState<ApiError | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [authError, setAuthError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -202,6 +221,9 @@ export function App() {
       setAssets(createLoadable([]));
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
+      setCollaborationState(createLoadable(null));
+      setAssetTimeline(createLoadable([]));
+      setCollaborationError(null);
       return;
     }
     setOrganizations((current) => ({ ...current, status: "loading", error: null }));
@@ -516,6 +538,7 @@ export function App() {
     }
     setBusyAction("upload");
     setBanner(null);
+    setCollaborationError(null);
     try {
       const blob = await uploadBlob(session.data.token, uploadForm.file);
       await checkinAsset(session.data.token, selectedAssetId, {
@@ -544,6 +567,7 @@ export function App() {
       setAssets({ status: "ready", data: refreshed, error: null });
     } catch (error: unknown) {
       if (error instanceof ApiError) {
+        setCollaborationError(error);
         setBanner(collaborationGuidance(error));
       } else {
         setBanner(error instanceof Error ? error.message : "Upload failed.");
@@ -559,6 +583,7 @@ export function App() {
     }
     setBusyAction("checkout");
     setBanner(null);
+    setCollaborationError(null);
     try {
       const nextState = await checkoutAsset(session.data.token, selectedAssetId);
       setCollaborationState({ status: "ready", data: nextState, error: null });
@@ -567,6 +592,7 @@ export function App() {
       setBanner("Asset checked out for collaboration.");
     } catch (error: unknown) {
       if (error instanceof ApiError) {
+        setCollaborationError(error);
         setBanner(collaborationGuidance(error));
       } else {
         setBanner(error instanceof Error ? error.message : "Checkout failed.");
@@ -582,6 +608,7 @@ export function App() {
     }
     setBusyAction(force ? "force-unlock" : "unlock");
     setBanner(null);
+    setCollaborationError(null);
     try {
       const nextState = await unlockAsset(session.data.token, selectedAssetId, { force });
       setCollaborationState({ status: "ready", data: nextState, error: null });
@@ -590,10 +617,40 @@ export function App() {
       setBanner(force ? "Asset force-unlocked." : "Asset unlocked.");
     } catch (error: unknown) {
       if (error instanceof ApiError) {
+        setCollaborationError(error);
         setBanner(collaborationGuidance(error));
       } else {
         setBanner(error instanceof Error ? error.message : "Unlock failed.");
       }
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRefreshAssetState(): Promise<void> {
+    if (!session.data?.token || !selectedAssetId || !selectedProjectId) {
+      return;
+    }
+    setBusyAction("refresh-state");
+    setBanner(null);
+    try {
+      const [nextAsset, nextHistory, nextCollaborationState, nextTimeline, refreshedAssets] =
+        await Promise.all([
+          getAsset(session.data.token, selectedAssetId),
+          getAssetHistory(session.data.token, selectedAssetId),
+          getCollaborationState(session.data.token, selectedAssetId),
+          getAssetTimeline(session.data.token, selectedAssetId),
+          listAssets(session.data.token, selectedProjectId),
+        ]);
+      setAssetDetail({ status: "ready", data: nextAsset, error: null });
+      setAssetHistory({ status: "ready", data: nextHistory, error: null });
+      setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
+      setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+      setAssets({ status: "ready", data: refreshedAssets, error: null });
+      setCollaborationError(null);
+      setBanner("Collaboration state refreshed.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Refresh failed.");
     } finally {
       setBusyAction(null);
     }
@@ -1095,6 +1152,42 @@ export function App() {
                     <p className="error-message" role="alert">
                       {collaborationState.error}
                     </p>
+                  ) : null}
+
+                  {collaborationError ? (
+                    <article className="detail-card recovery-card">
+                      <h3>Recovery guidance</h3>
+                      <p>{collaborationGuidance(collaborationError)}</p>
+                      {collaborationRequestId(collaborationError) ? (
+                        <p className="muted-text">
+                          Request ID: {collaborationRequestId(collaborationError)}
+                        </p>
+                      ) : null}
+                      <div className="collaboration-actions">
+                        {collaborationShouldRefresh(collaborationError) ? (
+                          <button
+                            className="secondary-button"
+                            disabled={busyAction === "refresh-state"}
+                            onClick={() => void handleRefreshAssetState()}
+                            type="button"
+                          >
+                            {busyAction === "refresh-state" ? "Refreshing..." : "Refresh asset state"}
+                          </button>
+                        ) : null}
+                        {collaborationRecoveryAction(collaborationError) === "checkout_asset" ? (
+                          <button
+                            className="secondary-button"
+                            disabled={
+                              busyAction === "checkout" || collaborationState.data?.state === "locked"
+                            }
+                            onClick={() => void handleCheckout()}
+                            type="button"
+                          >
+                            Check out now
+                          </button>
+                        ) : null}
+                      </div>
+                    </article>
                   ) : null}
 
                   {assetTimeline.status === "error" ? (

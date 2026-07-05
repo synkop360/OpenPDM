@@ -126,6 +126,63 @@ def collaboration_error(
     )
 
 
+def collaboration_recovery_context(
+    code: str, *, details: dict[str, object] | None = None
+) -> dict[str, object]:
+    """Return generic recovery guidance for collaboration API errors."""
+    guidance: dict[str, dict[str, object]] = {
+        "asset_locked": {
+            "recovery_action": "wait_or_coordinate",
+            "user_guidance": "Wait for the current lock owner to release the Asset or ask a Maintainer or Owner to coordinate.",
+            "can_retry": True,
+            "should_refresh": True,
+        },
+        "checkin_without_lock": {
+            "recovery_action": "checkout_asset",
+            "user_guidance": "Check out the Asset before trying to check in changes.",
+            "can_retry": True,
+            "should_refresh": True,
+        },
+        "checkin_by_non_owner": {
+            "recovery_action": "lock_owner_only",
+            "user_guidance": "Only the current lock owner can check in changes for this Asset.",
+            "can_retry": False,
+            "should_refresh": True,
+        },
+        "unlock_not_allowed": {
+            "recovery_action": "lock_owner_only",
+            "user_guidance": "Only the current lock owner can unlock this Asset unless a Maintainer or Owner force-unlocks it.",
+            "can_retry": False,
+            "should_refresh": True,
+        },
+        "asset_archived": {
+            "recovery_action": "read_only",
+            "user_guidance": "This Asset is archived and must remain read-only in the collaboration flow.",
+            "can_retry": False,
+            "should_refresh": True,
+        },
+        "no_active_lock": {
+            "recovery_action": "refresh_state",
+            "user_guidance": "Refresh the collaboration state before retrying this action.",
+            "can_retry": True,
+            "should_refresh": True,
+        },
+        "checkin_comment_required": {
+            "recovery_action": "provide_comment",
+            "user_guidance": "Add a revision comment before retrying the check-in.",
+            "can_retry": True,
+            "should_refresh": False,
+        },
+        "representation_blob_not_found": {
+            "recovery_action": "reupload_blob",
+            "user_guidance": "Upload the file again and retry the check-in with a valid Blob.",
+            "can_retry": True,
+            "should_refresh": False,
+        },
+    }
+    return {**guidance.get(code, {}), **(details or {})}
+
+
 def get_user_by_email(db: Session, email: str) -> User | None:
     """Return a user by email."""
     return db.scalar(select(User).where(User.email == email.lower().strip()))
@@ -972,11 +1029,12 @@ class CollaborationModule:
         details: dict[str, object] | None = None,
         status_code: int = status.HTTP_409_CONFLICT,
     ) -> None:
+        recovery = collaboration_recovery_context(code, details=details)
         payload = CollaborationModule._observability_payload(
             result="rejected",
             reason=code,
             error=message,
-            details={"code": code, **(details or {})},
+            details={"code": code, **recovery},
         )
         record_audit(
             db,
@@ -1016,7 +1074,7 @@ class CollaborationModule:
             result="failed",
             reason=code,
             error=message,
-            details={"code": code, **(details or {})},
+            details={"code": code, **collaboration_recovery_context(code, details=details)},
         )
         record_audit(
             db,

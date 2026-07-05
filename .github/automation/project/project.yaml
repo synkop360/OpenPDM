@@ -4084,6 +4084,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0019, ADR-0022
+            closed: true
 
           - title: "Phase 2 Task: Implement recovery guidance and retry flows in the Web UI"
             body: |
