@@ -4174,7 +4174,102 @@ roadmap:
   - phase: Plugin Platform
     milestone: Plugin Platform
     description: Deliver the Extension API and Official Plugins.
-    epics: []
+    epics:
+
+      - title: "Phase 4 Epic: Plugin Platform Governance and Administration Model"
+        body: |
+          ## Objective
+          Define the platform-wide administration model required before OpenPDM allows mutable plugin-platform operations.
+
+          ## Description
+          ADR-0026 keeps the Phase 1 plugin registry read-only until OpenPDM adopts an explicit platform administration model in the relevant future plugin platform phase.
+
+          This epic tracks that deferred governance work so Plugin Platform planning starts from the accepted security and architecture boundaries rather than re-opening them implicitly.
+
+          ## Expected Deliverable
+          A documented and accepted administration model for platform-wide plugin operations that remains compatible with the modular monolith, Phase 1 RBAC boundaries and the Extension API direction.
+
+          ## Acceptance Criteria
+          - The platform-wide administration scope is explicit.
+          - Plugin-registry mutation authority is defined without reusing Organization or Project roles incorrectly.
+          - The relationship between the administration model and public plugin-platform APIs is clear.
+
+          ## Dependencies
+          - ADR-0012
+          - ADR-0013
+          - ADR-0026
+
+          ## Risks
+          - Platform-wide operational authority could be introduced implicitly through plugin features instead of an explicit model.
+          - Future plugin administration could bypass established Platform Core and Extension API boundaries.
+
+          ## Exit Criteria
+          - OpenPDM has an accepted decision for platform-wide plugin administration.
+          - Plugin-registry mutation can be planned against that decision rather than against temporary read-only constraints.
+
+          ## Suggested Labels
+          architecture, plugin, decision, P2
+        milestone: Plugin Platform
+        labels:
+          - architecture
+          - plugin
+          - decision
+          - P2
+        fields:
+          Phase: Plugin Platform
+          Epic: Plugin Platform Governance and Administration Model
+          Platform Area: Extension API
+          Complexity: M
+          ADR: ADR-0012, ADR-0013, ADR-0026
+        sub_issues:
+
+          - title: "Define a platform administration model for future plugin registry management"
+            body: |
+              ## Context
+
+              ADR-0026 makes the Phase 1 plugin registry read-only to close the current security gap without extending the accepted project-scoped RBAC model.
+
+              The deferred follow-up is to define how platform-wide operational administration should work once OpenPDM reaches the relevant future plugin platform phase.
+
+              ## Why this issue exists
+
+              The plugin registry is platform-wide state, not project-scoped state.
+              Current accepted RBAC only covers Organization and Project roles.
+              We intentionally avoided inventing an implicit platform administrator in Phase 1.
+
+              ## Expected outcome
+
+              Define a future platform administration model that can safely authorize plugin-registry mutation and similar platform-wide operational controls.
+
+              ## Decision scope
+
+              This future decision should clarify:
+
+              - whether OpenPDM introduces a platform-level administrator role or capability
+              - how that role is assigned and governed
+              - which platform-wide operations belong to that scope
+              - how the model stays compatible with the modular monolith and Extension API boundaries
+              - how Phase 1 read-only plugin registry behavior is lifted once the model exists
+
+              ## References
+
+              - ADR-0012: project-scoped RBAC for Phase 1
+              - ADR-0013: plugin infrastructure skeleton only in Phase 1
+              - ADR-0026: plugin registry remains read-only until a platform administration model exists
+
+              ## Suggested Labels
+              architecture, decision, plugin, P2
+            labels:
+              - architecture
+              - decision
+              - plugin
+              - P2
+            fields:
+              Phase: Plugin Platform
+              Epic: Plugin Platform Governance and Administration Model
+              Platform Area: Extension API
+              Complexity: S
+              ADR: ADR-0012, ADR-0013, ADR-0026
 
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
