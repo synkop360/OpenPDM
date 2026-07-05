@@ -86,15 +86,24 @@ A team can replace a shared network folder with OpenPDM while benefiting from ce
 
 Transform OpenPDM into a collaborative platform.
 
+Phase 2 focuses on the collaboration capabilities required for the v1 product
+path through the public application API and supported Web UI surface.
+
 **Primary capabilities**
 
 * Check-in / Check-out
 * Asset locking
 * Revision comments
 * Activity timeline
-* Notifications
-* Desktop synchronization
+* In-app collaboration notifications
 * Conflict detection
+
+**Explicitly deferred beyond the v1 collaboration scope**
+
+* Desktop synchronization
+* Desktop notifications
+* Local file synchronization conflict resolution
+* Client-specific privileged collaboration behavior
 
 **Success criteria**
 

@@ -1,9 +1,10 @@
 # OpenPDM Web UI Manual Test Guide
 
-This guide describes how to manually test the current Phase 1 Web UI prototype.
+This guide describes how to manually test the current Web UI prototype across
+the delivered Phase 1 workflow and the implemented Phase 2 collaboration slice.
 
 The Web UI is a normal consumer of the public application API. It exercises the
-Phase 1 Platform Core through the browser and does not bypass Platform Module
+Platform Core through the browser and does not bypass Platform Module
 boundaries.
 
 ## Scope
@@ -17,6 +18,11 @@ This guide covers the implemented prototype workflow for:
 * Engineering Asset creation
 * immutable Revision creation through file upload
 * Blob-backed file download
+* Asset collaboration state visibility
+* Asset checkout and unlock
+* check-in with required revision comment
+* collaboration timeline visibility
+* collaboration conflict feedback in the Web UI
 
 This guide does not cover:
 
@@ -24,6 +30,8 @@ This guide does not cover:
 * plugin execution
 * engineering-specific behavior
 * desktop client behavior
+* desktop synchronization or desktop notifications
+* in-app collaboration notifications that are not yet delivered
 * future collaboration or workflow phases
 
 ## Platform Modules Touched by This Workflow
@@ -34,6 +42,7 @@ The current browser workflow exercises these Platform Modules:
 * Project
 * Assets
 * Blobs
+* Collaboration
 
 It also relies on the public authentication and authorization capabilities
 defined for Phase 1.
@@ -46,6 +55,14 @@ You need:
 * `uv`
 * Node.js 22+
 * `pnpm`
+* one small local file to upload
+* two browser profiles or two different browsers for multi-user checks
+
+Optional but useful for the multi-user collaboration checks:
+
+* a second local user account
+* API access through `http://127.0.0.1:8000/docs` to add Project members when
+  the Web UI does not expose membership management directly
 
 Install dependencies:
 
@@ -104,6 +121,11 @@ Prepare one small local file for upload, for example:
 * a `.txt`
 * a `.pdf`
 * a small image
+
+For the Phase 2 collaboration checks, prepare:
+
+* `sample-a.txt` for the first check-in
+* `sample-b.txt` for a second check-in
 
 ## End-to-End Manual Test
 
@@ -264,7 +286,138 @@ Potential artifacts to watch for:
 * visible flicker back to the anonymous state before session restore
 * stored selections restored inconsistently
 
-### 9. Sign Out
+### 9. Verify Collaboration State on a Fresh Asset
+
+1. Stay on the selected Engineering Asset detail view.
+2. Locate the collaboration state card.
+
+Expected result:
+
+* the collaboration state section is visible
+* the Asset shows `available` before checkout
+* a `Check out` action is available
+* the timeline section is visible even if it is initially short
+
+Potential artifacts to watch for:
+
+* collaboration state missing until a manual reload
+* state text visible but action buttons not synchronized with it
+
+### 10. Check Out the Asset
+
+1. Click `Check out`.
+
+Expected result:
+
+* the action succeeds without a page reload
+* the collaboration state changes to `locked`
+* the current user is shown as the lock owner
+* the check-in form remains available
+* the timeline gains a lock-related event
+
+Potential artifacts to watch for:
+
+* state stays `available` until a full refresh
+* owner identity is missing after checkout
+* duplicate lock events appear in the timeline
+
+### 11. Verify Required Comment on Check-In
+
+1. In the check-in form, choose a file but leave the revision comment empty.
+2. Submit the form.
+
+Expected result:
+
+* the check-in is rejected
+* the UI shows a clear error message
+* no partial or empty revision appears in revision history
+* the Asset remains locked by the current user
+
+Potential artifacts to watch for:
+
+* upload appears successful before the error is shown
+* a revision card appears despite the rejected submission
+
+### 12. Complete a Valid Check-In
+
+1. Enter a non-empty revision comment.
+2. Choose `sample-b.txt` or another small file.
+3. Submit the check-in form.
+
+Expected result:
+
+* the check-in succeeds
+* a new immutable Revision appears in revision history
+* the revision comment is visible in the history
+* the collaboration state returns to `available`
+* the timeline gains revision and check-in completion events
+
+Potential artifacts to watch for:
+
+* the new Revision appears but the lock is not released
+* the lock is released but the timeline does not refresh
+* the revision comment is missing from the created Revision
+
+### 13. Verify Lock Contention with a Second User
+
+This check uses two browser sessions. If the second user is not already a member
+of the same Project, add them first through the public API docs.
+
+1. In browser A, sign in as user 1 and check out the Asset.
+2. In browser B, sign in as user 2 and open the same Asset.
+3. In browser B, attempt to check out the Asset.
+
+Expected result:
+
+* browser B shows the Asset as locked by another user
+* browser B cannot check in changes
+* the checkout attempt is rejected with clear conflict feedback
+* browser A remains the visible lock owner
+
+Potential artifacts to watch for:
+
+* browser B shows `available` until a manual refresh
+* conflict feedback is too generic to explain next steps
+* browser B is allowed to check out despite the existing lock
+
+### 14. Verify Unlock by the Lock Owner
+
+1. In browser A, while still owning the lock, click `Unlock`.
+
+Expected result:
+
+* the unlock succeeds
+* the collaboration state returns to `available`
+* browser B sees the refreshed available state after reloading the Asset view
+* the timeline gains an unlock event
+
+Potential artifacts to watch for:
+
+* unlock succeeds but browser B still sees a locked state after refresh
+* unlock removes the lock but no timeline event is recorded
+
+### 15. Verify Archived-Asset Recovery Feedback
+
+This check is easiest through the public API docs or another admin surface that
+can set the Asset status to `archived`.
+
+1. Archive the selected Asset through the public API.
+2. Return to the Asset detail view in the Web UI.
+3. Attempt a collaboration action such as `Check out` or check-in.
+
+Expected result:
+
+* the action is rejected
+* the UI shows explicit archived-asset feedback
+* no new Revision is created
+* the user is not guided toward unsupported bypass behavior
+
+Potential artifacts to watch for:
+
+* a generic error hides the archived state
+* the UI still offers normal collaboration actions after the failure
+
+### 16. Sign Out
 
 1. Click `Sign out`.
 
@@ -311,6 +464,27 @@ Expected result:
 * the app restores the session and current selection cleanly
 * no duplicate content or broken loading state appears
 
+### Collaboration State Refresh
+
+1. In browser A, check out or unlock the Asset.
+2. In browser B, refresh the Asset detail view.
+
+Expected result:
+
+* browser B reflects the latest lock state after refresh
+* ownership cues and action availability match the refreshed state
+
+### Rejected Check-In Recovery
+
+1. Trigger a rejected check-in, for example by omitting the revision comment.
+2. Correct the input and submit again.
+
+Expected result:
+
+* the first attempt fails safely
+* the UI remains usable without a full workflow restart
+* the corrected retry succeeds without creating duplicate revisions
+
 ## What to Capture if You See Artifacts
 
 If something looks wrong, capture:
@@ -329,6 +503,8 @@ These are the parts most likely to show visible prototype artifacts:
 * session restoration after reload
 * automatic selection after creating Organization, Project, or Asset
 * refresh of Asset detail and Revision history after upload
+* synchronization of collaboration state and action buttons after checkout or unlock
+* conflict feedback clarity during multi-user checks
 * browser download behavior across browsers
 * empty-state transitions between anonymous, first-use, and populated states
 
@@ -342,5 +518,10 @@ Treat the prototype workflow as passing when all of the following are true:
 * the user can create a generic Engineering Asset inside that Project
 * the user can upload a file that creates a new immutable Revision
 * the user can download the uploaded Blob-backed file
+* the user can see collaboration state for the selected Asset
+* the user can check out and unlock the Asset through the Web UI
+* check-in requires a revision comment and succeeds when valid
+* collaboration conflicts are visible and understandable in the Web UI
+* collaboration timeline entries refresh after lock and check-in actions
 * the session survives a browser refresh
 * sign-out removes access to the protected workspace

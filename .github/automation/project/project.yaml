@@ -2743,6 +2743,7 @@ roadmap:
               Platform Area: Documentation
               Complexity: S
               ADR: ADR-0017, ADR-0019
+            closed: true
 
       - title: "Phase 2 Epic: Asset Locking and Concurrency Enforcement"
         body: |
@@ -2831,6 +2832,45 @@ roadmap:
               Complexity: M
               ADR: ADR-0018
             closed: true
+
+          - title: "Phase 2 Task: Define stale lock transition conditions"
+            body: |
+              ## Objective
+              Define exactly when an Asset must enter the `stale_lock` collaboration state in Phase 2.
+
+              ## Description
+              ADR-0017 introduces `stale_lock` as an exceptional collaboration state, and ADR-0018 clarifies that it is not automatic time-based expiration. However, the exact Phase 2 conditions that produce `stale_lock` are not yet fully explicit.
+
+              This decision issue must clarify:
+              - which objective conditions can produce `stale_lock` in Phase 2;
+              - whether archived Assets, deactivated lock owners, deleted memberships or other invalid ownership states qualify;
+              - who can resolve a `stale_lock`;
+              - which API and UI behaviors must distinguish `stale_lock` from a normal `locked` state.
+
+              The decision must stay within the approved Phase 2 scope and must not introduce automatic expiration, desktop sync semantics or workflow-state concepts.
+
+              ## Acceptance Criteria
+              - `stale_lock` entry conditions are explicit and objectively testable.
+              - Resolution authority and allowed actions are explicit.
+              - API and Web UI expectations for `stale_lock` are clear for the approved v1 scope.
+
+              ## Dependencies
+              - Phase 2 Task: Define generic collaboration state model
+              - Phase 2 Task: Define lock scope and ownership rules
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: Asset Locking and Concurrency Enforcement
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0017, ADR-0018
 
           - title: "Phase 2 Task: Implement lock persistence and lifecycle enforcement"
             body: |
@@ -3646,6 +3686,44 @@ roadmap:
               Complexity: S
               ADR: ADR-0021
             closed: true
+
+          - title: "Phase 2 Task: Define notification read and dismissal behavior"
+            body: |
+              ## Objective
+              Define how users acknowledge or clear in-app collaboration notifications in Phase 2.
+
+              ## Description
+              ADR-0021 defines the triggering events and delivery scope for Phase 2 collaboration notifications, but it does not yet define the minimum user-facing acknowledgment model.
+
+              This decision issue must clarify:
+              - whether notifications are unread-only, mark-as-read, dismissible or both;
+              - whether acknowledgment is per-user;
+              - whether notifications remain visible after acknowledgment in the approved v1 scope;
+              - the minimum empty-state and retention expectations required for the Web UI.
+
+              The decision must preserve a simple in-app-only model and must not introduce email, desktop push, real-time presence or external integrations.
+
+              ## Acceptance Criteria
+              - Notification acknowledgment behavior is explicit for the approved Phase 2 scope.
+              - Per-user visibility expectations are clear.
+              - Backend and Web UI implementation can proceed without inventing notification lifecycle semantics.
+
+              ## Dependencies
+              - Phase 2 Task: Define Phase 2 in-app notification scope
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0021
 
           - title: "Phase 2 Task: Implement notification generation for approved collaboration events"
             body: |

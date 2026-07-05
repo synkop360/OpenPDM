@@ -16,7 +16,8 @@ Use these versions or newer compatible versions:
 * uv
 * Docker
 * Node.js 22+ and pnpm for Web UI work
-* Rust and Tauri 2 prerequisites for Desktop Client work
+* Rust and Tauri 2 prerequisites only if you are explicitly working on the
+  deferred Desktop Client track
 
 ## Install Dependencies
 
@@ -26,6 +27,9 @@ python scripts/dev.py install
 
 This installs Python dependencies with uv. If pnpm is available, it also installs
 frontend and desktop JavaScript dependencies.
+
+The desktop workspace remains in the repository for future development, but it is
+not on the critical path for the current v1 collaboration scope.
 
 ## Validate Locally
 
@@ -72,8 +76,16 @@ cd desktop
 pnpm run dev
 ```
 
-The Desktop Client is also an API consumer. Native desktop capabilities should be
-introduced only when later roadmap phases require them.
+The Desktop Client is also an API consumer. It is currently a deferred track and
+is not required to deliver the approved v1 collaboration scope.
+
+Desktop-specific collaboration behavior remains out of scope for the current
+Phase 2 delivery, including:
+
+* desktop synchronization;
+* desktop notifications;
+* local file conflict handling;
+* any collaboration behavior that bypasses the public application API.
 
 ## Architecture Boundaries
 
