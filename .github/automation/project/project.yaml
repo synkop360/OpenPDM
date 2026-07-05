@@ -2839,15 +2839,16 @@ roadmap:
               Define exactly when an Asset must enter the `stale_lock` collaboration state in Phase 2.
 
               ## Description
-              ADR-0017 introduces `stale_lock` as an exceptional collaboration state, and ADR-0018 clarifies that it is not automatic time-based expiration. However, the exact Phase 2 conditions that produce `stale_lock` are not yet fully explicit.
+              Decision made: Phase 2 treats `stale_lock` as an exceptional invalid-lock state with explicit, non-time-based entry conditions.
 
-              This decision issue must clarify:
-              - which objective conditions can produce `stale_lock` in Phase 2;
-              - whether archived Assets, deactivated lock owners, deleted memberships or other invalid ownership states qualify;
-              - who can resolve a `stale_lock`;
-              - which API and UI behaviors must distinguish `stale_lock` from a normal `locked` state.
+              The accepted decision covers:
+              - `stale_lock` applies only when an active collaboration lock exists and can no longer be honored as a normal working lock;
+              - archived Assets, inactive lock owners, and lost tenancy or write authority qualify as `stale_lock` conditions;
+              - time, heartbeat, browser refresh, or desktop sync behavior do not create `stale_lock`;
+              - only explicit unlock or force-unlock resolves the stale state in Phase 2;
+              - API and Web UI behavior must distinguish `stale_lock` from a normal `locked` state.
 
-              The decision must stay within the approved Phase 2 scope and must not introduce automatic expiration, desktop sync semantics or workflow-state concepts.
+              This decision is recorded in ADR-0024.
 
               ## Acceptance Criteria
               - `stale_lock` entry conditions are explicit and objectively testable.
@@ -2870,7 +2871,8 @@ roadmap:
               Epic: Asset Locking and Concurrency Enforcement
               Platform Area: Platform Core
               Complexity: S
-              ADR: ADR-0017, ADR-0018
+              ADR: ADR-0017, ADR-0018, ADR-0024
+            closed: true
 
           - title: "Phase 2 Task: Implement lock persistence and lifecycle enforcement"
             body: |
@@ -3696,15 +3698,16 @@ roadmap:
               Define how users acknowledge or clear in-app collaboration notifications in Phase 2.
 
               ## Description
-              ADR-0021 defines the triggering events and delivery scope for Phase 2 collaboration notifications, but it does not yet define the minimum user-facing acknowledgment model.
+              Decision made: Phase 2 collaboration notifications use a simple per-user read model.
 
-              This decision issue must clarify:
-              - whether notifications are unread-only, mark-as-read, dismissible or both;
-              - whether acknowledgment is per-user;
-              - whether notifications remain visible after acknowledgment in the approved v1 scope;
-              - the minimum empty-state and retention expectations required for the Web UI.
+              The accepted decision covers:
+              - notifications are per-user and move only between `unread` and `read`;
+              - acknowledgment is per-user mark-as-read;
+              - Phase 2 does not support dismiss, delete, archive or snooze behavior;
+              - read notifications remain visible in the approved v1 surface;
+              - the Web UI shows a simple empty state when no notifications are available.
 
-              The decision must preserve a simple in-app-only model and must not introduce email, desktop push, real-time presence or external integrations.
+              This decision is recorded in ADR-0025.
 
               ## Acceptance Criteria
               - Notification acknowledgment behavior is explicit for the approved Phase 2 scope.
@@ -3726,7 +3729,8 @@ roadmap:
               Epic: In-App Collaboration Notifications
               Platform Area: Frontend
               Complexity: S
-              ADR: ADR-0021
+              ADR: ADR-0021, ADR-0025
+            closed: true
 
           - title: "Phase 2 Task: Define notification recipient targeting rules"
             body: |
@@ -3734,15 +3738,16 @@ roadmap:
               Define which users should receive each approved collaboration notification in Phase 2.
 
               ## Description
-              ADR-0021 defines the approved collaboration notification events and delivery channel, but it does not yet define the minimum recipient-targeting model needed to implement notification generation safely.
+              Decision made: Phase 2 notification recipients are derived from current Project membership with explicit actor rules.
 
-              This decision issue must clarify:
-              - whether notifications target only directly affected users, all Project members, or another bounded subset;
-              - whether the acting user also receives the notification for their own action;
-              - how force unlock and conflict-detected notifications choose recipients;
-              - the minimum tenancy and authorization rules for notification visibility.
+              The accepted decision covers:
+              - notifications are generated only for users who have `read_project` access in the related Project;
+              - successful collaboration events notify all current Project members except the actor;
+              - `conflict detected` notifies only the acting user whose action was rejected;
+              - force unlock follows the same current-Project-member targeting rule;
+              - notifications are not visible outside Project scope and are not backfilled for later members.
 
-              The decision must remain simple for the approved v1 scope and must not introduce followers, subscriptions, email routing, real-time presence, or external integrations.
+              This decision is recorded in ADR-0025.
 
               ## Acceptance Criteria
               - Notification recipient rules are explicit for each approved Phase 2 notification event.
@@ -3764,7 +3769,8 @@ roadmap:
               Epic: In-App Collaboration Notifications
               Platform Area: Platform Core
               Complexity: S
-              ADR: ADR-0021
+              ADR: ADR-0021, ADR-0025
+            closed: true
 
           - title: "Phase 2 Task: Implement notification generation for approved collaboration events"
             body: |
