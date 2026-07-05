@@ -330,11 +330,14 @@ def test_collaboration_checkout_checkin_unlock_and_timeline_flow(tmp_path: Path)
     checkout = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token))
     assert checkout.status_code == 200
     assert checkout.json()["state"] == "locked"
-    assert checkout.json()["lock"]["owner_user_id"] == client.get(
-        "/auth/session", headers=auth_header(owner_token)
-    ).json()["user"]["id"]
+    assert (
+        checkout.json()["lock"]["owner_user_id"]
+        == client.get("/auth/session", headers=auth_header(owner_token)).json()["user"]["id"]
+    )
 
-    locked_conflict = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(other_token))
+    locked_conflict = client.post(
+        f"/assets/{asset['id']}/checkout", headers=auth_header(other_token)
+    )
     assert locked_conflict.status_code == 409
     assert locked_conflict.json()["detail"]["code"] == "asset_locked"
 
@@ -369,7 +372,9 @@ def test_collaboration_checkout_checkin_unlock_and_timeline_flow(tmp_path: Path)
     assert available_again.json()["state"] == "available"
     assert available_again.json()["lock"] is None
 
-    second_checkout = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token))
+    second_checkout = client.post(
+        f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)
+    )
     assert second_checkout.status_code == 200
 
     unlock_by_other = client.post(
@@ -422,7 +427,10 @@ def test_collaboration_requires_comment_and_rejects_archived_asset_checkin(tmp_p
         json={"name": "Tail", "description": "Tail"},
     ).json()
 
-    assert client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(token)).status_code == 200
+    assert (
+        client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(token)).status_code
+        == 200
+    )
 
     missing_comment = client.post(
         f"/assets/{asset['id']}/checkin",
@@ -575,7 +583,9 @@ def test_stale_lock_when_owner_loses_write_role(tmp_path: Path) -> None:
         headers=auth_header(owner_token),
         json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
     ).json()
-    maintainer_user = client.get("/auth/session", headers=auth_header(maintainer_token)).json()["user"]
+    maintainer_user = client.get("/auth/session", headers=auth_header(maintainer_token)).json()[
+        "user"
+    ]
 
     assert (
         client.post(
@@ -600,7 +610,10 @@ def test_stale_lock_when_owner_loses_write_role(tmp_path: Path) -> None:
         json={"name": "Fin", "description": "Tail fin"},
     ).json()
 
-    assert client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)).status_code == 200
+    assert (
+        client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)).status_code
+        == 200
+    )
 
     owner_user = client.get("/auth/session", headers=auth_header(owner_token)).json()["user"]
     downgrade = client.post(
@@ -658,7 +671,9 @@ def test_stale_lock_when_owner_is_inactive(tmp_path: Path) -> None:
         headers=auth_header(owner_token),
         json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
     ).json()
-    maintainer_user = client.get("/auth/session", headers=auth_header(maintainer_token)).json()["user"]
+    maintainer_user = client.get("/auth/session", headers=auth_header(maintainer_token)).json()[
+        "user"
+    ]
 
     assert (
         client.post(
@@ -684,7 +699,10 @@ def test_stale_lock_when_owner_is_inactive(tmp_path: Path) -> None:
     ).json()
     owner_user = client.get("/auth/session", headers=auth_header(owner_token)).json()["user"]
 
-    assert client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)).status_code == 200
+    assert (
+        client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)).status_code
+        == 200
+    )
 
     with session_scope() as db:
         persisted_owner = db.get(User, owner_user["id"])
@@ -828,8 +846,7 @@ def test_collaboration_notifications_are_generated_visible_and_mark_read(tmp_pat
 
         notification_audits = list(
             db.scalars(
-                select(AuditRecord)
-                .where(
+                select(AuditRecord).where(
                     AuditRecord.action == "notification.emitted",
                     AuditRecord.project_id == project["id"],
                 )

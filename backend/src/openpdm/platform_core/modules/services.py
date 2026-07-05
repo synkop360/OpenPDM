@@ -818,7 +818,11 @@ class NotificationsModule:
             if recipient_user_id in seen:
                 continue
             seen.add(recipient_user_id)
-            if actor_user_id is not None and not include_actor and recipient_user_id == actor_user_id:
+            if (
+                actor_user_id is not None
+                and not include_actor
+                and recipient_user_id == actor_user_id
+            ):
                 continue
             unique_recipient_user_ids.append(recipient_user_id)
         if not unique_recipient_user_ids:
@@ -837,7 +841,9 @@ class NotificationsModule:
 
     @staticmethod
     def list_notifications(db: Session, *, actor: User) -> list[NotificationRecord]:
-        visible_project_ids = NotificationsModule._visible_project_ids_for_user(db, user_id=actor.id)
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(
+            db, user_id=actor.id
+        )
         if not visible_project_ids:
             return []
         return list(
@@ -866,7 +872,9 @@ class NotificationsModule:
             "Notification access denied.",
             status.HTTP_403_FORBIDDEN,
         )
-        visible_project_ids = NotificationsModule._visible_project_ids_for_user(db, user_id=actor.id)
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(
+            db, user_id=actor.id
+        )
         require(
             notification.project_id in visible_project_ids,
             "Notification access denied.",
@@ -1193,9 +1201,9 @@ class CollaborationModule:
             .options(
                 joinedload(Asset.project),
                 joinedload(Asset.collaboration_lock).joinedload(AssetCollaborationLock.owner),
-                joinedload(Asset.revisions).joinedload(Revision.representations).joinedload(
-                    Representation.blob
-                ),
+                joinedload(Asset.revisions)
+                .joinedload(Revision.representations)
+                .joinedload(Representation.blob),
             )
             .where(Asset.id == asset_id)
         ) or AssetsModule.get_asset(db, asset_id=asset_id, actor=actor)
@@ -1229,9 +1237,7 @@ class CollaborationModule:
         return "locked"
 
     @staticmethod
-    def get_collaboration_state(
-        db: Session, *, asset_id: str, actor: User
-    ) -> CollaborationState:
+    def get_collaboration_state(db: Session, *, asset_id: str, actor: User) -> CollaborationState:
         asset = CollaborationModule._get_asset_for_collaboration(db, asset_id=asset_id, actor=actor)
         ProjectModule.require_project_permission(
             db, project_id=asset.project_id, actor=actor, permission="read_project"
@@ -1303,7 +1309,9 @@ class CollaborationModule:
             recipient_user_ids=[actor.id],
         )
         db.commit()
-        raise collaboration_error(code=code, message=message, status_code=status_code, context=payload)
+        raise collaboration_error(
+            code=code, message=message, status_code=status_code, context=payload
+        )
 
     @staticmethod
     def _record_failed_checkin(
@@ -1375,7 +1383,9 @@ class CollaborationModule:
                 recipient_user_ids=[actor.id],
             )
         db.commit()
-        raise collaboration_error(code=code, message=message, status_code=status_code, context=payload)
+        raise collaboration_error(
+            code=code, message=message, status_code=status_code, context=payload
+        )
 
     @staticmethod
     def _validate_checkin_representations(
@@ -1618,11 +1628,14 @@ class CollaborationModule:
         db.delete(lock)
         db.flush()
         db.expire(asset, ["collaboration_lock"])
-        return db.scalar(
-            select(Revision)
-            .options(joinedload(Revision.representations).joinedload(Representation.blob))
-            .where(Revision.id == revision.id)
-        ) or revision
+        return (
+            db.scalar(
+                select(Revision)
+                .options(joinedload(Revision.representations).joinedload(Representation.blob))
+                .where(Revision.id == revision.id)
+            )
+            or revision
+        )
 
     @staticmethod
     def list_timeline(db: Session, *, asset_id: str, actor: User) -> list[TimelineEntry]:
