@@ -93,3 +93,7 @@ Useful guides:
 * `docs/API_FLOWS.md`
 * `docs/PHASE_0_DEMO.md`
 
+Phase 3 Asset Graph implementation guide:
+
+* `docs/PHASE_3_ASSET_GRAPH_QUERY_LIMITS.md`
+
