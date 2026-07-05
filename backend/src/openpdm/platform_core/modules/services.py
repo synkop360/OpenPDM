@@ -8,6 +8,7 @@ import secrets
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import PurePath
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import String, and_, cast, func, literal, or_, select
@@ -918,14 +919,17 @@ class BlobModule:
     ) -> Blob:
         content = await file.read()
         checksum = hashlib.sha256(content).hexdigest()
-        storage_key = f"{utc_now().strftime('%Y/%m/%d')}/{secrets.token_hex(16)}-{file.filename}"
+        raw_filename = file.filename or "blob.bin"
+        safe_filename = PurePath(raw_filename).name or "blob.bin"
+        storage_key = f"{utc_now().strftime('%Y/%m/%d')}/{secrets.token_hex(16)}-{safe_filename}"
         storage.put_bytes(storage_key, content, file.content_type)
         blob = Blob(
             storage_key=storage_key,
-            filename=file.filename or "blob.bin",
+            filename=safe_filename,
             media_type=file.content_type or "application/octet-stream",
             size_bytes=len(content),
             checksum_sha256=checksum,
+            created_by_user_id=actor.id,
         )
         db.add(blob)
         db.flush()
@@ -940,10 +944,55 @@ class BlobModule:
         return blob
 
     @staticmethod
-    def download_blob(db: Session, *, blob_id: str, storage: BlobStorage) -> tuple[Blob, bytes]:
-        blob = db.get(Blob, blob_id)
+    def download_blob(
+        db: Session,
+        *,
+        blob_id: str,
+        actor: User,
+        storage: BlobStorage,
+    ) -> tuple[Blob, bytes]:
+        blob = db.scalar(
+            select(Blob)
+            .options(
+                joinedload(Blob.created_by),
+                joinedload(Blob.representations)
+                .joinedload(Representation.revision)
+                .joinedload(Revision.asset)
+                .joinedload(Asset.project),
+            )
+            .where(Blob.id == blob_id)
+        )
         if blob is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Blob not found.")
+        if blob.representations:
+            readable_project_ids = {
+                representation.revision.asset.project_id
+                for representation in blob.representations
+                if representation.revision is not None and representation.revision.asset is not None
+            }
+            require(readable_project_ids, "Blob is not linked to a readable Asset.")
+            for project_id in readable_project_ids:
+                try:
+                    ProjectModule.require_project_permission(
+                        db,
+                        project_id=project_id,
+                        actor=actor,
+                        permission="read_project",
+                    )
+                    break
+                except HTTPException:
+                    continue
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Blob access denied.",
+                )
+        else:
+            require(
+                blob.created_by_user_id == actor.id,
+                "Blob access denied.",
+                status.HTTP_403_FORBIDDEN,
+            )
         return blob, storage.get_bytes(blob.storage_key)
 
 
@@ -1883,6 +1932,13 @@ class PluginsModule:
     """Public Plugins module service."""
 
     @staticmethod
+    def _write_not_available() -> None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The Phase 1 plugin registry is read-only until a platform administration model is defined.",
+        )
+
+    @staticmethod
     def register_plugin(
         db: Session,
         *,
@@ -1893,6 +1949,7 @@ class PluginsModule:
         capabilities: list[str],
         actor: User,
     ) -> PluginRecord:
+        PluginsModule._write_not_available()
         require(plugin_type in ALLOWED_PLUGIN_TYPES, "Invalid plugin type.")
         existing = db.get(PluginRecord, plugin_id)
         require(existing is None, "Plugin already exists.", status.HTTP_409_CONFLICT)
@@ -1933,6 +1990,7 @@ class PluginsModule:
         enabled: bool,
         actor: User,
     ) -> PluginRecord:
+        PluginsModule._write_not_available()
         plugin = db.get(PluginRecord, plugin_id)
         if plugin is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found.")

@@ -83,7 +83,7 @@ flowchart TB
         Audit[Audit Platform Module]
         Events[Events Platform Module]
         Workflow[Workflow Platform Module<br/>generic status primitive only]
-        Plugins[Plugins Platform Module<br/>registry and discovery skeleton]
+        Plugins[Plugins Platform Module<br/>read-only registry and discovery skeleton]
     end
 
     Official[Official Plugins]
@@ -132,3 +132,4 @@ flowchart TB
 * The Assets Platform Module owns lifecycle behavior, while the Blobs Platform Module owns binary storage coordination.
 * Authorization is decided by the Platform Core, not by plugins or client applications.
 * Search remains generic in Phase 1 and is limited to PostgreSQL-backed search over Platform Core data.
+* The Phase 1 plugin registry is intentionally read-only until OpenPDM defines a dedicated platform administration model in a later phase.

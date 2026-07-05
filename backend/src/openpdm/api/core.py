@@ -786,8 +786,12 @@ def download_blob(
     db: Session = Depends(get_db_session),
     storage: BlobStorage = Depends(get_storage),
 ) -> Response:
-    del context
-    blob, content = BlobModule.download_blob(db, blob_id=blob_id, storage=storage)
+    blob, content = BlobModule.download_blob(
+        db,
+        blob_id=blob_id,
+        actor=context.user,
+        storage=storage,
+    )
     return Response(
         content=content,
         media_type=blob.media_type,
