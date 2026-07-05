@@ -173,6 +173,28 @@ describe("App", () => {
             },
           ]);
         }
+        if (path === "/assets/asset-1/collaboration-state") {
+          return jsonResponse({
+            asset_id: "asset-1",
+            state: "available",
+            can_checkin: false,
+            can_unlock: false,
+            can_force_unlock: false,
+            lock: null,
+          });
+        }
+        if (path === "/assets/asset-1/timeline") {
+          return jsonResponse([
+            {
+              event_type: "AssetCreated",
+              occurred_at: "2026-01-01T00:00:00",
+              actor_user_id: "user-1",
+              asset_id: "asset-1",
+              revision_id: null,
+              details: {},
+            },
+          ]);
+        }
         throw new Error(`Unexpected request: ${path}`);
       }),
     );
@@ -183,7 +205,10 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: /Acme/i })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Rocket/i })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
+    expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
   });
 });

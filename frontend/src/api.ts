@@ -87,6 +87,31 @@ export type Revision = {
   representations: Representation[];
 };
 
+export type CollaborationLock = {
+  id: string;
+  asset_id: string;
+  owner_user_id: string;
+  created_at: string;
+};
+
+export type CollaborationState = {
+  asset_id: string;
+  state: "available" | "locked" | "stale_lock";
+  can_checkin: boolean;
+  can_unlock: boolean;
+  can_force_unlock: boolean;
+  lock: CollaborationLock | null;
+};
+
+export type TimelineEntry = {
+  event_type: string;
+  occurred_at: string;
+  actor_user_id: string | null;
+  asset_id: string;
+  revision_id: string | null;
+  details: Record<string, unknown>;
+};
+
 export type Asset = {
   id: string;
   project_id: string;
@@ -101,11 +126,15 @@ export type Asset = {
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
+  context?: Record<string, unknown>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string, context?: Record<string, unknown>) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.context = context;
   }
 }
 
@@ -128,15 +157,29 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
   if (!response.ok) {
     let message = `OpenPDM API request failed with status ${response.status}`;
+    let code: string | undefined;
+    let context: Record<string, unknown> | undefined;
     try {
-      const payload = (await response.json()) as { detail?: string };
-      if (payload.detail) {
+      const payload = (await response.json()) as {
+        detail?:
+          | string
+          | {
+              code?: string;
+              message?: string;
+              context?: Record<string, unknown>;
+            };
+      };
+      if (typeof payload.detail === "string") {
         message = payload.detail;
+      } else if (payload.detail) {
+        message = payload.detail.message ?? message;
+        code = payload.detail.code;
+        context = payload.detail.context;
       }
     } catch {
       // Keep the default status-based message when the response is not JSON.
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, code, context);
   }
   return response.json() as Promise<T>;
 }
@@ -257,6 +300,53 @@ export async function createRevision(
     body: JSON.stringify(payload),
     headers: { "Content-Type": "application/json" },
   });
+}
+
+export async function getCollaborationState(
+  token: string,
+  assetId: string,
+): Promise<CollaborationState> {
+  return request<CollaborationState>(`/assets/${assetId}/collaboration-state`, { token });
+}
+
+export async function checkoutAsset(token: string, assetId: string): Promise<CollaborationState> {
+  return request<CollaborationState>(`/assets/${assetId}/checkout`, {
+    method: "POST",
+    token,
+  });
+}
+
+export async function unlockAsset(
+  token: string,
+  assetId: string,
+  payload: { force: boolean },
+): Promise<CollaborationState> {
+  return request<CollaborationState>(`/assets/${assetId}/unlock`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function checkinAsset(
+  token: string,
+  assetId: string,
+  payload: {
+    comment: string;
+    representations: Array<{ name: string; media_type: string; blob_id: string | null }>;
+  },
+): Promise<Revision> {
+  return request<Revision>(`/assets/${assetId}/checkin`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function getAssetTimeline(token: string, assetId: string): Promise<TimelineEntry[]> {
+  return request<TimelineEntry[]>(`/assets/${assetId}/timeline`, { token });
 }
 
 export async function uploadBlob(token: string, file: File): Promise<BlobRecord> {

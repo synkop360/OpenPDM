@@ -2967,6 +2967,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: M
           ADR: ADR-0007
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define Web UI collaboration control scope"
@@ -3044,6 +3045,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
           - title: "Phase 2 Task: Implement lock visibility and ownership cues in the Web UI"
             body: |
@@ -3073,6 +3075,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
           - title: "Phase 2 Task: Implement check-in and lock release flows in the Web UI"
             body: |
@@ -3103,6 +3106,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Revision Comments Capability"
         body: |
@@ -3146,6 +3150,7 @@ roadmap:
           Platform Area: Platform Module
           Complexity: M
           ADR: ADR-0020
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define revision comment scope and moderation boundaries"
@@ -3247,6 +3252,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Collaboration Activity Timeline"
         body: |
@@ -3290,6 +3296,7 @@ roadmap:
           Platform Area: Platform Module
           Complexity: M
           ADR: ADR-0020
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define collaboration timeline event scope"
@@ -3394,6 +3401,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Audit-Aligned Collaboration Observability"
         body: |
@@ -3741,6 +3749,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: L
           ADR: ADR-0022
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define conflict conditions for Phase 2 collaboration"
@@ -3877,6 +3886,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Collaboration Error Handling and Recovery Paths"
         body: |
