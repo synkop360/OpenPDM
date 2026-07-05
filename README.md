@@ -80,5 +80,6 @@ Useful Phase 0 guides:
 
 * `docs/DEVELOPMENT.md`
 * `docs/DEPLOYMENT.md`
+* `docs/INTERNAL_FUNCTIONING.md`
 * `docs/PHASE_0_DEMO.md`
 
