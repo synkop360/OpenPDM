@@ -21,6 +21,7 @@ from openpdm.platform_core.modules.models import (
     Blob,
     DomainEvent,
     MetadataEntry,
+    NotificationRecord,
     Organization,
     OrganizationMembership,
     PluginRecord,
@@ -48,6 +49,7 @@ ALLOWED_METADATA_TYPES = {"string", "number", "boolean", "date", "json"}
 ALLOWED_PLUGIN_TYPES = {"official", "community"}
 COLLABORATION_STATES = {"available", "locked", "stale_lock"}
 FORCE_UNLOCK_ROLES = {"Owner", "Maintainer"}
+LOCK_OWNER_WRITE_ROLES = {"Owner", "Maintainer", "Contributor"}
 METADATA_TARGET_FIELDS = {
     "asset": "asset_id",
     "revision": "revision_id",
@@ -686,6 +688,214 @@ class ProjectModule:
             )
         )
 
+    @staticmethod
+    def list_readable_members(db: Session, *, project_id: str) -> list[ProjectMembership]:
+        """Return current Project members who still have read access."""
+        return list(
+            db.scalars(
+                select(ProjectMembership)
+                .options(joinedload(ProjectMembership.user))
+                .join(Project, Project.id == ProjectMembership.project_id)
+                .join(
+                    OrganizationMembership,
+                    and_(
+                        OrganizationMembership.organization_id == Project.organization_id,
+                        OrganizationMembership.user_id == ProjectMembership.user_id,
+                    ),
+                )
+                .where(
+                    and_(
+                        ProjectMembership.project_id == project_id,
+                        ProjectMembership.role.in_(PROJECT_PERMISSION_ROLES["read_project"]),
+                    )
+                )
+            )
+        )
+
+
+class NotificationsModule:
+    """Public in-app notifications service for Phase 2 collaboration."""
+
+    @staticmethod
+    def _visible_project_ids_for_user(db: Session, *, user_id: str) -> set[str]:
+        rows = db.execute(
+            select(ProjectMembership.project_id)
+            .join(Project, Project.id == ProjectMembership.project_id)
+            .join(
+                OrganizationMembership,
+                and_(
+                    OrganizationMembership.organization_id == Project.organization_id,
+                    OrganizationMembership.user_id == ProjectMembership.user_id,
+                ),
+            )
+            .where(
+                and_(
+                    ProjectMembership.user_id == user_id,
+                    ProjectMembership.role.in_(PROJECT_PERMISSION_ROLES["read_project"]),
+                )
+            )
+        )
+        return {str(project_id) for project_id in rows.scalars()}
+
+    @staticmethod
+    def create_notifications(
+        db: Session,
+        *,
+        organization_id: str | None,
+        project_id: str,
+        asset_id: str | None,
+        revision_id: str | None,
+        event_type: str,
+        actor_user_id: str | None,
+        recipient_user_ids: list[str],
+        details: dict[str, object] | None = None,
+    ) -> list[NotificationRecord]:
+        created: list[NotificationRecord] = []
+        payload = dict(details or {})
+        for recipient_user_id in recipient_user_ids:
+            notification = NotificationRecord(
+                recipient_user_id=recipient_user_id,
+                actor_user_id=actor_user_id,
+                organization_id=organization_id,
+                project_id=project_id,
+                asset_id=asset_id,
+                revision_id=revision_id,
+                event_type=event_type,
+                details=payload,
+            )
+            db.add(notification)
+            db.flush()
+            created.append(notification)
+            record_audit(
+                db,
+                actor_user_id=actor_user_id,
+                action="notification.emitted",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=organization_id,
+                project_id=project_id,
+                details={
+                    "recipient_user_id": recipient_user_id,
+                    "notification_event_type": event_type,
+                    **payload,
+                },
+            )
+            emit_event(
+                db,
+                event_type="notification.emitted",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=organization_id,
+                project_id=project_id,
+                payload={
+                    "recipient_user_id": recipient_user_id,
+                    "notification_event_type": event_type,
+                    **payload,
+                },
+            )
+        return created
+
+    @staticmethod
+    def notify_project_members(
+        db: Session,
+        *,
+        organization_id: str | None,
+        project_id: str,
+        asset_id: str | None,
+        revision_id: str | None,
+        event_type: str,
+        actor_user_id: str | None,
+        details: dict[str, object] | None = None,
+        include_actor: bool = False,
+        recipient_user_ids: list[str] | None = None,
+    ) -> list[NotificationRecord]:
+        if recipient_user_ids is None:
+            members = ProjectModule.list_readable_members(db, project_id=project_id)
+            recipient_user_ids = [item.user_id for item in members]
+        unique_recipient_user_ids: list[str] = []
+        seen: set[str] = set()
+        for recipient_user_id in recipient_user_ids:
+            if recipient_user_id in seen:
+                continue
+            seen.add(recipient_user_id)
+            if actor_user_id is not None and not include_actor and recipient_user_id == actor_user_id:
+                continue
+            unique_recipient_user_ids.append(recipient_user_id)
+        if not unique_recipient_user_ids:
+            return []
+        return NotificationsModule.create_notifications(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            asset_id=asset_id,
+            revision_id=revision_id,
+            event_type=event_type,
+            actor_user_id=actor_user_id,
+            recipient_user_ids=unique_recipient_user_ids,
+            details=details,
+        )
+
+    @staticmethod
+    def list_notifications(db: Session, *, actor: User) -> list[NotificationRecord]:
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(db, user_id=actor.id)
+        if not visible_project_ids:
+            return []
+        return list(
+            db.scalars(
+                select(NotificationRecord)
+                .where(
+                    and_(
+                        NotificationRecord.recipient_user_id == actor.id,
+                        NotificationRecord.project_id.in_(visible_project_ids),
+                    )
+                )
+                .order_by(NotificationRecord.created_at.desc())
+            )
+        )
+
+    @staticmethod
+    def mark_read(db: Session, *, notification_id: str, actor: User) -> NotificationRecord:
+        notification = db.get(NotificationRecord, notification_id)
+        if notification is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Notification not found.",
+            )
+        require(
+            notification.recipient_user_id == actor.id,
+            "Notification access denied.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(db, user_id=actor.id)
+        require(
+            notification.project_id in visible_project_ids,
+            "Notification access denied.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = utc_now()
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="notification.read",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=notification.organization_id,
+                project_id=notification.project_id,
+                details={"notification_event_type": notification.event_type},
+            )
+            emit_event(
+                db,
+                event_type="notification.read",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=notification.organization_id,
+                project_id=notification.project_id,
+                payload={"notification_event_type": notification.event_type},
+            )
+        return notification
+
 
 class BlobModule:
     """Public Blobs module service."""
@@ -882,6 +1092,16 @@ class AssetsModule:
             project_id=asset.project_id,
             payload={"asset_id": asset.id, "number": next_number},
         )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=revision.id,
+            event_type="revision.created",
+            actor_user_id=actor.id,
+            details={"asset_id": asset.id, "revision_number": next_number},
+        )
         return revision
 
     @staticmethod
@@ -985,11 +1205,26 @@ class CollaborationModule:
         return ProjectModule.check_project_role(db, project_id=project_id, user_id=user_id)
 
     @staticmethod
-    def _resolve_state(asset: Asset) -> str:
+    def _resolve_state(db: Session, asset: Asset) -> str:
         lock = asset.collaboration_lock
         if lock is None:
             return "available"
-        if asset.status == "archived" or not lock.owner.is_active:
+        org_role = _membership_role(
+            db,
+            model=OrganizationMembership,
+            field_name="organization_id",
+            parent_id=asset.project.organization_id,
+            user_id=lock.owner_user_id,
+        )
+        project_role = CollaborationModule._get_project_role(
+            db, project_id=asset.project_id, user_id=lock.owner_user_id
+        )
+        if (
+            asset.status == "archived"
+            or not lock.owner.is_active
+            or org_role is None
+            or project_role not in LOCK_OWNER_WRITE_ROLES
+        ):
             return "stale_lock"
         return "locked"
 
@@ -1004,7 +1239,7 @@ class CollaborationModule:
         project_role = CollaborationModule._get_project_role(
             db, project_id=asset.project_id, user_id=actor.id
         )
-        state = CollaborationModule._resolve_state(asset)
+        state = CollaborationModule._resolve_state(db, asset)
         lock = asset.collaboration_lock
         is_owner = lock is not None and lock.owner_user_id == actor.id
         can_force_unlock = project_role in FORCE_UNLOCK_ROLES and lock is not None and not is_owner
@@ -1054,6 +1289,18 @@ class CollaborationModule:
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
             payload=payload,
+        )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=None,
+            event_type="collaboration.conflict_detected",
+            actor_user_id=actor.id,
+            details=payload,
+            include_actor=True,
+            recipient_user_ids=[actor.id],
         )
         db.commit()
         raise collaboration_error(code=code, message=message, status_code=status_code, context=payload)
@@ -1114,6 +1361,18 @@ class CollaborationModule:
                 organization_id=asset.project.organization_id,
                 project_id=asset.project_id,
                 payload=payload,
+            )
+            NotificationsModule.notify_project_members(
+                db,
+                organization_id=asset.project.organization_id,
+                project_id=asset.project_id,
+                asset_id=asset.id,
+                revision_id=None,
+                event_type="collaboration.conflict_detected",
+                actor_user_id=actor.id,
+                details=payload,
+                include_actor=True,
+                recipient_user_ids=[actor.id],
             )
         db.commit()
         raise collaboration_error(code=code, message=message, status_code=status_code, context=payload)
@@ -1191,6 +1450,16 @@ class CollaborationModule:
                 result="succeeded", details={"lock_owner_user_id": actor.id}
             ),
         )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=None,
+            event_type="asset.checked_out",
+            actor_user_id=actor.id,
+            details={"lock_owner_user_id": actor.id},
+        )
         db.refresh(asset)
         return CollaborationModule.get_collaboration_state(db, asset_id=asset_id, actor=actor)
 
@@ -1243,6 +1512,16 @@ class CollaborationModule:
             organization_id=asset.project.organization_id,
             project_id=asset.project_id,
             payload=payload,
+        )
+        NotificationsModule.notify_project_members(
+            db,
+            organization_id=asset.project.organization_id,
+            project_id=asset.project_id,
+            asset_id=asset.id,
+            revision_id=None,
+            event_type=action,
+            actor_user_id=actor.id,
+            details={"lock_owner_user_id": lock.owner_user_id},
         )
         db.delete(lock)
         db.flush()

@@ -18,6 +18,7 @@ from openpdm.infrastructure.database import get_db_session, initialize_database
 from openpdm.platform_core.modules.models import (
     Asset,
     MetadataEntry,
+    NotificationRecord,
     PluginRecord,
     Representation,
     Revision,
@@ -31,6 +32,7 @@ from openpdm.platform_core.modules.services import (
     CollaborationModule,
     CollaborationState,
     MetadataModule,
+    NotificationsModule,
     OrganizationModule,
     PluginsModule,
     ProjectModule,
@@ -191,6 +193,21 @@ class PluginResponse(BaseModel):
     created_at: str
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class NotificationResponse(BaseModel):
+    id: str
+    recipient_user_id: str
+    actor_user_id: str | None
+    organization_id: str | None
+    project_id: str
+    asset_id: str | None
+    revision_id: str | None
+    event_type: str
+    is_read: bool
+    read_at: str | None
+    details: dict[str, Any]
+    created_at: str
 
 
 class RegisterUserRequest(BaseModel):
@@ -417,6 +434,23 @@ def serialize_plugin(plugin: PluginRecord) -> PluginResponse:
         capabilities=plugin.capabilities,
         enabled=plugin.enabled,
         created_at=_iso(plugin.created_at),
+    )
+
+
+def serialize_notification(notification: NotificationRecord) -> NotificationResponse:
+    return NotificationResponse(
+        id=notification.id,
+        recipient_user_id=notification.recipient_user_id,
+        actor_user_id=notification.actor_user_id,
+        organization_id=notification.organization_id,
+        project_id=notification.project_id,
+        asset_id=notification.asset_id,
+        revision_id=notification.revision_id,
+        event_type=notification.event_type,
+        is_read=notification.is_read,
+        read_at=_iso(notification.read_at) if notification.read_at is not None else None,
+        details=notification.details,
+        created_at=_iso(notification.created_at),
     )
 
 
@@ -707,6 +741,30 @@ def list_project_members(
         ProjectMembershipResponse(id=item.id, role=item.role, user=serialize_user(item.user))
         for item in memberships
     ]
+
+
+@router.get("/notifications", response_model=list[NotificationResponse])
+def list_notifications(
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[NotificationResponse]:
+    return [
+        serialize_notification(item)
+        for item in NotificationsModule.list_notifications(db, actor=context.user)
+    ]
+
+
+@router.post("/notifications/{notification_id}/read", response_model=NotificationResponse)
+def mark_notification_read(
+    notification_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> NotificationResponse:
+    notification = NotificationsModule.mark_read(
+        db, notification_id=notification_id, actor=context.user
+    )
+    db.commit()
+    return serialize_notification(notification)
 
 
 @router.post("/blobs/uploads", response_model=BlobResponse, status_code=status.HTTP_201_CREATED)

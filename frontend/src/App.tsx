@@ -16,9 +16,11 @@ import {
   getCollaborationState,
   getCurrentSession,
   listAssets,
+  listNotifications,
   listOrganizationProjects,
   listOrganizations,
   listProjectsForUser,
+  markNotificationRead,
   registerUser,
   signIn,
   signOut,
@@ -27,6 +29,7 @@ import {
   type Asset,
   type CollaborationState,
   type FoundationStatus,
+  type NotificationRecord,
   type OrganizationMembership,
   type Project,
   type Revision,
@@ -129,6 +132,37 @@ function collaborationShouldRefresh(error: ApiError): boolean {
   return error.context?.should_refresh === true;
 }
 
+function formatNotificationEvent(eventType: string): string {
+  switch (eventType) {
+    case "asset.checked_out":
+      return "Asset locked";
+    case "asset.unlocked":
+      return "Asset unlocked";
+    case "asset.force_unlocked":
+      return "Force unlock";
+    case "revision.created":
+      return "Revision created";
+    case "collaboration.conflict_detected":
+      return "Conflict detected";
+    default:
+      return eventType;
+  }
+}
+
+function notificationSummary(notification: NotificationRecord): string {
+  if (notification.event_type === "collaboration.conflict_detected") {
+    const guidance = notification.details.user_guidance;
+    if (typeof guidance === "string" && guidance.trim()) {
+      return guidance;
+    }
+  }
+  const assetId = typeof notification.asset_id === "string" ? notification.asset_id : null;
+  if (assetId) {
+    return `Related Asset: ${assetId}`;
+  }
+  return "Project collaboration update.";
+}
+
 export function App() {
   const [foundation, setFoundation] = useState<Loadable<FoundationStatus | null>>(
     createLoadable<FoundationStatus | null>(null),
@@ -152,6 +186,9 @@ export function App() {
   );
   const [assetTimeline, setAssetTimeline] = useState<Loadable<TimelineEntry[]>>(
     createLoadable<TimelineEntry[]>([]),
+  );
+  const [notifications, setNotifications] = useState<Loadable<NotificationRecord[]>>(
+    createLoadable<NotificationRecord[]>([]),
   );
   const [collaborationError, setCollaborationError] = useState<ApiError | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
@@ -223,6 +260,7 @@ export function App() {
       setAssetHistory(createLoadable([]));
       setCollaborationState(createLoadable(null));
       setAssetTimeline(createLoadable([]));
+      setNotifications(createLoadable([]));
       setCollaborationError(null);
       return;
     }
@@ -255,6 +293,26 @@ export function App() {
         });
       });
   }, [session.data?.token, selectedOrganizationId]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token) {
+      setNotifications(createLoadable([]));
+      return;
+    }
+    setNotifications((current) => ({ ...current, status: "loading", error: null }));
+    listNotifications(token)
+      .then((result) => {
+        setNotifications({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setNotifications({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Notifications could not be loaded.",
+        });
+      });
+  }, [session.data?.token]);
 
   useEffect(() => {
     writeStoredValue(ORG_KEY, selectedOrganizationId);
@@ -391,6 +449,7 @@ export function App() {
   const hasOrganizations = organizations.data.length > 0;
   const hasProjects = projects.data.length > 0;
   const hasAssets = assets.data.length > 0;
+  const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
 
   async function handleRegister(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -531,6 +590,48 @@ export function App() {
     }
   }
 
+  async function refreshNotifications(token: string): Promise<void> {
+    const refreshed = await listNotifications(token);
+    setNotifications({ status: "ready", data: refreshed, error: null });
+  }
+
+  async function handleMarkNotificationRead(notificationId: string): Promise<void> {
+    if (!session.data?.token) {
+      return;
+    }
+    setBusyAction(`read-notification-${notificationId}`);
+    setBanner(null);
+    try {
+      const updated = await markNotificationRead(session.data.token, notificationId);
+      setNotifications((current) => ({
+        status: "ready",
+        error: null,
+        data: current.data.map((item) => (item.id === updated.id ? updated : item)),
+      }));
+      setBanner("Notification marked as read.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Notification could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRefreshNotifications(): Promise<void> {
+    if (!session.data?.token) {
+      return;
+    }
+    setBusyAction("refresh-notifications");
+    setBanner(null);
+    try {
+      await refreshNotifications(session.data.token);
+      setBanner("Notifications refreshed.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Notifications could not be refreshed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleUpload(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!session.data?.token || !selectedAssetId || !uploadForm.file) {
@@ -559,6 +660,7 @@ export function App() {
         getCollaborationState(session.data.token, selectedAssetId),
         getAssetTimeline(session.data.token, selectedAssetId),
       ]);
+      await refreshNotifications(session.data.token);
       setAssetDetail({ status: "ready", data: nextAsset, error: null });
       setAssetHistory({ status: "ready", data: nextHistory, error: null });
       setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
@@ -567,6 +669,7 @@ export function App() {
       setAssets({ status: "ready", data: refreshed, error: null });
     } catch (error: unknown) {
       if (error instanceof ApiError) {
+        await refreshNotifications(session.data.token);
         setCollaborationError(error);
         setBanner(collaborationGuidance(error));
       } else {
@@ -588,10 +691,12 @@ export function App() {
       const nextState = await checkoutAsset(session.data.token, selectedAssetId);
       setCollaborationState({ status: "ready", data: nextState, error: null });
       const nextTimeline = await getAssetTimeline(session.data.token, selectedAssetId);
+      await refreshNotifications(session.data.token);
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
       setBanner("Asset checked out for collaboration.");
     } catch (error: unknown) {
       if (error instanceof ApiError) {
+        await refreshNotifications(session.data.token);
         setCollaborationError(error);
         setBanner(collaborationGuidance(error));
       } else {
@@ -613,10 +718,12 @@ export function App() {
       const nextState = await unlockAsset(session.data.token, selectedAssetId, { force });
       setCollaborationState({ status: "ready", data: nextState, error: null });
       const nextTimeline = await getAssetTimeline(session.data.token, selectedAssetId);
+      await refreshNotifications(session.data.token);
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
       setBanner(force ? "Asset force-unlocked." : "Asset unlocked.");
     } catch (error: unknown) {
       if (error instanceof ApiError) {
+        await refreshNotifications(session.data.token);
         setCollaborationError(error);
         setBanner(collaborationGuidance(error));
       } else {
@@ -642,6 +749,7 @@ export function App() {
           getAssetTimeline(session.data.token, selectedAssetId),
           listAssets(session.data.token, selectedProjectId),
         ]);
+      await refreshNotifications(session.data.token);
       setAssetDetail({ status: "ready", data: nextAsset, error: null });
       setAssetHistory({ status: "ready", data: nextHistory, error: null });
       setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
@@ -1026,6 +1134,77 @@ export function App() {
                   <h2>Asset detail and Revision history</h2>
                 </div>
               </header>
+
+              <article className="detail-card notification-card">
+                <div className="detail-row">
+                  <div>
+                    <h3>Collaboration notifications</h3>
+                    <p>
+                      {unreadNotifications > 0
+                        ? `${unreadNotifications} unread notification${unreadNotifications === 1 ? "" : "s"}`
+                        : "No unread notifications"}
+                    </p>
+                  </div>
+                  <button
+                    className="secondary-button"
+                    disabled={busyAction === "refresh-notifications"}
+                    onClick={() => void handleRefreshNotifications()}
+                    type="button"
+                  >
+                    {busyAction === "refresh-notifications" ? "Refreshing..." : "Refresh"}
+                  </button>
+                </div>
+
+                {notifications.status === "error" ? (
+                  <p className="error-message" role="alert">
+                    {notifications.error}
+                  </p>
+                ) : null}
+
+                {notifications.data.length > 0 ? (
+                  <div className="timeline">
+                    {notifications.data.map((notification) => (
+                      <article key={notification.id} className="timeline-card notification-item">
+                        <div className="timeline-header">
+                          <div>
+                            <h3>{formatNotificationEvent(notification.event_type)}</h3>
+                            <p>{notificationSummary(notification)}</p>
+                          </div>
+                          <small>{formatTimestamp(notification.created_at)}</small>
+                        </div>
+                        <div className="notification-meta">
+                          <span
+                            className={
+                              notification.is_read
+                                ? "status-pill notification-pill notification-read"
+                                : "status-pill notification-pill notification-unread"
+                            }
+                          >
+                            {notification.is_read ? "read" : "unread"}
+                          </span>
+                          {!notification.is_read ? (
+                            <button
+                              className="secondary-button"
+                              disabled={busyAction === `read-notification-${notification.id}`}
+                              onClick={() => void handleMarkNotificationRead(notification.id)}
+                              type="button"
+                            >
+                              {busyAction === `read-notification-${notification.id}`
+                                ? "Marking..."
+                                : "Mark as read"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">
+                    Collaboration notifications will appear here when approved Phase 2 events target
+                    your account.
+                  </p>
+                )}
+              </article>
 
               {selectedAssetId && assetDetail.data ? (
                 <>

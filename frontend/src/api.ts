@@ -112,6 +112,21 @@ export type TimelineEntry = {
   details: Record<string, unknown>;
 };
 
+export type NotificationRecord = {
+  id: string;
+  recipient_user_id: string;
+  actor_user_id: string | null;
+  organization_id: string | null;
+  project_id: string;
+  asset_id: string | null;
+  revision_id: string | null;
+  event_type: string;
+  is_read: boolean;
+  read_at: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
 export type Asset = {
   id: string;
   project_id: string;
@@ -347,6 +362,20 @@ export async function checkinAsset(
 
 export async function getAssetTimeline(token: string, assetId: string): Promise<TimelineEntry[]> {
   return request<TimelineEntry[]>(`/assets/${assetId}/timeline`, { token });
+}
+
+export async function listNotifications(token: string): Promise<NotificationRecord[]> {
+  return request<NotificationRecord[]>("/notifications", { token });
+}
+
+export async function markNotificationRead(
+  token: string,
+  notificationId: string,
+): Promise<NotificationRecord> {
+  return request<NotificationRecord>(`/notifications/${notificationId}/read`, {
+    method: "POST",
+    token,
+  });
 }
 
 export async function uploadBlob(token: string, file: File): Promise<BlobRecord> {

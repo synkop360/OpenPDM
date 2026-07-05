@@ -23,6 +23,7 @@ This guide covers the implemented prototype workflow for:
 * check-in with required revision comment
 * collaboration timeline visibility
 * collaboration conflict feedback in the Web UI
+* in-app collaboration notification visibility and read acknowledgment
 
 This guide does not cover:
 
@@ -31,7 +32,6 @@ This guide does not cover:
 * engineering-specific behavior
 * desktop client behavior
 * desktop synchronization or desktop notifications
-* in-app collaboration notifications that are not yet delivered
 * future collaboration or workflow phases
 
 ## Platform Modules Touched by This Workflow
@@ -396,7 +396,30 @@ Potential artifacts to watch for:
 * unlock succeeds but browser B still sees a locked state after refresh
 * unlock removes the lock but no timeline event is recorded
 
-### 15. Verify Archived-Asset Recovery Feedback
+### 15. Verify In-App Collaboration Notifications
+
+This check uses the same two browser sessions from the collaboration checks.
+
+1. In browser A, perform a collaboration action that should notify other Project members, for example `Check out` or `Unlock`.
+2. In browser B, use the notifications panel and click `Refresh`.
+3. Confirm a new notification appears for the approved event.
+4. In browser B, click `Mark as read` on that notification.
+
+Expected result:
+
+* browser B can see the approved collaboration notification in the Web UI
+* the acting user does not receive a duplicate self-notification for the successful action
+* the notification stays visible after it is marked as read
+* the notification state changes from unread to read without leaving the page
+
+Potential artifacts to watch for:
+
+* notifications appear for the acting user despite the approved actor-exclusion rule
+* notifications disappear completely after read instead of remaining visible
+* the read action succeeds in the API but the UI does not update
+* notifications from another Project appear in the current user view
+
+### 16. Verify Archived-Asset Recovery Feedback
 
 This check is easiest through the public API docs or another admin surface that
 can set the Asset status to `archived`.
@@ -417,7 +440,7 @@ Potential artifacts to watch for:
 * a generic error hides the archived state
 * the UI still offers normal collaboration actions after the failure
 
-### 16. Sign Out
+### 17. Sign Out
 
 1. Click `Sign out`.
 
@@ -474,6 +497,17 @@ Expected result:
 * browser B reflects the latest lock state after refresh
 * ownership cues and action availability match the refreshed state
 
+### Notification Refresh
+
+1. In browser A, perform a collaboration action that should notify other Project members.
+2. In browser B, click `Refresh` in the notifications panel.
+
+Expected result:
+
+* browser B sees the new notification after refresh
+* notification event text matches the approved Phase 2 event scope
+* browser A does not receive a self-notification for the same successful action
+
 ### Rejected Check-In Recovery
 
 1. Trigger a rejected check-in, for example by omitting the revision comment.
@@ -523,5 +557,6 @@ Treat the prototype workflow as passing when all of the following are true:
 * check-in requires a revision comment and succeeds when valid
 * collaboration conflicts are visible and understandable in the Web UI
 * collaboration timeline entries refresh after lock and check-in actions
+* in-app collaboration notifications are visible and can be marked as read
 * the session survives a browser refresh
 * sign-out removes access to the protected workspace

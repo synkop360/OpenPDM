@@ -195,6 +195,24 @@ describe("App", () => {
             },
           ]);
         }
+        if (path === "/notifications") {
+          return jsonResponse([
+            {
+              id: "notification-1",
+              recipient_user_id: "user-1",
+              actor_user_id: "user-2",
+              organization_id: "org-1",
+              project_id: "project-1",
+              asset_id: "asset-1",
+              revision_id: null,
+              event_type: "asset.checked_out",
+              is_read: false,
+              read_at: null,
+              details: { lock_owner_user_id: "user-2" },
+              created_at: "2026-01-02T01:00:00",
+            },
+          ]);
+        }
         throw new Error(`Unexpected request: ${path}`);
       }),
     );
@@ -207,6 +225,8 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Collaboration notifications" })).toBeInTheDocument();
+    expect(await screen.findByText("Asset locked")).toBeInTheDocument();
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
@@ -324,6 +344,9 @@ describe("App", () => {
         if (path === "/assets/asset-1/timeline") {
           return jsonResponse([]);
         }
+        if (path === "/notifications") {
+          return jsonResponse([]);
+        }
         if (path === "/assets/asset-1/checkout") {
           return jsonResponse(
             {
@@ -354,5 +377,126 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Recovery guidance" })).toBeInTheDocument();
     expect(await screen.findByText(/Request ID: req-recovery-1/i)).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Refresh asset state" })).toBeInTheDocument();
+  });
+
+  it("shows notifications and marks them as read through the public API", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === "/foundation") {
+        return jsonResponse({
+          name: "OpenPDM",
+          version: "0.0.0",
+          phase: "Core Platform",
+          architecture: "Modular Monolith",
+        });
+      }
+      if (path === "/auth/session") {
+        return jsonResponse({
+          id: "session-1",
+          token: "token-123",
+          user: {
+            id: "user-1",
+            email: "owner@example.com",
+            display_name: "Owner",
+            is_active: true,
+            created_at: "2026-01-01T00:00:00",
+          },
+        });
+      }
+      if (path === "/organizations") {
+        return jsonResponse([
+          {
+            id: "membership-1",
+            role: "Owner",
+            organization: {
+              id: "org-1",
+              name: "Acme",
+              slug: "acme",
+              created_at: "2026-01-01T00:00:00",
+            },
+          },
+        ]);
+      }
+      if (path === "/organizations/org-1/projects/me") {
+        return jsonResponse([
+          {
+            id: "project-membership-1",
+            role: "Owner",
+            project: {
+              id: "project-1",
+              organization_id: "org-1",
+              name: "Rocket",
+              description: "Launch vehicle",
+              created_at: "2026-01-01T00:00:00",
+            },
+          },
+        ]);
+      }
+      if (path === "/organizations/org-1/projects") {
+        return jsonResponse([
+          {
+            id: "project-1",
+            organization_id: "org-1",
+            name: "Rocket",
+            description: "Launch vehicle",
+            created_at: "2026-01-01T00:00:00",
+          },
+        ]);
+      }
+      if (path === "/projects/project-1/assets") {
+        return jsonResponse([]);
+      }
+      if (path === "/notifications") {
+        return jsonResponse([
+          {
+            id: "notification-1",
+            recipient_user_id: "user-1",
+            actor_user_id: "user-2",
+            organization_id: "org-1",
+            project_id: "project-1",
+            asset_id: "asset-1",
+            revision_id: null,
+            event_type: "collaboration.conflict_detected",
+            is_read: false,
+            read_at: null,
+            details: {
+              user_guidance: "Wait for the current lock owner to release the Asset.",
+            },
+            created_at: "2026-01-02T01:00:00",
+          },
+        ]);
+      }
+      if (path === "/notifications/notification-1/read") {
+        expect(init?.method).toBe("POST");
+        return jsonResponse({
+          id: "notification-1",
+          recipient_user_id: "user-1",
+          actor_user_id: "user-2",
+          organization_id: "org-1",
+          project_id: "project-1",
+          asset_id: "asset-1",
+          revision_id: null,
+          event_type: "collaboration.conflict_detected",
+          is_read: true,
+          read_at: "2026-01-02T02:00:00",
+          details: {
+            user_guidance: "Wait for the current lock owner to release the Asset.",
+          },
+          created_at: "2026-01-02T01:00:00",
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByText("Conflict detected")).toBeInTheDocument();
+    const readButton = await screen.findByRole("button", { name: "Mark as read" });
+    fireEvent.click(readButton);
+    expect(await screen.findByText("read")).toBeInTheDocument();
   });
 });

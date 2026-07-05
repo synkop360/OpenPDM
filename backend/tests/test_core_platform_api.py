@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
 from openpdm.infrastructure.database import dispose_engines, session_scope
-from openpdm.platform_core.modules.models import AuditRecord, DomainEvent
+from openpdm.platform_core.modules.models import AuditRecord, DomainEvent, NotificationRecord
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -542,3 +542,203 @@ def test_collaboration_audit_and_domain_events_include_request_context(tmp_path:
         assert domain_events[1].payload["request_id"] == "req-collab-audit-2"
         assert domain_events[1].payload["result"] == "failed"
         assert domain_events[1].payload["recovery_action"] == "provide_comment"
+
+
+def test_stale_lock_when_owner_loses_write_role(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client,
+        email="owner-stale@example.com",
+        display_name="Owner",
+        password="secret123",
+    )
+    maintainer_token = register_and_sign_in(
+        client,
+        email="maintainer-stale@example.com",
+        display_name="Maintainer",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-stale-role"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
+    ).json()
+    maintainer_user = client.get("/auth/session", headers=auth_header(maintainer_token)).json()["user"]
+
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": maintainer_user["id"], "role": "Maintainer"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/projects/{project['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": maintainer_user["id"], "role": "Maintainer"},
+        ).status_code
+        == 200
+    )
+
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Fin", "description": "Tail fin"},
+    ).json()
+
+    assert client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token)).status_code == 200
+
+    owner_user = client.get("/auth/session", headers=auth_header(owner_token)).json()["user"]
+    downgrade = client.post(
+        f"/projects/{project['id']}/members",
+        headers=auth_header(maintainer_token),
+        json={"user_id": owner_user["id"], "role": "Viewer"},
+    )
+    assert downgrade.status_code == 200
+
+    stale_state = client.get(
+        f"/assets/{asset['id']}/collaboration-state",
+        headers=auth_header(maintainer_token),
+    )
+    assert stale_state.status_code == 200
+    assert stale_state.json()["state"] == "stale_lock"
+
+    blocked_checkout = client.post(
+        f"/assets/{asset['id']}/checkout",
+        headers=auth_header(maintainer_token),
+    )
+    assert blocked_checkout.status_code == 409
+    assert blocked_checkout.json()["detail"]["code"] == "asset_locked"
+
+    force_unlock = client.post(
+        f"/assets/{asset['id']}/unlock",
+        headers=auth_header(maintainer_token),
+        json={"force": True},
+    )
+    assert force_unlock.status_code == 200
+    assert force_unlock.json()["state"] == "available"
+
+
+def test_collaboration_notifications_are_generated_visible_and_mark_read(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client,
+        email="owner-notify@example.com",
+        display_name="Owner",
+        password="secret123",
+    )
+    member_token = register_and_sign_in(
+        client,
+        email="member-notify@example.com",
+        display_name="Member",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-notify"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Rocket", "description": "Phase 2"},
+    ).json()
+    member_user = client.get("/auth/session", headers=auth_header(member_token)).json()["user"]
+
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": member_user["id"], "role": "Contributor"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/projects/{project['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": member_user["id"], "role": "Contributor"},
+        ).status_code
+        == 200
+    )
+
+    asset = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Body", "description": "Fuselage"},
+    ).json()
+
+    checkout = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(owner_token))
+    assert checkout.status_code == 200
+
+    owner_notifications = client.get("/notifications", headers=auth_header(owner_token))
+    assert owner_notifications.status_code == 200
+    assert owner_notifications.json() == []
+
+    member_notifications = client.get("/notifications", headers=auth_header(member_token))
+    assert member_notifications.status_code == 200
+    checkout_notifications = member_notifications.json()
+    assert len(checkout_notifications) == 1
+    assert checkout_notifications[0]["event_type"] == "asset.checked_out"
+    assert checkout_notifications[0]["asset_id"] == asset["id"]
+    assert checkout_notifications[0]["is_read"] is False
+
+    conflict = client.post(f"/assets/{asset['id']}/checkout", headers=auth_header(member_token))
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"]["code"] == "asset_locked"
+
+    member_notifications = client.get("/notifications", headers=auth_header(member_token))
+    assert member_notifications.status_code == 200
+    event_types = [item["event_type"] for item in member_notifications.json()]
+    assert "collaboration.conflict_detected" in event_types
+    assert "asset.checked_out" in event_types
+
+    read_notification = member_notifications.json()[0]
+    marked_read = client.post(
+        f"/notifications/{read_notification['id']}/read",
+        headers=auth_header(member_token),
+    )
+    assert marked_read.status_code == 200
+    assert marked_read.json()["is_read"] is True
+    assert marked_read.json()["read_at"] is not None
+
+    revision = client.post(
+        f"/assets/{asset['id']}/revisions",
+        headers=auth_header(owner_token),
+        json={"comment": "Initial release"},
+    )
+    assert revision.status_code == 201
+
+    member_notifications = client.get("/notifications", headers=auth_header(member_token))
+    assert member_notifications.status_code == 200
+    assert "revision.created" in [item["event_type"] for item in member_notifications.json()]
+
+    with session_scope() as db:
+        persisted = list(
+            db.scalars(
+                select(NotificationRecord)
+                .where(NotificationRecord.project_id == project["id"])
+                .order_by(NotificationRecord.created_at.asc())
+            )
+        )
+        assert len(persisted) >= 3
+
+        notification_audits = list(
+            db.scalars(
+                select(AuditRecord)
+                .where(
+                    AuditRecord.action == "notification.emitted",
+                    AuditRecord.project_id == project["id"],
+                )
+            )
+        )
+        assert len(notification_audits) >= 3

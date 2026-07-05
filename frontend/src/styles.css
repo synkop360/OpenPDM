@@ -312,6 +312,7 @@ textarea {
   margin-bottom: 18px;
 }
 
+.notification-card,
 .recovery-card {
   display: grid;
   gap: 12px;
@@ -341,6 +342,28 @@ textarea {
 .collaboration-stale_lock {
   background: #f7e2d8;
   color: #8c3412;
+}
+
+.notification-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.notification-pill {
+  text-transform: uppercase;
+}
+
+.notification-unread {
+  background: #e2ecff;
+  color: #2350a8;
+}
+
+.notification-read {
+  background: #edf0ef;
+  color: #5a6d69;
 }
 
 .representation-list li {

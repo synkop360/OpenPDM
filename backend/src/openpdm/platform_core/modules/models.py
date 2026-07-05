@@ -270,6 +270,30 @@ class DomainEvent(Base):
     )
 
 
+class NotificationRecord(Base):
+    """Per-user in-app notification for Phase 2 collaboration flows."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    recipient_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    organization_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    project_id: Mapped[str] = mapped_column(String(36), index=True)
+    asset_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    revision_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    event_type: Mapped[str] = mapped_column(String(255), index=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    recipient: Mapped[User] = relationship(foreign_keys=[recipient_user_id])
+    actor: Mapped[User | None] = relationship(foreign_keys=[actor_user_id])
+
+
 class PluginRecord(Base):
     """Phase 1 plugin registry record."""
 

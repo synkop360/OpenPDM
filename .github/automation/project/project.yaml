@@ -3647,6 +3647,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: M
           ADR: ADR-0021
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define Phase 2 in-app notification scope"
@@ -3802,6 +3803,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0021
+            closed: true
 
           - title: "Phase 2 Task: Expose in-app collaboration notifications in the Web UI"
             body: |
@@ -3831,6 +3833,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0007
+            closed: true
 
       - title: "Phase 2 Epic: Conflict Detection and User Feedback"
         body: |
@@ -4054,6 +4057,7 @@ roadmap:
           Platform Area: Frontend
           Complexity: M
           ADR: ADR-0022
+        closed: true
         sub_issues:
 
           - title: "Phase 2 Task: Define recovery behavior for approved collaboration failures"
@@ -4160,6 +4164,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            closed: true
 
   - phase: Asset Graph
     milestone: Asset Graph
