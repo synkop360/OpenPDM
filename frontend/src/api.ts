@@ -127,6 +127,46 @@ export type NotificationRecord = {
   created_at: string;
 };
 
+export type Relationship = {
+  id: string;
+  source_asset_id: string;
+  target_asset_id: string;
+  relationship_type: string;
+  direction: string;
+  metadata: Record<string, unknown>;
+  created_by_user_id: string;
+  created_at: string;
+};
+
+export type ReferenceRecord = {
+  id: string;
+  source_asset_id: string;
+  reference_type: string;
+  target_uri: string;
+  label: string;
+  metadata: Record<string, unknown>;
+  created_by_user_id: string;
+  created_at: string;
+};
+
+export type GraphNode = {
+  id: string;
+  project_id: string;
+  name: string;
+  status: string;
+};
+
+export type AssetGraph = {
+  asset_id: string;
+  direction: string;
+  max_depth: number;
+  target_asset_id: string | null;
+  path_exists: boolean | null;
+  has_cycle: boolean;
+  nodes: GraphNode[];
+  relationships: Relationship[];
+};
+
 export type Asset = {
   id: string;
   project_id: string;
@@ -362,6 +402,47 @@ export async function checkinAsset(
 
 export async function getAssetTimeline(token: string, assetId: string): Promise<TimelineEntry[]> {
   return request<TimelineEntry[]>(`/assets/${assetId}/timeline`, { token });
+}
+
+export async function listAssetRelationships(token: string, assetId: string): Promise<Relationship[]> {
+  return request<Relationship[]>(`/assets/${assetId}/relationships`, { token });
+}
+
+export async function listIncomingAssetRelationships(
+  token: string,
+  assetId: string,
+): Promise<Relationship[]> {
+  return request<Relationship[]>(`/assets/${assetId}/relationships/incoming`, { token });
+}
+
+export async function listOutgoingAssetRelationships(
+  token: string,
+  assetId: string,
+): Promise<Relationship[]> {
+  return request<Relationship[]>(`/assets/${assetId}/relationships/outgoing`, { token });
+}
+
+export async function listAssetReferences(token: string, assetId: string): Promise<ReferenceRecord[]> {
+  return request<ReferenceRecord[]>(`/assets/${assetId}/references`, { token });
+}
+
+export async function getAssetGraph(
+  token: string,
+  assetId: string,
+  options?: { direction?: "incoming" | "outgoing" | "both"; maxDepth?: number; targetAssetId?: string },
+): Promise<AssetGraph> {
+  const query = new URLSearchParams();
+  if (options?.direction) {
+    query.set("direction", options.direction);
+  }
+  if (options?.maxDepth !== undefined) {
+    query.set("max_depth", String(options.maxDepth));
+  }
+  if (options?.targetAssetId) {
+    query.set("target_asset_id", options.targetAssetId);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return request<AssetGraph>(`/assets/${assetId}/graph${suffix}`, { token });
 }
 
 export async function listNotifications(token: string): Promise<NotificationRecord[]> {
