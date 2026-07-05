@@ -1942,14 +1942,26 @@ roadmap:
           ## Description
           This epic provides the minimum Web UI surface required to demonstrate and use the delivered Phase 1 public application API. The Web UI must not bypass authorization or depend on Platform Module internals.
 
+          The Phase 1 Web UI is a backend-first prototype sprint. The sprint goal is to close the existing Web UI issues by delivering a working prototype that exercises the delivered Phase 1 public application API from sign-in to file transfer.
+
           ## Expected Deliverable
-          A basic Web UI that supports authentication, Project selection, Engineering Asset browsing, upload and version history for the approved Phase 1 scope.
+          A basic Web UI that supports authentication, Organization and Project selection, Engineering Asset browsing, upload, download and version history for the approved Phase 1 scope.
+
+          The prototype journey is:
+          - sign in;
+          - view available Organizations;
+          - select an Organization and Project;
+          - browse Engineering Assets;
+          - inspect Asset details and immutable Revision history;
+          - upload Blob-backed file content through the delivered API flow;
+          - download Blob-backed content.
 
           ## Acceptance Criteria
           - The Web UI consumes the public application API only.
           - Authentication state is represented in the UI for the approved Phase 1 scope.
           - Users can navigate Organizations, Projects and Engineering Assets delivered in Phase 1.
           - Users can upload files and inspect version history through the UI.
+          - Users can download Blob-backed content through the UI.
           - UI behavior matches delivered backend capability and does not promise future roadmap features early.
 
           ## Dependencies
@@ -1961,10 +1973,22 @@ roadmap:
           ## Risks
           - The UI could accidentally imply unsupported workflow, graph or collaboration features.
           - Frontend state and API contracts could drift without clear OpenAPI-driven alignment.
+          - Scope could drift into metadata management, search UI, audit UI or plugin UI before the prototype path is stable.
 
           ## Exit Criteria
-          - A user can use the Web UI to exercise the delivered Phase 1 MVP path.
+          - A user can use the Web UI to exercise the delivered Phase 1 MVP path from sign-in to upload and download.
           - The UI remains a normal API consumer with no privileged access.
+          - All current Web UI sub-issues are closed.
+
+          ## Deferred Scope
+          The Phase 1 Web UI sprint does not include:
+          - metadata editing UI;
+          - search UI;
+          - audit or event browsing UI;
+          - plugin management UI;
+          - workflow, review or release UI;
+          - relationship graph UI;
+          - engineering-specific previews or file parsing.
 
           ## Suggested Labels
           feature, frontend, P1
@@ -1989,10 +2013,14 @@ roadmap:
               ## Description
               Clarify which user journeys must exist in the Web UI for the Core Platform MVP and which journeys remain API-only or are deferred.
 
+              The approved prototype scope must be explicit enough that the implementation team can close the remaining Web UI issues without reopening scope questions during the sprint.
+
               ## Acceptance Criteria
               - Required Phase 1 UI journeys are explicit.
               - Deferred UI behavior is listed clearly.
               - The UI scope remains aligned with the delivered backend capabilities.
+              - The scope explicitly covers sign-in, Organization selection, Project selection, Asset browsing, Revision history, upload and download.
+              - The scope explicitly defers unsupported future-phase behaviors.
 
               ## Dependencies
               - Phase 1 Epic: Core Platform MVP Web UI
@@ -2018,10 +2046,15 @@ roadmap:
               ## Description
               Implement the user-facing sign-in experience and authenticated request handling using the delivered public application API.
 
+              This issue should establish the authentication shell that the remaining Web UI work depends on, including session persistence for normal browser use and a clear sign-out path.
+
               ## Acceptance Criteria
               - Users can sign in through the Web UI using the approved backend flow.
               - Authenticated and unauthenticated states are represented clearly.
               - The UI does not bypass the backend authorization model.
+              - Session state survives a normal page refresh.
+              - Unauthorized access to protected routes is handled clearly.
+              - Sign-out revokes or clears the active session path used by the Web UI.
 
               ## Dependencies
               - Phase 1 Task: Deliver authentication API and request security baseline
@@ -2039,6 +2072,95 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007, ADR-0009
+            sub_issues:
+
+              - title: "Phase 1 UI Task: Build sign-in form and session persistence"
+                body: |
+                  ## Objective
+                  Implement the sign-in form and browser session persistence for the approved Phase 1 flow.
+
+                  ## Description
+                  Connect the Web UI sign-in experience to the delivered authentication API and persist the resulting authenticated state for normal browser navigation.
+
+                  ## Acceptance Criteria
+                  - The sign-in form authenticates against the public API.
+                  - The authenticated session persists across page refresh.
+                  - Authentication failures are visible and understandable.
+
+                  ## Dependencies
+                  - Phase 1 Task: Implement authentication and session handling in the Web UI
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007, ADR-0009
+
+              - title: "Phase 1 UI Task: Protect routes and implement sign-out"
+                body: |
+                  ## Objective
+                  Protect authenticated Web UI routes and provide a clear sign-out path.
+
+                  ## Description
+                  Ensure protected views require a valid authenticated session and that users can end their session cleanly from the Web UI.
+
+                  ## Acceptance Criteria
+                  - Protected routes redirect or block unauthenticated access clearly.
+                  - The Web UI can end the active session cleanly.
+                  - Session expiration or revocation is handled without bypass behavior.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build sign-in form and session persistence
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007, ADR-0009
+
+              - title: "Phase 1 UI Task: Build local user registration flow"
+                body: |
+                  ## Objective
+                  Allow a clean local OpenPDM instance to reach the authenticated Web UI flow without a pre-created user account.
+
+                  ## Description
+                  Implement a minimal local registration flow using the delivered public application API so a first user can create an active account and continue into the normal authenticated Web UI path.
+
+                  ## Acceptance Criteria
+                  - A user can create an account through the Web UI using the public API.
+                  - The registration flow captures only approved Phase 1 identity fields.
+                  - The flow transitions cleanly into sign-in or an authenticated session path.
+                  - The Web UI does not imply OIDC or external identity behavior that is out of scope for Phase 1.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build sign-in form and session persistence
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007, ADR-0009
 
           - title: "Phase 1 Task: Implement Organization and Project navigation in the Web UI"
             body: |
@@ -2048,10 +2170,14 @@ roadmap:
               ## Description
               Implement the views and navigation needed for users to select Organizations and Projects within the delivered Phase 1 scope.
 
+              This issue should establish the tenant-aware navigation model used by the remaining Asset-related views.
+
               ## Acceptance Criteria
               - Users can reach their Organizations and Projects through the Web UI.
               - Navigation reflects authorization constraints from the backend.
               - The UI remains consistent with the MVP scope.
+              - The selected Organization and Project are visible in the UI state.
+              - Refresh and direct navigation preserve the current Organization and Project context when valid.
 
               ## Dependencies
               - Phase 1 Task: Implement Organization and Project management API
@@ -2069,6 +2195,95 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            sub_issues:
+
+              - title: "Phase 1 UI Task: Build Organization and Project selection views"
+                body: |
+                  ## Objective
+                  Expose the delivered Organization and Project lists through the Web UI.
+
+                  ## Description
+                  Implement the views needed for users to discover their available Organizations and Projects and choose a working Project within the Phase 1 scope.
+
+                  ## Acceptance Criteria
+                  - Users can list and select available Organizations.
+                  - Users can list and select Projects within the chosen Organization.
+                  - Unauthorized or empty states are handled clearly.
+
+                  ## Dependencies
+                  - Phase 1 Task: Implement Organization and Project navigation in the Web UI
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
+
+              - title: "Phase 1 UI Task: Wire Project context into routing and layout"
+                body: |
+                  ## Objective
+                  Keep the selected Organization and Project context visible and stable across the Web UI.
+
+                  ## Description
+                  Implement the routing or layout behavior needed so the chosen Organization and Project remain the active context for subsequent views.
+
+                  ## Acceptance Criteria
+                  - Organization and Project context is reflected in navigation state.
+                  - Subsequent Asset views use the selected Project context.
+                  - Invalid or missing context is handled cleanly.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build Organization and Project selection views
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
+
+              - title: "Phase 1 UI Task: Build empty-state Organization and Project bootstrap flow"
+                body: |
+                  ## Objective
+                  Allow a clean local OpenPDM instance to reach the Phase 1 Web UI prototype path without pre-seeded tenant data.
+
+                  ## Description
+                  Implement a minimal bootstrap flow for the empty-state case so an authenticated user can create the first Organization and Project through the delivered public application API before continuing into the normal navigation path.
+
+                  ## Acceptance Criteria
+                  - An authenticated user with no available Organization can create an Organization from the Web UI.
+                  - The user can create an initial Project within the new Organization from the Web UI.
+                  - The bootstrap flow uses the public API only and does not add unsupported tenancy behavior.
+                  - Once created, the user is taken into the normal Organization and Project navigation flow.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build Organization and Project selection views
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
 
           - title: "Phase 1 Task: Implement Asset browsing and version history in the Web UI"
             body: |
@@ -2078,10 +2293,14 @@ roadmap:
               ## Description
               Implement the views needed to list Assets, inspect Asset details and review immutable Revisions and Representations in the delivered MVP scope.
 
+              This issue should provide the core read path that demonstrates the generic Engineering Asset lifecycle without adding engineering-specific semantics.
+
               ## Acceptance Criteria
               - Users can browse Assets and inspect version history through the Web UI.
               - UI data matches the delivered backend lifecycle model.
               - The UI does not add engineering-specific semantics.
+              - Asset detail exposes immutable Revision history clearly.
+              - Representation and Blob-related actions are visible where the delivered API supports them.
 
               ## Dependencies
               - Phase 1 Task: Implement Asset retrieval and version history API
@@ -2099,6 +2318,95 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            sub_issues:
+
+              - title: "Phase 1 UI Task: Build Asset list and detail views"
+                body: |
+                  ## Objective
+                  Implement the core Asset browsing views for the selected Project.
+
+                  ## Description
+                  Build the list and detail views required for users to browse Engineering Assets and open Asset details inside the active Project context.
+
+                  ## Acceptance Criteria
+                  - Users can list Assets for the selected Project.
+                  - Users can open an Asset detail view.
+                  - Loading, empty and failure states are handled clearly.
+
+                  ## Dependencies
+                  - Phase 1 Task: Implement Asset browsing and version history in the Web UI
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
+
+              - title: "Phase 1 UI Task: Expose Revision history and Representation actions"
+                body: |
+                  ## Objective
+                  Expose immutable Revision history and Representation-related actions in the Asset detail flow.
+
+                  ## Description
+                  Build the detail presentation needed for users to inspect Revision history and identify the Representation or Blob actions available in the delivered MVP scope.
+
+                  ## Acceptance Criteria
+                  - Users can inspect immutable Revision history for an Asset.
+                  - Representation entries are visible where available.
+                  - Download-related actions are discoverable from the Asset detail flow.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build Asset list and detail views
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
+
+              - title: "Phase 1 UI Task: Build empty-state Asset creation flow"
+                body: |
+                  ## Objective
+                  Allow a clean Project to reach the Phase 1 file-management prototype path without pre-seeded Engineering Assets.
+
+                  ## Description
+                  Implement a minimal empty-state flow that lets an authorized user create a generic Engineering Asset through the delivered public application API before using version history and file transfer flows.
+
+                  ## Acceptance Criteria
+                  - A user can create a generic Engineering Asset from the Web UI within the selected Project.
+                  - The flow captures only approved generic Asset fields for Phase 1.
+                  - Once created, the new Asset appears in the normal Asset browsing flow.
+                  - The flow does not introduce engineering-specific semantics.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build Asset list and detail views
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
 
           - title: "Phase 1 Task: Implement file upload and download flows in the Web UI"
             body: |
@@ -2108,10 +2416,14 @@ roadmap:
               ## Description
               Implement upload and download interactions that use the delivered public API for Blob-backed content.
 
+              This issue completes the end-to-end MVP prototype path that demonstrates OpenPDM as a credible shared-folder replacement for generic engineering file management.
+
               ## Acceptance Criteria
               - Users can upload files through the Web UI for the approved MVP scope.
               - Users can download files through the Web UI for the approved MVP scope.
               - Error handling reflects backend failure behavior clearly.
+              - Upload results are visible in the Asset lifecycle path exposed by the UI.
+              - Download actions are reachable from the main browsing flow without hidden steps.
 
               ## Dependencies
               - Phase 1 Task: Implement Blob upload and download workflow
@@ -2129,6 +2441,65 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007
+            sub_issues:
+
+              - title: "Phase 1 UI Task: Build Blob upload interaction"
+                body: |
+                  ## Objective
+                  Implement the Web UI upload interaction for Blob-backed file content.
+
+                  ## Description
+                  Build the user flow that submits file content through the delivered public API and attaches the resulting content to the approved Asset lifecycle path.
+
+                  ## Acceptance Criteria
+                  - Users can choose and upload a file through the Web UI.
+                  - Upload progress or pending state is represented clearly.
+                  - Successful upload integrates with the visible Asset lifecycle flow.
+
+                  ## Dependencies
+                  - Phase 1 Task: Implement file upload and download flows in the Web UI
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
+
+              - title: "Phase 1 UI Task: Build Blob download interaction and transfer error handling"
+                body: |
+                  ## Objective
+                  Implement Blob download and related error handling in the Web UI.
+
+                  ## Description
+                  Build the user flow that allows download of Blob-backed content from the main Asset browsing path and handles transfer failures clearly.
+
+                  ## Acceptance Criteria
+                  - Users can trigger Blob-backed downloads through the Web UI.
+                  - Download actions are available from the main browsing flow.
+                  - Transfer failures are visible and understandable.
+
+                  ## Dependencies
+                  - Phase 1 UI Task: Build Blob upload interaction
+
+                  ## Suggested Labels
+                  feature, frontend, P2
+                labels:
+                  - feature
+                  - frontend
+                  - P2
+                fields:
+                  Phase: Core Platform
+                  Epic: Core Platform MVP Web UI
+                  Platform Area: Frontend
+                  Complexity: S
+                  ADR: ADR-0007
 
   - phase: Collaboration
     milestone: Collaboration
