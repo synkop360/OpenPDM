@@ -4239,6 +4239,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: M
           ADR: ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0031, ADR-0032
+        closed: true
         sub_issues:
 
           - title: "Define the generic relationship model for Phase 3 Asset Graph"
@@ -4285,6 +4286,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: S
               ADR: ADR-0027
+            closed: true
 
           - title: "Define Platform Module ownership and boundaries for Asset relationships"
             body: |
@@ -4330,6 +4332,7 @@ roadmap:
               Platform Area: Platform Module
               Complexity: M
               ADR: ADR-0028
+            closed: true
 
           - title: "Define the public application API surface for Phase 3 relationships"
             body: |
@@ -4374,6 +4377,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: S
               ADR: ADR-0029
+            closed: true
 
           - title: "Define Phase 3 dependency graph and query scope"
             body: |
@@ -4418,6 +4422,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: M
               ADR: ADR-0030
+            closed: true
 
           - title: "Define generic references scope for Phase 3 Asset Graph"
             body: |
@@ -4462,6 +4467,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: S
               ADR: ADR-0031
+            closed: true
 
           - title: "Define Phase 3 relationship audit and event coverage"
             body: |
@@ -4507,6 +4513,7 @@ roadmap:
               Platform Area: Platform Core
               Complexity: S
               ADR: ADR-0032
+            closed: true
 
       - title: "Phase 3 Epic: Generic Asset Relationships"
         body: |
