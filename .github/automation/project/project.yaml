@@ -3728,6 +3728,44 @@ roadmap:
               Complexity: S
               ADR: ADR-0021
 
+          - title: "Phase 2 Task: Define notification recipient targeting rules"
+            body: |
+              ## Objective
+              Define which users should receive each approved collaboration notification in Phase 2.
+
+              ## Description
+              ADR-0021 defines the approved collaboration notification events and delivery channel, but it does not yet define the minimum recipient-targeting model needed to implement notification generation safely.
+
+              This decision issue must clarify:
+              - whether notifications target only directly affected users, all Project members, or another bounded subset;
+              - whether the acting user also receives the notification for their own action;
+              - how force unlock and conflict-detected notifications choose recipients;
+              - the minimum tenancy and authorization rules for notification visibility.
+
+              The decision must remain simple for the approved v1 scope and must not introduce followers, subscriptions, email routing, real-time presence, or external integrations.
+
+              ## Acceptance Criteria
+              - Notification recipient rules are explicit for each approved Phase 2 notification event.
+              - Actor visibility versus non-actor visibility is clear.
+              - Notification generation can proceed without inventing user-targeting semantics.
+
+              ## Dependencies
+              - Phase 2 Task: Define Phase 2 in-app notification scope
+
+              ## Suggested Labels
+              architecture, decision, documentation, P2
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P2
+            fields:
+              Phase: Collaboration
+              Epic: In-App Collaboration Notifications
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0021
+
           - title: "Phase 2 Task: Implement notification generation for approved collaboration events"
             body: |
               ## Objective
