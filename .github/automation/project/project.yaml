@@ -173,6 +173,18 @@ milestones:
   - title: Asset Graph
     description: Introduce relationships between Assets.
 
+  - title: Relationship Architecture Decisions
+    description: Define the approved Phase 3 architectural boundaries for generic Asset relationships before implementation planning.
+
+  - title: Generic Asset Relationships
+    description: Deliver the Platform Core capability for creating and reading generic Asset-to-Asset relationships.
+
+  - title: Relationship Exploration Surface
+    description: Deliver the API and UI surfaces for navigating connected Assets safely.
+
+  - title: Dependency Graph and Query Foundations
+    description: Deliver the first generic graph-oriented read capabilities for dependency understanding.
+
   - title: Plugin Platform
     description: Deliver the Extension API and Official Plugins.
 
@@ -4168,8 +4180,889 @@ roadmap:
 
   - phase: Asset Graph
     milestone: Asset Graph
-    description: Introduce relationships between Assets.
-    epics: []
+    description: Introduce the generic Asset Graph so Assets can be connected, navigated and queried through explicit relationships without introducing engineering-domain semantics.
+    epics:
+
+      - title: "Phase 3 Epic: Relationship Architecture Decisions"
+        body: |
+          ## Objective
+          Define the accepted architectural decisions required before Phase 3 relationship implementation begins.
+
+          ## Description
+          Phase 3 currently lacks accepted ADRs for the relationship model, Platform Module ownership boundaries, public application API surface and graph query constraints.
+
+          This epic creates the decision-first planning slice required to keep Asset Graph work aligned with the Project Charter, the modular monolith architecture and existing Platform Core boundaries.
+
+          ## Expected Deliverable
+          Accepted Phase 3 ADRs that define the generic relationship architecture clearly enough to support implementation planning without hidden assumptions.
+
+          ## Acceptance Criteria
+          - The generic relationship model is explicitly defined.
+          - Platform Module ownership and dependency direction are explicitly defined.
+          - Public application API expectations for relationship operations are explicitly defined.
+          - Dependency graph and query scope is explicitly bounded for Phase 3.
+          - Generic references are explicitly defined or explicitly folded into another approved relationship concept.
+          - Relationship audit and event coverage is explicitly defined for Phase 3 mutations.
+
+          ## Dependencies
+          - docs/PROJECT_CHARTER.md
+          - docs/ARCHITECTURE.md
+          - ROADMAP.md
+          - ADR-0001
+          - ADR-0002
+          - ADR-0003
+          - ADR-0015
+          - ADR-0016
+
+          ## Risks
+          - Relationship behavior could drift into engineering semantics.
+          - Module ownership could be inferred inconsistently without explicit ADRs.
+          - Query scope could expand prematurely into later Digital Thread concerns.
+          - Generic references could be implemented ambiguously if they are not defined relative to relationships.
+          - User-facing graph visibility could be confused with audit or event history if observability scope is not explicit.
+
+          ## Exit Criteria
+          - Phase 3 relationship ADRs are accepted.
+          - Asset Graph implementation Epics can proceed without unresolved architectural ambiguity.
+
+          ## Suggested Labels
+          architecture, decision, core, P1
+        milestone: Relationship Architecture Decisions
+        labels:
+          - architecture
+          - decision
+          - core
+          - P1
+        fields:
+          Phase: Asset Graph
+          Epic: Relationship Architecture Decisions
+          Platform Area: Platform Core
+          Complexity: M
+          ADR: ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0031, ADR-0032
+        closed: true
+        sub_issues:
+
+          - title: "Define the generic relationship model for Phase 3 Asset Graph"
+            body: |
+              ## Context
+
+              Phase 3 introduces generic Asset-to-Asset relationships, but no accepted ADR currently defines what a relationship is in Platform Core terms.
+
+              ## Why this issue exists
+
+              OpenPDM needs an explicit generic relationship model before implementation work can begin without architectural guesswork.
+
+              ## Expected outcome
+
+              Define the minimum Phase 3 relationship model, including identity, endpoints, allowed generic attributes, and the rules that keep the Platform Core domain-agnostic.
+
+              ## Decision scope
+
+              This decision should clarify:
+
+              - how a relationship is represented generically
+              - whether relationships are directed, typed, or both
+              - which generic fields belong to the relationship record
+              - which semantics are explicitly deferred to later phases or plugins
+              - how relationship changes remain auditable
+
+              ## References
+
+              - docs/PROJECT_CHARTER.md
+              - docs/ARCHITECTURE.md
+              - ROADMAP.md
+              - ADR-0003: Asset lifecycle model
+
+              ## Suggested Labels
+              architecture, decision, core, P1
+            labels:
+              - architecture
+              - decision
+              - core
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Architecture Decisions
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0027
+            closed: true
+
+          - title: "Define Platform Module ownership and boundaries for Asset relationships"
+            body: |
+              ## Context
+
+              Phase 3 adds relationship capabilities to the modular monolith, but no accepted ADR defines which Platform Module owns relationship business behavior or how other modules interact with it.
+
+              ## Why this issue exists
+
+              OpenPDM must preserve Public Module Interface discipline and avoid blurring Assets, Search, Audit and future graph-oriented responsibilities.
+
+              ## Expected outcome
+
+              Define which Platform Module owns relationship responsibilities, which public interfaces are required, and which dependency directions are allowed in Phase 3.
+
+              ## Decision scope
+
+              This decision should clarify:
+
+              - which Platform Module owns relationship business logic
+              - whether relationship behavior belongs inside an existing module or a dedicated module
+              - which modules may depend on the relationship public interface
+              - how authorization, audit and events interact with relationship operations
+              - which cross-module shortcuts are forbidden
+
+              ## References
+
+              - ADR-0001: modular monolith
+              - ADR-0002: platform boundaries
+              - ADR-0015: Organization and Project module boundaries
+              - ADR-0016: Asset lifecycle module boundaries
+
+              ## Suggested Labels
+              architecture, decision, module, P1
+            labels:
+              - architecture
+              - decision
+              - module
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Architecture Decisions
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0028
+            closed: true
+
+          - title: "Define the public application API surface for Phase 3 relationships"
+            body: |
+              ## Context
+
+              The Project Charter requires API-first delivery, but no accepted ADR currently defines the public application API surface for creating, reading or navigating relationships.
+
+              ## Why this issue exists
+
+              The Web UI, future Desktop Client and any automation clients must consume the same public relationship APIs without privileged internal access.
+
+              ## Expected outcome
+
+              Define the minimum public application API surface for Phase 3 relationship creation, retrieval and exploration.
+
+              ## Decision scope
+
+              This decision should clarify:
+
+              - which relationship operations are public in Phase 3
+              - how API shape supports both write and read scenarios
+              - how tenancy and authorization are enforced consistently
+              - which client behaviors are intentionally deferred
+              - how API behavior stays aligned with the modular monolith boundaries
+
+              ## References
+
+              - docs/ARCHITECTURE.md
+              - ADR-0007: Web UI stack
+              - ADR-0008: Desktop client
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Architecture Decisions
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0029
+            closed: true
+
+          - title: "Define Phase 3 dependency graph and query scope"
+            body: |
+              ## Context
+
+              The roadmap includes a dependency graph and generic graph queries in Phase 3, but there is no accepted decision yet that bounds what query behavior belongs in this phase.
+
+              ## Why this issue exists
+
+              Without an explicit scope decision, graph-query work could expand into advanced search, workflow semantics or Digital Thread behavior prematurely.
+
+              ## Expected outcome
+
+              Define the minimum Phase 3 dependency graph and query scope that remains generic, demonstrable and bounded.
+
+              ## Decision scope
+
+              This decision should clarify:
+
+              - which dependency-oriented read scenarios are in scope
+              - which graph traversals or filters are required
+              - which advanced graph behaviors are deferred
+              - how query behavior interacts with search and authorization boundaries
+              - what counts as a usable Phase 3 result for contributors and users
+
+              ## References
+
+              - ROADMAP.md
+              - docs/VISION.md
+              - docs/ARCHITECTURE.md
+
+              ## Suggested Labels
+              architecture, decision, core, P1
+            labels:
+              - architecture
+              - decision
+              - core
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Architecture Decisions
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0030
+            closed: true
+
+          - title: "Define generic references scope for Phase 3 Asset Graph"
+            body: |
+              ## Context
+
+              The Phase 3 roadmap lists `generic references` as a primary capability alongside Asset relationships, dependency graph and graph queries, but no accepted ADR currently explains whether references are their own Platform Core concept or simply one class of generic relationship.
+
+              ## Why this issue exists
+
+              Without an explicit decision, implementation could introduce duplicate concepts or inconsistent semantics for references versus relationships.
+
+              ## Expected outcome
+
+              Define how generic references are represented in Phase 3 and how they relate to the broader Asset Graph model.
+
+              ## Decision scope
+
+              This decision should clarify:
+
+              - whether generic references are distinct from other relationships
+              - whether references are directional and how they are interpreted generically
+              - which minimal behaviors are required in Phase 3
+              - which reference semantics are deferred to plugins or later phases
+              - how the concept stays domain-agnostic
+
+              ## References
+
+              - ROADMAP.md
+              - docs/VISION.md
+              - docs/PROJECT_CHARTER.md
+
+              ## Suggested Labels
+              architecture, decision, core, P1
+            labels:
+              - architecture
+              - decision
+              - core
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Architecture Decisions
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0031
+            closed: true
+
+          - title: "Define Phase 3 relationship audit and event coverage"
+            body: |
+              ## Context
+
+              The Project Charter requires significant business actions to be observable through logs, audit records and domain events. Phase 3 introduces relationship creation and mutation, but no accepted ADR currently defines which relationship actions must produce audit records, domain events or user-visible graph history.
+
+              ## Why this issue exists
+
+              Without an explicit observability decision, Asset Graph work could treat relationship reads as sufficient visibility or conflate graph exploration with audit history.
+
+              ## Expected outcome
+
+              Define the minimum audit and event coverage required for Phase 3 relationship mutations and clarify how that coverage differs from any user-facing graph exploration or history surface.
+
+              ## Decision scope
+
+              This decision should clarify:
+
+              - which relationship actions are auditable
+              - which relationship actions emit domain events
+              - what minimum fields relationship audit records must include
+              - whether any user-facing history surface is in scope for Phase 3
+              - how observability stays distinct from graph navigation
+
+              ## References
+
+              - docs/PROJECT_CHARTER.md
+              - docs/ARCHITECTURE.md
+              - ADR-0001
+              - ADR-0002
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Architecture Decisions
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0032
+            closed: true
+
+      - title: "Phase 3 Epic: Generic Asset Relationships"
+        body: |
+          ## Objective
+          Deliver the core Platform Core capability for creating, storing and retrieving generic Asset relationships.
+
+          ## Description
+          This epic implements the relationship foundation approved by the Phase 3 ADRs. It focuses on explicit generic Asset-to-Asset links, authorization-safe mutation, auditable changes and clear Platform Module boundaries.
+
+          Engineering-domain semantics remain out of scope. Phase 3 relationship behavior must stay generic and consistent with the Asset Graph vision described in the Project Charter, Architecture and Roadmap.
+
+          ## Expected Deliverable
+          A demonstrable backend capability that allows authenticated users to create and read generic relationships between Assets through the public application API.
+
+          ## Acceptance Criteria
+          - Generic Asset relationships can be created and read through the public application API.
+          - Relationship access respects Organization, Project and existing authorization boundaries.
+          - Relationship changes are auditable and observable.
+          - Implementation follows the accepted Phase 3 module ownership and public interface decisions.
+
+          ## Dependencies
+          - Phase 3 Epic: Relationship Architecture Decisions
+
+          ## Risks
+          - Relationship validation could accidentally introduce business semantics into Platform Core.
+          - Cross-project or cross-organization behavior could be implemented inconsistently without strict boundary enforcement.
+
+          ## Exit Criteria
+          - Generic relationship write and read flows are usable and demonstrable.
+          - Relationship persistence and retrieval remain bounded to the approved Phase 3 architecture.
+
+          ## Suggested Labels
+          feature, core, P1
+        milestone: Generic Asset Relationships
+        labels:
+          - feature
+          - core
+          - P1
+        fields:
+          Phase: Asset Graph
+          Epic: Generic Asset Relationships
+          Platform Area: Platform Core
+          Complexity: L
+          ADR: ADR-0027, ADR-0028, ADR-0032
+        sub_issues:
+
+          - title: "Phase 3 Task: Implement relationship and reference persistence model"
+            body: |
+              ## Objective
+              Deliver the persistent Platform Core model for Phase 3 relationships and references.
+
+              ## Description
+              Implement the database model, repository behavior and lifecycle wiring needed to store generic Asset relationships and generic references in line with ADR-0027, ADR-0028 and ADR-0031.
+
+              This issue establishes the core storage foundation required by all later Phase 3 relationship behavior.
+
+              ## Acceptance Criteria
+              - Relationship records support the approved generic fields from ADR-0027.
+              - Reference records support the approved generic fields from ADR-0031.
+              - Persistence remains owned by the Relationships Platform Module.
+              - Tests cover create and read persistence behavior for both relationships and references.
+
+              ## Dependencies
+              - Phase 3 Epic: Relationship Architecture Decisions
+
+              ## Implementation Tasks
+              - [ ] Add relationship persistence schema and migrations.
+              - [ ] Add reference persistence schema and migrations.
+              - [ ] Add repository or storage interfaces owned by the Relationships Platform Module.
+              - [ ] Add tests for persistence round-trips and basic integrity rules.
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Generic Asset Relationships
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0027, ADR-0028, ADR-0031
+
+          - title: "Phase 3 Task: Implement relationship and reference validation plus authorization"
+            body: |
+              ## Objective
+              Enforce Phase 3 relationship validity and access rules consistently.
+
+              ## Description
+              Implement the validation and authorization behavior required for relationship and reference mutations, including endpoint validation, tenancy checks, self-relationship rules where applicable, and Project-scoped permission enforcement.
+
+              ## Acceptance Criteria
+              - Relationship endpoints are validated through Platform Module public interfaces.
+              - Project and tenancy boundaries are enforced for relationship mutations.
+              - Invalid or forbidden mutations fail explicitly and safely.
+              - Tests cover representative validation and authorization failures.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference persistence model
+
+              ## Implementation Tasks
+              - [ ] Validate source and target Asset endpoints through approved module interfaces.
+              - [ ] Enforce Project-scoped permissions for relationship and reference writes.
+              - [ ] Prevent invalid self-relationships where the Phase 3 rules require it.
+              - [ ] Add failure-path tests for invalid or forbidden requests.
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Generic Asset Relationships
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0027, ADR-0028, ADR-0029
+
+          - title: "Phase 3 Task: Implement relationship and reference mutation APIs"
+            body: |
+              ## Objective
+              Deliver the write-side public API behavior for Phase 3 relationships and references.
+
+              ## Description
+              Implement the approved Phase 3 API operations needed to create and delete relationships, and the corresponding behavior for generic references where required by the delivered Asset Graph scope.
+
+              ## Acceptance Criteria
+              - Relationship write APIs follow ADR-0029.
+              - Reference write APIs remain aligned with the approved generic reference model.
+              - API responses do not expose storage or graph implementation details.
+              - Tests cover representative successful and failing write flows.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference validation plus authorization
+
+              ## Implementation Tasks
+              - [ ] Implement public API handlers for approved relationship mutation operations.
+              - [ ] Implement public API handlers for approved reference mutation operations.
+              - [ ] Standardize write responses and error semantics.
+              - [ ] Add tests for successful create and delete flows.
+
+              ## Suggested Labels
+              feature, core, documentation, test, P1
+            labels:
+              - feature
+              - core
+              - documentation
+              - test
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Generic Asset Relationships
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0029, ADR-0031
+
+          - title: "Phase 3 Task: Implement relationship and reference audit plus event emission"
+            body: |
+              ## Objective
+              Make Phase 3 relationship and reference mutations observable.
+
+              ## Description
+              Implement the audit record generation and domain-event emission required by ADR-0032 so relationship and reference writes are traceable without conflating graph exploration with audit history.
+
+              ## Acceptance Criteria
+              - Approved mutation actions generate the required audit records.
+              - Approved relationship and reference events are emitted consistently.
+              - Graph reads are not audited by default unless explicitly configured or security-sensitive.
+              - Tests cover representative audit and event behavior.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference mutation APIs
+
+              ## Implementation Tasks
+              - [ ] Emit the approved relationship mutation audit records.
+              - [ ] Emit the approved reference mutation audit records.
+              - [ ] Emit the approved domain events for relationship and reference changes.
+              - [ ] Add tests for audit payload shape and event coverage.
+
+              ## Suggested Labels
+              feature, core, test, P2
+            labels:
+              - feature
+              - core
+              - test
+              - P2
+            fields:
+              Phase: Asset Graph
+              Epic: Generic Asset Relationships
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0032
+
+      - title: "Phase 3 Epic: Relationship Exploration Surface"
+        body: |
+          ## Objective
+          Deliver the supported API and UI surfaces for exploring connected Assets.
+
+          ## Description
+          This epic turns the relationship foundation into visible user progress by exposing relationship navigation in the public application API and the supported UI surface.
+
+          The exploration experience should help users understand how Assets are connected without introducing engineering-specific interpretation or advanced graph-analysis capabilities reserved for later phases.
+
+          ## Expected Deliverable
+          A relationship navigation experience that allows users to inspect an Asset's connections and traverse to related Assets safely.
+
+          ## Acceptance Criteria
+          - Users can view an Asset's related Assets through the supported product surface.
+          - API responses provide enough information for clients to render relationship navigation consistently.
+          - The exploration surface respects existing authorization boundaries.
+          - The UI avoids implying unsupported domain-specific semantics.
+
+          ## Dependencies
+          - Phase 3 Epic: Relationship Architecture Decisions
+          - Phase 3 Epic: Generic Asset Relationships
+
+          ## Risks
+          - UI exploration could imply graph semantics that are not yet defined.
+          - Relationship rendering could become noisy or hard to interpret for new contributors.
+
+          ## Exit Criteria
+          - Connected Assets are navigable through a demonstrable user-facing surface.
+          - The exploration path is understandable to a new contributor and aligned with the approved API contract.
+
+          ## Suggested Labels
+          feature, frontend, P2
+        milestone: Relationship Exploration Surface
+        labels:
+          - feature
+          - frontend
+          - P2
+        fields:
+          Phase: Asset Graph
+          Epic: Relationship Exploration Surface
+          Platform Area: Frontend
+          Complexity: M
+          ADR: ADR-0029, ADR-0030, ADR-0031
+        sub_issues:
+
+          - title: "Phase 3 Task: Implement relationship and reference read APIs for asset exploration"
+            body: |
+              ## Objective
+              Deliver the read-side API surface required for Asset relationship exploration.
+
+              ## Description
+              Implement the approved public API behavior for listing relationships and references from an Asset, including incoming and outgoing relationship reads and the data needed for clients to render a useful exploration surface.
+
+              ## Acceptance Criteria
+              - Clients can retrieve an Asset's incoming and outgoing relationships through the public application API.
+              - Reference reads are available where they are part of the approved Phase 3 surface.
+              - Authorization is enforced for every read path.
+              - Response shapes are stable enough for Web UI integration.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference mutation APIs
+
+              ## Implementation Tasks
+              - [ ] Implement incoming and outgoing relationship read handlers.
+              - [ ] Implement reference read handlers for the approved scope.
+              - [ ] Shape responses for client-side relationship navigation.
+              - [ ] Add tests for authorized and unauthorized reads.
+
+              ## Suggested Labels
+              feature, core, documentation, test, P1
+            labels:
+              - feature
+              - core
+              - documentation
+              - test
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Exploration Surface
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0029, ADR-0031
+
+          - title: "Phase 3 Task: Expose relationship navigation in the Web UI"
+            body: |
+              ## Objective
+              Make Asset relationships visible and navigable in the Web UI.
+
+              ## Description
+              Implement the Web UI surface needed for users to inspect connected Assets and follow links to related Assets without introducing unsupported engineering-specific meaning.
+
+              ## Acceptance Criteria
+              - Users can see incoming and outgoing relationships for an Asset.
+              - Users can navigate from an Asset to a related Asset through the UI.
+              - Empty and error states are handled clearly.
+              - The UI does not imply unsupported semantics beyond the approved generic relationship model.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference read APIs for asset exploration
+
+              ## Implementation Tasks
+              - [ ] Add Asset detail UI sections for relationship exploration.
+              - [ ] Add navigation affordances to related Assets.
+              - [ ] Handle empty, loading and error states clearly.
+              - [ ] Add frontend tests or manual-test guidance for the exploration flow.
+
+              ## Suggested Labels
+              feature, frontend, test, P2
+            labels:
+              - feature
+              - frontend
+              - test
+              - P2
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Exploration Surface
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0007, ADR-0029
+
+          - title: "Phase 3 Task: Expose generic references in the exploration surface"
+            body: |
+              ## Objective
+              Make generic references visible without polluting the Asset Graph.
+
+              ## Description
+              Implement the API and UI presentation needed to show generic references distinctly from Asset-to-Asset relationships so users can see unresolved or external pointers without mistaking them for graph edges.
+
+              ## Acceptance Criteria
+              - References are rendered distinctly from Asset relationships.
+              - External or unresolved targets are visible without being treated as Assets.
+              - The UI and API wording stay aligned with ADR-0031.
+              - Tests or manual validation cover representative reference scenarios.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference read APIs for asset exploration
+              - Phase 3 Task: Expose relationship navigation in the Web UI
+
+              ## Implementation Tasks
+              - [ ] Add reference read data to the approved API surface.
+              - [ ] Add UI treatment that distinguishes references from relationships.
+              - [ ] Prevent unresolved references from being rendered as normal Asset nodes.
+              - [ ] Add validation coverage for representative reference rendering cases.
+
+              ## Suggested Labels
+              feature, frontend, documentation, P2
+            labels:
+              - feature
+              - frontend
+              - documentation
+              - P2
+            fields:
+              Phase: Asset Graph
+              Epic: Relationship Exploration Surface
+              Platform Area: Frontend
+              Complexity: S
+              ADR: ADR-0031
+
+      - title: "Phase 3 Epic: Dependency Graph and Query Foundations"
+        body: |
+          ## Objective
+          Deliver the initial generic graph-oriented read capabilities needed to understand Asset dependencies.
+
+          ## Description
+          This epic builds the first bounded graph-read behavior on top of generic relationships. It should support the approved dependency-oriented scenarios for Phase 3 without expanding into advanced search infrastructure, workflow semantics or Digital Thread behavior.
+
+          ## Expected Deliverable
+          A demonstrable set of graph-oriented read capabilities that allow users and clients to answer initial dependency questions from the Asset Graph.
+
+          ## Acceptance Criteria
+          - Approved dependency graph reads are available through the public application API.
+          - Query behavior stays within the accepted Phase 3 scope.
+          - Graph-oriented reads respect authorization and module boundaries.
+          - Results are demonstrable without requiring engineering-domain semantics.
+
+          ## Dependencies
+          - Phase 3 Epic: Relationship Architecture Decisions
+          - Phase 3 Epic: Generic Asset Relationships
+
+          ## Risks
+          - Query scope could become too broad for a maintainable first iteration.
+          - Graph reads could duplicate or conflict with future search or Digital Thread plans.
+
+          ## Exit Criteria
+          - Initial dependency-oriented graph reads are usable and demonstrable.
+          - Query behavior remains generic, bounded and aligned with approved ADRs.
+
+          ## Suggested Labels
+          feature, core, P2
+        milestone: Dependency Graph and Query Foundations
+        labels:
+          - feature
+          - core
+          - P2
+        fields:
+          Phase: Asset Graph
+          Epic: Dependency Graph and Query Foundations
+          Platform Area: Platform Core
+          Complexity: L
+          ADR: ADR-0028, ADR-0029, ADR-0030, ADR-0032
+        sub_issues:
+
+          - title: "Phase 3 Task: Implement traversal primitives for bounded dependency reads"
+            body: |
+              ## Objective
+              Deliver the core traversal behavior needed for Phase 3 dependency-oriented reads.
+
+              ## Description
+              Implement the traversal primitives owned by the Relationships Platform Module for outgoing, incoming, dependent and dependency traversal within the approved depth limits from ADR-0030.
+
+              ## Acceptance Criteria
+              - Traversal behavior respects the default and hard depth limits.
+              - Traversal remains bounded and authorization-safe.
+              - Direct dependency and dependent reads are supported.
+              - Tests cover representative traversal shapes and boundary conditions.
+
+              ## Dependencies
+              - Phase 3 Task: Implement relationship and reference persistence model
+
+              ## Implementation Tasks
+              - [ ] Implement outgoing traversal primitives.
+              - [ ] Implement incoming traversal primitives.
+              - [ ] Enforce default and hard depth limits.
+              - [ ] Add tests for traversal depth boundaries and authorization filtering.
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Dependency Graph and Query Foundations
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0028, ADR-0030
+
+          - title: "Phase 3 Task: Implement graph query API for bounded dependency scenarios"
+            body: |
+              ## Objective
+              Expose the approved Phase 3 dependency graph queries through the public application API.
+
+              ## Description
+              Implement the `GET /assets/{asset_id}/graph` behavior and related graph-read responses needed for bounded dependency and impact analysis scenarios without introducing analytics or custom query language behavior.
+
+              ## Acceptance Criteria
+              - The graph endpoint supports the approved bounded dependency scenarios.
+              - API responses stay within the approved operational query scope.
+              - Cross-organization and unbounded traversal are rejected or prevented.
+              - Tests cover representative graph-read responses.
+
+              ## Dependencies
+              - Phase 3 Task: Implement traversal primitives for bounded dependency reads
+
+              ## Implementation Tasks
+              - [ ] Implement graph endpoint request handling.
+              - [ ] Map approved query parameters to bounded traversal behavior.
+              - [ ] Prevent unsupported or unbounded query shapes.
+              - [ ] Add tests for direct and multi-level dependency reads.
+
+              ## Suggested Labels
+              feature, core, documentation, test, P1
+            labels:
+              - feature
+              - core
+              - documentation
+              - test
+              - P1
+            fields:
+              Phase: Asset Graph
+              Epic: Dependency Graph and Query Foundations
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0029, ADR-0030
+
+          - title: "Phase 3 Task: Implement path existence and simple cycle detection"
+            body: |
+              ## Objective
+              Support the approved Phase 3 graph integrity and impact-analysis checks.
+
+              ## Description
+              Implement the bounded path-existence and simple cycle-detection behaviors required by ADR-0030, along with the approved audit and event coverage where those checks trigger meaningful write-side outcomes.
+
+              ## Acceptance Criteria
+              - Path existence between two Assets can be determined within approved bounds.
+              - Simple cycles can be detected for the approved Phase 3 scope.
+              - Cycle-related audit or event behavior follows ADR-0032.
+              - Tests cover representative cycle and path cases.
+
+              ## Dependencies
+              - Phase 3 Task: Implement traversal primitives for bounded dependency reads
+              - Phase 3 Task: Implement relationship and reference audit plus event emission
+
+              ## Implementation Tasks
+              - [ ] Implement bounded path-existence checks.
+              - [ ] Implement simple cycle-detection behavior.
+              - [ ] Emit approved observability signals for cycle-detection outcomes where required.
+              - [ ] Add tests for cycle and no-cycle scenarios.
+
+              ## Suggested Labels
+              feature, core, test, P2
+            labels:
+              - feature
+              - core
+              - test
+              - P2
+            fields:
+              Phase: Asset Graph
+              Epic: Dependency Graph and Query Foundations
+              Platform Area: Platform Core
+              Complexity: M
+              ADR: ADR-0030, ADR-0032
+
+          - title: "Phase 3 Task: Document and validate Phase 3 graph query limits"
+            body: |
+              ## Objective
+              Make the approved Phase 3 graph limits understandable and testable for contributors and users.
+
+              ## Description
+              Document the bounded query rules, deferred graph capabilities and representative usage patterns for the delivered Asset Graph query surface, and validate that those rules are covered by automated or manual verification guidance.
+
+              ## Acceptance Criteria
+              - Query limits and exclusions are documented clearly.
+              - Deferred graph behaviors are called out explicitly.
+              - Validation guidance covers the approved Phase 3 graph scenarios.
+              - Documentation stays aligned with ADR-0030.
+
+              ## Dependencies
+              - Phase 3 Task: Implement graph query API for bounded dependency scenarios
+              - Phase 3 Task: Implement path existence and simple cycle detection
+
+              ## Implementation Tasks
+              - [ ] Document approved graph query behaviors and limits.
+              - [ ] Document excluded or deferred graph behaviors.
+              - [ ] Add verification guidance for dependency graph query scenarios.
+              - [ ] Reconcile docs with the delivered API behavior.
+
+              ## Suggested Labels
+              documentation, test, P2
+            labels:
+              - documentation
+              - test
+              - P2
+            fields:
+              Phase: Asset Graph
+              Epic: Dependency Graph and Query Foundations
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0030
 
   - phase: Plugin Platform
     milestone: Plugin Platform
