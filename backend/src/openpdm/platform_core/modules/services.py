@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+from collections import deque
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,6 +19,8 @@ from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.platform_core.modules.models import (
     Asset,
     AssetCollaborationLock,
+    AssetReference,
+    AssetRelationship,
     AuditRecord,
     Blob,
     DomainEvent,
@@ -51,6 +54,18 @@ ALLOWED_PLUGIN_TYPES = {"official", "community"}
 COLLABORATION_STATES = {"available", "locked", "stale_lock"}
 FORCE_UNLOCK_ROLES = {"Owner", "Maintainer"}
 LOCK_OWNER_WRITE_ROLES = {"Owner", "Maintainer", "Contributor"}
+ALLOWED_RELATIONSHIP_TYPES = {
+    "depends_on",
+    "references",
+    "derived_from",
+    "generates",
+    "supersedes",
+    "related_to",
+}
+RELATIONSHIP_DIRECTION = "directed"
+DEFAULT_GRAPH_DEPTH = 3
+MAX_GRAPH_DEPTH = 10
+GRAPH_DIRECTIONS = {"incoming", "outgoing", "both"}
 METADATA_TARGET_FIELDS = {
     "asset": "asset_id",
     "revision": "revision_id",
@@ -1224,6 +1239,711 @@ class AssetsModule:
         return list(db.execute(statement).unique().scalars())
 
 
+class RelationshipsModule:
+    """Public relationships module service for Phase 3."""
+
+    @staticmethod
+    def _normalize_metadata(metadata: dict[str, object] | None) -> dict[str, object]:
+        require(
+            metadata is None or isinstance(metadata, dict),
+            "Relationship metadata must be an object.",
+        )
+        return dict(metadata or {})
+
+    @staticmethod
+    def _require_relationship_type(relationship_type: str) -> str:
+        normalized = relationship_type.strip()
+        require(normalized in ALLOWED_RELATIONSHIP_TYPES, "Invalid relationship type.")
+        return normalized
+
+    @staticmethod
+    def _require_reference_type(reference_type: str) -> str:
+        normalized = reference_type.strip()
+        require(normalized, "Reference type is required.")
+        return normalized
+
+    @staticmethod
+    def _get_asset(
+        db: Session,
+        *,
+        asset_id: str,
+        actor: User,
+        permission: str = "read_project",
+    ) -> Asset:
+        asset = AssetsModule.get_asset(db, asset_id=asset_id, actor=actor)
+        ProjectModule.require_project_permission(
+            db,
+            project_id=asset.project_id,
+            actor=actor,
+            permission=permission,
+        )
+        return asset
+
+    @staticmethod
+    def _require_same_project(source_asset: Asset, target_asset: Asset) -> None:
+        require(
+            source_asset.project_id == target_asset.project_id,
+            "Phase 3 relationships must stay within one Project.",
+        )
+
+    @staticmethod
+    def _load_relationship_or_404(db: Session, relationship_id: str) -> AssetRelationship:
+        relationship = db.scalar(
+            select(AssetRelationship)
+            .options(
+                joinedload(AssetRelationship.source_asset).joinedload(Asset.project),
+                joinedload(AssetRelationship.target_asset).joinedload(Asset.project),
+            )
+            .where(AssetRelationship.id == relationship_id)
+        )
+        if relationship is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Relationship not found.",
+            )
+        return relationship
+
+    @staticmethod
+    def _load_reference_or_404(db: Session, reference_id: str) -> AssetReference:
+        reference = db.scalar(
+            select(AssetReference)
+            .options(joinedload(AssetReference.source_asset).joinedload(Asset.project))
+            .where(AssetReference.id == reference_id)
+        )
+        if reference is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reference not found.",
+            )
+        return reference
+
+    @staticmethod
+    def _relationship_payload(relationship: AssetRelationship) -> dict[str, object]:
+        return {
+            "source_asset_id": relationship.source_asset_id,
+            "target_asset_id": relationship.target_asset_id,
+            "relationship_type": relationship.relationship_type,
+            "direction": relationship.direction,
+        }
+
+    @staticmethod
+    def _reference_payload(reference: AssetReference) -> dict[str, object]:
+        return {
+            "source_asset_id": reference.source_asset_id,
+            "reference_type": reference.reference_type,
+            "target_uri": reference.target_uri,
+            "label": reference.label,
+        }
+
+    @staticmethod
+    def _project_relationships(db: Session, *, project_id: str) -> list[AssetRelationship]:
+        project_asset_ids = select(Asset.id).where(Asset.project_id == project_id)
+        return list(
+            db.scalars(
+                select(AssetRelationship)
+                .options(
+                    joinedload(AssetRelationship.source_asset),
+                    joinedload(AssetRelationship.target_asset),
+                )
+                .where(
+                    and_(
+                        AssetRelationship.source_asset_id.in_(project_asset_ids),
+                        AssetRelationship.target_asset_id.in_(project_asset_ids),
+                    )
+                )
+            )
+        )
+
+    @staticmethod
+    def _outgoing_adjacency(
+        relationships: list[AssetRelationship],
+    ) -> dict[str, list[AssetRelationship]]:
+        adjacency: dict[str, list[AssetRelationship]] = {}
+        for relationship in relationships:
+            adjacency.setdefault(relationship.source_asset_id, []).append(relationship)
+        return adjacency
+
+    @staticmethod
+    def _path_exists(
+        relationships: list[AssetRelationship],
+        *,
+        start_asset_id: str,
+        target_asset_id: str,
+        max_depth: int = MAX_GRAPH_DEPTH,
+    ) -> bool:
+        if start_asset_id == target_asset_id:
+            return True
+        adjacency = RelationshipsModule._outgoing_adjacency(relationships)
+        queue: deque[tuple[str, int]] = deque([(start_asset_id, 0)])
+        visited = {start_asset_id}
+        while queue:
+            current_asset_id, depth = queue.popleft()
+            if depth >= max_depth:
+                continue
+            for relationship in adjacency.get(current_asset_id, []):
+                next_asset_id = relationship.target_asset_id
+                if next_asset_id == target_asset_id:
+                    return True
+                if next_asset_id in visited:
+                    continue
+                visited.add(next_asset_id)
+                queue.append((next_asset_id, depth + 1))
+        return False
+
+    @staticmethod
+    def _detect_cycle(relationships: list[AssetRelationship]) -> bool:
+        adjacency = RelationshipsModule._outgoing_adjacency(relationships)
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def visit(asset_id: str) -> bool:
+            if asset_id in visiting:
+                return True
+            if asset_id in visited:
+                return False
+            visiting.add(asset_id)
+            for relationship in adjacency.get(asset_id, []):
+                if visit(relationship.target_asset_id):
+                    return True
+            visiting.remove(asset_id)
+            visited.add(asset_id)
+            return False
+
+        asset_ids = {
+            relationship.source_asset_id for relationship in relationships
+        } | {relationship.target_asset_id for relationship in relationships}
+        return any(visit(asset_id) for asset_id in asset_ids)
+
+    @staticmethod
+    def _record_cycle_detection(
+        db: Session,
+        *,
+        actor: User,
+        relationship: AssetRelationship,
+        project_id: str,
+        organization_id: str,
+    ) -> None:
+        payload = {
+            **RelationshipsModule._relationship_payload(relationship),
+            "result": "detected",
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="relationship.cycle_detected",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=organization_id,
+            project_id=project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="RelationshipCycleDetected",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=organization_id,
+            project_id=project_id,
+            payload=payload,
+        )
+
+    @staticmethod
+    def create_relationship(
+        db: Session,
+        *,
+        source_asset_id: str,
+        target_asset_id: str,
+        relationship_type: str,
+        metadata: dict[str, object] | None,
+        actor: User,
+    ) -> AssetRelationship:
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        target_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=target_asset_id,
+            actor=actor,
+            permission="read_project",
+        )
+        RelationshipsModule._require_same_project(source_asset, target_asset)
+        require(
+            source_asset.id != target_asset.id,
+            "Self-relationships are not supported in Phase 3.",
+        )
+        normalized_type = RelationshipsModule._require_relationship_type(relationship_type)
+        relationship_metadata = RelationshipsModule._normalize_metadata(metadata)
+        existing = db.scalar(
+            select(AssetRelationship).where(
+                and_(
+                    AssetRelationship.source_asset_id == source_asset.id,
+                    AssetRelationship.target_asset_id == target_asset.id,
+                    AssetRelationship.relationship_type == normalized_type,
+                )
+            )
+        )
+        require(
+            existing is None,
+            "Relationship already exists.",
+            status.HTTP_409_CONFLICT,
+        )
+        relationship = AssetRelationship(
+            source_asset_id=source_asset.id,
+            target_asset_id=target_asset.id,
+            relationship_type=normalized_type,
+            direction=RELATIONSHIP_DIRECTION,
+            metadata_json=relationship_metadata,
+            created_by_user_id=actor.id,
+        )
+        db.add(relationship)
+        source_asset.updated_at = utc_now()
+        db.flush()
+        payload = {
+            **RelationshipsModule._relationship_payload(relationship),
+            "metadata": relationship.metadata_json,
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="relationship.created",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="RelationshipCreated",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            payload=payload,
+        )
+        project_relationships = RelationshipsModule._project_relationships(
+            db, project_id=source_asset.project_id
+        )
+        if RelationshipsModule._path_exists(
+            project_relationships,
+            start_asset_id=relationship.target_asset_id,
+            target_asset_id=relationship.source_asset_id,
+        ):
+            RelationshipsModule._record_cycle_detection(
+                db,
+                actor=actor,
+                relationship=relationship,
+                project_id=source_asset.project_id,
+                organization_id=source_asset.project.organization_id,
+            )
+        return relationship
+
+    @staticmethod
+    def list_relationships(
+        db: Session,
+        *,
+        asset_id: str,
+        actor: User,
+    ) -> list[AssetRelationship]:
+        asset = RelationshipsModule._get_asset(db, asset_id=asset_id, actor=actor)
+        statement = (
+            select(AssetRelationship)
+            .options(
+                joinedload(AssetRelationship.source_asset),
+                joinedload(AssetRelationship.target_asset),
+            )
+            .where(
+                or_(
+                    AssetRelationship.source_asset_id == asset.id,
+                    AssetRelationship.target_asset_id == asset.id,
+                )
+            )
+            .order_by(AssetRelationship.created_at.asc())
+        )
+        return list(db.scalars(statement))
+
+    @staticmethod
+    def list_outgoing_relationships(
+        db: Session,
+        *,
+        asset_id: str,
+        actor: User,
+    ) -> list[AssetRelationship]:
+        asset = RelationshipsModule._get_asset(db, asset_id=asset_id, actor=actor)
+        return list(
+            db.scalars(
+                select(AssetRelationship)
+                .options(
+                    joinedload(AssetRelationship.source_asset),
+                    joinedload(AssetRelationship.target_asset),
+                )
+                .where(AssetRelationship.source_asset_id == asset.id)
+                .order_by(AssetRelationship.created_at.asc())
+            )
+        )
+
+    @staticmethod
+    def list_incoming_relationships(
+        db: Session,
+        *,
+        asset_id: str,
+        actor: User,
+    ) -> list[AssetRelationship]:
+        asset = RelationshipsModule._get_asset(db, asset_id=asset_id, actor=actor)
+        return list(
+            db.scalars(
+                select(AssetRelationship)
+                .options(
+                    joinedload(AssetRelationship.source_asset),
+                    joinedload(AssetRelationship.target_asset),
+                )
+                .where(AssetRelationship.target_asset_id == asset.id)
+                .order_by(AssetRelationship.created_at.asc())
+            )
+        )
+
+    @staticmethod
+    def update_relationship_metadata(
+        db: Session,
+        *,
+        relationship_id: str,
+        metadata: dict[str, object] | None,
+        actor: User,
+    ) -> AssetRelationship:
+        relationship = RelationshipsModule._load_relationship_or_404(db, relationship_id)
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=relationship.source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        relationship.metadata_json = RelationshipsModule._normalize_metadata(metadata)
+        source_asset.updated_at = utc_now()
+        payload = {
+            **RelationshipsModule._relationship_payload(relationship),
+            "metadata": relationship.metadata_json,
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="relationship.metadata.updated",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="RelationshipMetadataUpdated",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            payload=payload,
+        )
+        return relationship
+
+    @staticmethod
+    def delete_relationship(
+        db: Session,
+        *,
+        relationship_id: str,
+        actor: User,
+    ) -> None:
+        relationship = RelationshipsModule._load_relationship_or_404(db, relationship_id)
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=relationship.source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        payload = RelationshipsModule._relationship_payload(relationship)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="relationship.deleted",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="RelationshipDeleted",
+            resource_type="relationship",
+            resource_id=relationship.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            payload=payload,
+        )
+        source_asset.updated_at = utc_now()
+        db.delete(relationship)
+
+    @staticmethod
+    def create_reference(
+        db: Session,
+        *,
+        source_asset_id: str,
+        reference_type: str,
+        target_uri: str,
+        label: str,
+        metadata: dict[str, object] | None,
+        actor: User,
+    ) -> AssetReference:
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        normalized_type = RelationshipsModule._require_reference_type(reference_type)
+        normalized_uri = target_uri.strip()
+        require(normalized_uri, "Reference target URI is required.")
+        reference_metadata = RelationshipsModule._normalize_metadata(metadata)
+        existing = db.scalar(
+            select(AssetReference).where(
+                and_(
+                    AssetReference.source_asset_id == source_asset.id,
+                    AssetReference.reference_type == normalized_type,
+                    AssetReference.target_uri == normalized_uri,
+                )
+            )
+        )
+        require(existing is None, "Reference already exists.", status.HTTP_409_CONFLICT)
+        reference = AssetReference(
+            source_asset_id=source_asset.id,
+            reference_type=normalized_type,
+            target_uri=normalized_uri,
+            label=label.strip(),
+            metadata_json=reference_metadata,
+            created_by_user_id=actor.id,
+        )
+        db.add(reference)
+        source_asset.updated_at = utc_now()
+        db.flush()
+        payload = {
+            **RelationshipsModule._reference_payload(reference),
+            "metadata": reference.metadata_json,
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="reference.created",
+            resource_type="reference",
+            resource_id=reference.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="ReferenceCreated",
+            resource_type="reference",
+            resource_id=reference.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            payload=payload,
+        )
+        return reference
+
+    @staticmethod
+    def list_references(
+        db: Session,
+        *,
+        asset_id: str,
+        actor: User,
+    ) -> list[AssetReference]:
+        asset = RelationshipsModule._get_asset(db, asset_id=asset_id, actor=actor)
+        return list(
+            db.scalars(
+                select(AssetReference)
+                .options(joinedload(AssetReference.source_asset))
+                .where(AssetReference.source_asset_id == asset.id)
+                .order_by(AssetReference.created_at.asc())
+            )
+        )
+
+    @staticmethod
+    def delete_reference(
+        db: Session,
+        *,
+        reference_id: str,
+        actor: User,
+    ) -> None:
+        reference = RelationshipsModule._load_reference_or_404(db, reference_id)
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=reference.source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        payload = RelationshipsModule._reference_payload(reference)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="reference.deleted",
+            resource_type="reference",
+            resource_id=reference.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="ReferenceDeleted",
+            resource_type="reference",
+            resource_id=reference.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            payload=payload,
+        )
+        source_asset.updated_at = utc_now()
+        db.delete(reference)
+
+    @staticmethod
+    def resolve_reference(
+        db: Session,
+        *,
+        reference_id: str,
+        target_asset_id: str,
+        relationship_type: str,
+        actor: User,
+    ) -> AssetRelationship:
+        reference = RelationshipsModule._load_reference_or_404(db, reference_id)
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=reference.source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        relationship = RelationshipsModule.create_relationship(
+            db,
+            source_asset_id=reference.source_asset_id,
+            target_asset_id=target_asset_id,
+            relationship_type=relationship_type,
+            metadata={"resolved_from_reference_id": reference.id},
+            actor=actor,
+        )
+        payload = {
+            **RelationshipsModule._reference_payload(reference),
+            "resolved_relationship_id": relationship.id,
+            "target_asset_id": relationship.target_asset_id,
+            "relationship_type": relationship.relationship_type,
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="reference.resolved",
+            resource_type="reference",
+            resource_id=reference.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            details=payload,
+        )
+        emit_event(
+            db,
+            event_type="ReferenceResolved",
+            resource_type="reference",
+            resource_id=reference.id,
+            organization_id=source_asset.project.organization_id,
+            project_id=source_asset.project_id,
+            payload=payload,
+        )
+        source_asset.updated_at = utc_now()
+        db.delete(reference)
+        return relationship
+
+    @staticmethod
+    def get_graph(
+        db: Session,
+        *,
+        asset_id: str,
+        actor: User,
+        direction: str = "outgoing",
+        max_depth: int = DEFAULT_GRAPH_DEPTH,
+        target_asset_id: str | None = None,
+    ) -> GraphQueryResult:
+        root_asset = RelationshipsModule._get_asset(db, asset_id=asset_id, actor=actor)
+        require(direction in GRAPH_DIRECTIONS, "Invalid graph direction.")
+        require(max_depth >= 1, "Graph depth must be at least 1.")
+        require(
+            max_depth <= MAX_GRAPH_DEPTH,
+            f"Graph depth cannot exceed {MAX_GRAPH_DEPTH}.",
+        )
+        target_asset: Asset | None = None
+        if target_asset_id is not None:
+            target_asset = RelationshipsModule._get_asset(
+                db,
+                asset_id=target_asset_id,
+                actor=actor,
+            )
+            RelationshipsModule._require_same_project(root_asset, target_asset)
+
+        project_relationships = RelationshipsModule._project_relationships(
+            db, project_id=root_asset.project_id
+        )
+        outgoing = RelationshipsModule._outgoing_adjacency(project_relationships)
+        incoming: dict[str, list[AssetRelationship]] = {}
+        asset_by_id: dict[str, Asset] = {root_asset.id: root_asset}
+        for relationship in project_relationships:
+            incoming.setdefault(relationship.target_asset_id, []).append(relationship)
+            if relationship.source_asset is not None:
+                asset_by_id[relationship.source_asset_id] = relationship.source_asset
+            if relationship.target_asset is not None:
+                asset_by_id[relationship.target_asset_id] = relationship.target_asset
+
+        queue: deque[tuple[str, int]] = deque([(root_asset.id, 0)])
+        visited_nodes = {root_asset.id}
+        seen_relationship_ids: set[str] = set()
+        traversed_relationships: list[AssetRelationship] = []
+        while queue:
+            current_asset_id, depth = queue.popleft()
+            if depth >= max_depth:
+                continue
+            edge_candidates: list[tuple[AssetRelationship, str]] = []
+            if direction in {"outgoing", "both"}:
+                edge_candidates.extend(
+                    (relationship, relationship.target_asset_id)
+                    for relationship in outgoing.get(current_asset_id, [])
+                )
+            if direction in {"incoming", "both"}:
+                edge_candidates.extend(
+                    (relationship, relationship.source_asset_id)
+                    for relationship in incoming.get(current_asset_id, [])
+                )
+            for relationship, next_asset_id in edge_candidates:
+                if relationship.id not in seen_relationship_ids:
+                    seen_relationship_ids.add(relationship.id)
+                    traversed_relationships.append(relationship)
+                if next_asset_id in visited_nodes:
+                    continue
+                visited_nodes.add(next_asset_id)
+                queue.append((next_asset_id, depth + 1))
+
+        traversed_nodes = [
+            asset for asset_id_value, asset in asset_by_id.items() if asset_id_value in visited_nodes
+        ]
+        path_exists = None
+        if target_asset is not None:
+            path_exists = target_asset.id in visited_nodes
+        has_cycle = RelationshipsModule._detect_cycle(traversed_relationships)
+        return GraphQueryResult(
+            root_asset=root_asset,
+            direction=direction,
+            max_depth=max_depth,
+            target_asset_id=target_asset.id if target_asset is not None else None,
+            path_exists=path_exists,
+            has_cycle=has_cycle,
+            nodes=traversed_nodes,
+            relationships=traversed_relationships,
+        )
+
+
 class CollaborationModule:
     """Public collaboration module service for Phase 2."""
 
@@ -2044,3 +2764,17 @@ class TimelineEntry:
     asset_id: str
     revision_id: str | None
     details: dict[str, object]
+
+
+@dataclass(slots=True)
+class GraphQueryResult:
+    """Bounded Phase 3 graph query result."""
+
+    root_asset: Asset
+    direction: str
+    max_depth: int
+    target_asset_id: str | None
+    path_exists: bool | None
+    has_cycle: bool
+    nodes: list[Asset]
+    relationships: list[AssetRelationship]

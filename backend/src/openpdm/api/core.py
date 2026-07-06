@@ -17,6 +17,8 @@ from openpdm.infrastructure.blob_storage import BlobStorage, build_blob_storage
 from openpdm.infrastructure.database import get_db_session, initialize_database
 from openpdm.platform_core.modules.models import (
     Asset,
+    AssetReference,
+    AssetRelationship,
     MetadataEntry,
     NotificationRecord,
     PluginRecord,
@@ -31,11 +33,13 @@ from openpdm.platform_core.modules.services import (
     BlobModule,
     CollaborationModule,
     CollaborationState,
+    GraphQueryResult,
     MetadataModule,
     NotificationsModule,
     OrganizationModule,
     PluginsModule,
     ProjectModule,
+    RelationshipsModule,
     SearchModule,
     SessionContext,
     TimelineEntry,
@@ -156,6 +160,46 @@ class MetadataResponse(ApiModel):
     value_type: str
     source: str
     created_at: str
+
+
+class RelationshipResponse(ApiModel):
+    id: str
+    source_asset_id: str
+    target_asset_id: str
+    relationship_type: str
+    direction: str
+    metadata: dict[str, Any]
+    created_by_user_id: str
+    created_at: str
+
+
+class ReferenceResponse(ApiModel):
+    id: str
+    source_asset_id: str
+    reference_type: str
+    target_uri: str
+    label: str
+    metadata: dict[str, Any]
+    created_by_user_id: str
+    created_at: str
+
+
+class GraphNodeResponse(BaseModel):
+    id: str
+    project_id: str
+    name: str
+    status: str
+
+
+class GraphResponse(BaseModel):
+    asset_id: str
+    direction: str
+    max_depth: int
+    target_asset_id: str | None
+    path_exists: bool | None
+    has_cycle: bool
+    nodes: list[GraphNodeResponse]
+    relationships: list[RelationshipResponse]
 
 
 class CollaborationLockResponse(BaseModel):
@@ -283,6 +327,28 @@ class PutMetadataRequest(BaseModel):
     source: str = "user"
 
 
+class CreateRelationshipRequest(BaseModel):
+    target_asset_id: str
+    relationship_type: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class UpdateRelationshipMetadataRequest(BaseModel):
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CreateReferenceRequest(BaseModel):
+    reference_type: str
+    target_uri: str
+    label: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResolveReferenceRequest(BaseModel):
+    target_asset_id: str
+    relationship_type: str
+
+
 class RegisterPluginRequest(BaseModel):
     id: str
     name: str
@@ -390,6 +456,63 @@ def serialize_metadata(entry: MetadataEntry) -> MetadataResponse:
         value_type=entry.value_type,
         source=entry.source,
         created_at=_iso(entry.created_at),
+    )
+
+
+def serialize_relationship(relationship: AssetRelationship) -> RelationshipResponse:
+    return RelationshipResponse(
+        id=relationship.id,
+        source_asset_id=relationship.source_asset_id,
+        target_asset_id=relationship.target_asset_id,
+        relationship_type=relationship.relationship_type,
+        direction=relationship.direction,
+        metadata=relationship.metadata_json,
+        created_by_user_id=relationship.created_by_user_id,
+        created_at=_iso(relationship.created_at),
+    )
+
+
+def serialize_reference(reference: AssetReference) -> ReferenceResponse:
+    return ReferenceResponse(
+        id=reference.id,
+        source_asset_id=reference.source_asset_id,
+        reference_type=reference.reference_type,
+        target_uri=reference.target_uri,
+        label=reference.label,
+        metadata=reference.metadata_json,
+        created_by_user_id=reference.created_by_user_id,
+        created_at=_iso(reference.created_at),
+    )
+
+
+def serialize_graph(result: GraphQueryResult) -> GraphResponse:
+    ordered_nodes = sorted(result.nodes, key=lambda item: item.name.lower())
+    ordered_relationships = sorted(
+        result.relationships,
+        key=lambda item: (
+            item.source_asset_id,
+            item.target_asset_id,
+            item.relationship_type,
+            item.created_at,
+        ),
+    )
+    return GraphResponse(
+        asset_id=result.root_asset.id,
+        direction=result.direction,
+        max_depth=result.max_depth,
+        target_asset_id=result.target_asset_id,
+        path_exists=result.path_exists,
+        has_cycle=result.has_cycle,
+        nodes=[
+            GraphNodeResponse(
+                id=node.id,
+                project_id=node.project_id,
+                name=node.name,
+                status=node.status,
+            )
+            for node in ordered_nodes
+        ],
+        relationships=[serialize_relationship(item) for item in ordered_relationships],
     )
 
 
@@ -840,6 +963,184 @@ def get_asset(
     db: Session = Depends(get_db_session),
 ) -> AssetResponse:
     return serialize_asset(AssetsModule.get_asset(db, asset_id=asset_id, actor=context.user))
+
+
+@router.post(
+    "/assets/{asset_id}/relationships",
+    response_model=RelationshipResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_relationship(
+    asset_id: str,
+    payload: CreateRelationshipRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> RelationshipResponse:
+    relationship = RelationshipsModule.create_relationship(
+        db,
+        source_asset_id=asset_id,
+        target_asset_id=payload.target_asset_id,
+        relationship_type=payload.relationship_type,
+        metadata=payload.metadata,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_relationship(relationship)
+
+
+@router.get("/assets/{asset_id}/relationships", response_model=list[RelationshipResponse])
+def list_relationships(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[RelationshipResponse]:
+    return [
+        serialize_relationship(item)
+        for item in RelationshipsModule.list_relationships(
+            db, asset_id=asset_id, actor=context.user
+        )
+    ]
+
+
+@router.get("/assets/{asset_id}/relationships/incoming", response_model=list[RelationshipResponse])
+def list_incoming_relationships(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[RelationshipResponse]:
+    return [
+        serialize_relationship(item)
+        for item in RelationshipsModule.list_incoming_relationships(
+            db, asset_id=asset_id, actor=context.user
+        )
+    ]
+
+
+@router.get("/assets/{asset_id}/relationships/outgoing", response_model=list[RelationshipResponse])
+def list_outgoing_relationships(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[RelationshipResponse]:
+    return [
+        serialize_relationship(item)
+        for item in RelationshipsModule.list_outgoing_relationships(
+            db, asset_id=asset_id, actor=context.user
+        )
+    ]
+
+
+@router.put("/relationships/{relationship_id}/metadata", response_model=RelationshipResponse)
+def update_relationship_metadata(
+    relationship_id: str,
+    payload: UpdateRelationshipMetadataRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> RelationshipResponse:
+    relationship = RelationshipsModule.update_relationship_metadata(
+        db,
+        relationship_id=relationship_id,
+        metadata=payload.metadata,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_relationship(relationship)
+
+
+@router.delete("/relationships/{relationship_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_relationship(
+    relationship_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    RelationshipsModule.delete_relationship(db, relationship_id=relationship_id, actor=context.user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/assets/{asset_id}/references",
+    response_model=ReferenceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_reference(
+    asset_id: str,
+    payload: CreateReferenceRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ReferenceResponse:
+    reference = RelationshipsModule.create_reference(
+        db,
+        source_asset_id=asset_id,
+        reference_type=payload.reference_type,
+        target_uri=payload.target_uri,
+        label=payload.label,
+        metadata=payload.metadata,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_reference(reference)
+
+
+@router.get("/assets/{asset_id}/references", response_model=list[ReferenceResponse])
+def list_references(
+    asset_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[ReferenceResponse]:
+    return [
+        serialize_reference(item)
+        for item in RelationshipsModule.list_references(db, asset_id=asset_id, actor=context.user)
+    ]
+
+
+@router.post("/references/{reference_id}/resolve", response_model=RelationshipResponse)
+def resolve_reference(
+    reference_id: str,
+    payload: ResolveReferenceRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> RelationshipResponse:
+    relationship = RelationshipsModule.resolve_reference(
+        db,
+        reference_id=reference_id,
+        target_asset_id=payload.target_asset_id,
+        relationship_type=payload.relationship_type,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_relationship(relationship)
+
+
+@router.delete("/references/{reference_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_reference(
+    reference_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    RelationshipsModule.delete_reference(db, reference_id=reference_id, actor=context.user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/assets/{asset_id}/graph", response_model=GraphResponse)
+def get_asset_graph(
+    asset_id: str,
+    direction: str = "outgoing",
+    max_depth: int = 3,
+    target_asset_id: str | None = None,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> GraphResponse:
+    result = RelationshipsModule.get_graph(
+        db,
+        asset_id=asset_id,
+        actor=context.user,
+        direction=direction,
+        max_depth=max_depth,
+        target_asset_id=target_asset_id,
+    )
+    return serialize_graph(result)
 
 
 @router.get("/assets/{asset_id}/collaboration-state", response_model=CollaborationStateResponse)
