@@ -72,7 +72,8 @@ button {
 
 h1,
 h2,
-h3 {
+h3,
+h4 {
   font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0;
@@ -88,6 +89,10 @@ h2 {
 
 h3 {
   font-size: 1rem;
+}
+
+h4 {
+  font-size: 0.95rem;
 }
 
 .intro,
@@ -312,6 +317,7 @@ textarea {
   margin-bottom: 18px;
 }
 
+.relationship-card,
 .notification-card,
 .recovery-card {
   display: grid;
@@ -366,6 +372,89 @@ textarea {
   color: #5a6d69;
 }
 
+.relationship-grid,
+.graph-summary-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.relationship-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.relationship-column,
+.graph-summary-card {
+  background: rgba(14, 107, 88, 0.04);
+  border: 1px solid rgba(136, 168, 157, 0.22);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.relationship-column-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.relationship-column-header span {
+  background: rgba(14, 107, 88, 0.1);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.relationship-list,
+.reference-list {
+  display: grid;
+  gap: 10px;
+}
+
+.relationship-item {
+  align-items: start;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.relationship-item p,
+.relationship-item small {
+  color: var(--muted);
+  display: block;
+  margin-top: 6px;
+}
+
+.reference-item {
+  border-style: dashed;
+}
+
+.graph-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.graph-summary-card strong,
+.graph-summary-card span {
+  display: block;
+}
+
+.graph-summary-card strong {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.graph-summary-card span {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
 .representation-list li {
   background: rgba(14, 107, 88, 0.04);
   border-radius: 16px;
@@ -414,7 +503,13 @@ textarea {
   .panel-header,
   .detail-row,
   .timeline-header,
-  .representation-list li {
+  .representation-list li,
+  .relationship-item {
     flex-direction: column;
+  }
+
+  .relationship-grid,
+  .graph-summary-grid {
+    grid-template-columns: 1fr;
   }
 }

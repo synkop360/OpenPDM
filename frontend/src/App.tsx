@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
 import {
   ApiError,
+  type AssetGraph,
   checkinAsset,
   checkoutAsset,
   addRepresentation,
@@ -11,19 +12,26 @@ import {
   downloadBlob,
   fetchFoundationStatus,
   getAsset,
+  getAssetGraph,
   getAssetHistory,
   getAssetTimeline,
   getCollaborationState,
   getCurrentSession,
+  listAssetReferences,
+  listAssetRelationships,
   listAssets,
+  listIncomingAssetRelationships,
   listNotifications,
   listOrganizationProjects,
+  listOutgoingAssetRelationships,
   listOrganizations,
   listProjectsForUser,
   markNotificationRead,
   registerUser,
   signIn,
   signOut,
+  type ReferenceRecord,
+  type Relationship,
   unlockAsset,
   uploadBlob,
   type Asset,
@@ -163,6 +171,21 @@ function notificationSummary(notification: NotificationRecord): string {
   return "Project collaboration update.";
 }
 
+function formatRelationshipType(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
+function formatMetadataSummary(metadata: Record<string, unknown>): string | null {
+  const entries = Object.entries(metadata);
+  if (entries.length === 0) {
+    return null;
+  }
+  return entries
+    .slice(0, 3)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join(" • ");
+}
+
 export function App() {
   const [foundation, setFoundation] = useState<Loadable<FoundationStatus | null>>(
     createLoadable<FoundationStatus | null>(null),
@@ -180,6 +203,21 @@ export function App() {
   );
   const [assetHistory, setAssetHistory] = useState<Loadable<Revision[]>>(
     createLoadable<Revision[]>([]),
+  );
+  const [assetRelationships, setAssetRelationships] = useState<Loadable<Relationship[]>>(
+    createLoadable<Relationship[]>([]),
+  );
+  const [incomingRelationships, setIncomingRelationships] = useState<Loadable<Relationship[]>>(
+    createLoadable<Relationship[]>([]),
+  );
+  const [outgoingRelationships, setOutgoingRelationships] = useState<Loadable<Relationship[]>>(
+    createLoadable<Relationship[]>([]),
+  );
+  const [assetReferences, setAssetReferences] = useState<Loadable<ReferenceRecord[]>>(
+    createLoadable<ReferenceRecord[]>([]),
+  );
+  const [assetGraph, setAssetGraph] = useState<Loadable<AssetGraph | null>>(
+    createLoadable<AssetGraph | null>(null),
   );
   const [collaborationState, setCollaborationState] = useState<Loadable<CollaborationState | null>>(
     createLoadable<CollaborationState | null>(null),
@@ -258,6 +296,11 @@ export function App() {
       setAssets(createLoadable([]));
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
+      setAssetRelationships(createLoadable([]));
+      setIncomingRelationships(createLoadable([]));
+      setOutgoingRelationships(createLoadable([]));
+      setAssetReferences(createLoadable([]));
+      setAssetGraph(createLoadable(null));
       setCollaborationState(createLoadable(null));
       setAssetTimeline(createLoadable([]));
       setNotifications(createLoadable([]));
@@ -391,12 +434,22 @@ export function App() {
     if (!token || !selectedAssetId) {
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
+      setAssetRelationships(createLoadable([]));
+      setIncomingRelationships(createLoadable([]));
+      setOutgoingRelationships(createLoadable([]));
+      setAssetReferences(createLoadable([]));
+      setAssetGraph(createLoadable(null));
       setCollaborationState(createLoadable(null));
       setAssetTimeline(createLoadable([]));
       return;
     }
     setAssetDetail((current) => ({ ...current, status: "loading", error: null }));
     setAssetHistory((current) => ({ ...current, status: "loading", error: null }));
+    setAssetRelationships((current) => ({ ...current, status: "loading", error: null }));
+    setIncomingRelationships((current) => ({ ...current, status: "loading", error: null }));
+    setOutgoingRelationships((current) => ({ ...current, status: "loading", error: null }));
+    setAssetReferences((current) => ({ ...current, status: "loading", error: null }));
+    setAssetGraph((current) => ({ ...current, status: "loading", error: null }));
     setCollaborationState((current) => ({ ...current, status: "loading", error: null }));
     setAssetTimeline((current) => ({ ...current, status: "loading", error: null }));
     getAsset(token, selectedAssetId)
@@ -419,6 +472,61 @@ export function App() {
           status: "error",
           data: [],
           error: error instanceof Error ? error.message : "Revision history could not be loaded.",
+        });
+      });
+    listAssetRelationships(token, selectedAssetId)
+      .then((result) => {
+        setAssetRelationships({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setAssetRelationships({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Relationships could not be loaded.",
+        });
+      });
+    listIncomingAssetRelationships(token, selectedAssetId)
+      .then((result) => {
+        setIncomingRelationships({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setIncomingRelationships({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Incoming relationships could not be loaded.",
+        });
+      });
+    listOutgoingAssetRelationships(token, selectedAssetId)
+      .then((result) => {
+        setOutgoingRelationships({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setOutgoingRelationships({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Outgoing relationships could not be loaded.",
+        });
+      });
+    listAssetReferences(token, selectedAssetId)
+      .then((result) => {
+        setAssetReferences({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setAssetReferences({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "References could not be loaded.",
+        });
+      });
+    getAssetGraph(token, selectedAssetId, { direction: "both", maxDepth: 3 })
+      .then((result) => {
+        setAssetGraph({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        setAssetGraph({
+          status: "error",
+          data: null,
+          error: error instanceof Error ? error.message : "Graph summary could not be loaded.",
         });
       });
     getCollaborationState(token, selectedAssetId)
@@ -450,6 +558,7 @@ export function App() {
   const hasProjects = projects.data.length > 0;
   const hasAssets = assets.data.length > 0;
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
+  const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
 
   async function handleRegister(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -741,10 +850,26 @@ export function App() {
     setBusyAction("refresh-state");
     setBanner(null);
     try {
-      const [nextAsset, nextHistory, nextCollaborationState, nextTimeline, refreshedAssets] =
+      const [
+        nextAsset,
+        nextHistory,
+        nextRelationships,
+        nextIncomingRelationships,
+        nextOutgoingRelationships,
+        nextReferences,
+        nextGraph,
+        nextCollaborationState,
+        nextTimeline,
+        refreshedAssets,
+      ] =
         await Promise.all([
           getAsset(session.data.token, selectedAssetId),
           getAssetHistory(session.data.token, selectedAssetId),
+          listAssetRelationships(session.data.token, selectedAssetId),
+          listIncomingAssetRelationships(session.data.token, selectedAssetId),
+          listOutgoingAssetRelationships(session.data.token, selectedAssetId),
+          listAssetReferences(session.data.token, selectedAssetId),
+          getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
           getCollaborationState(session.data.token, selectedAssetId),
           getAssetTimeline(session.data.token, selectedAssetId),
           listAssets(session.data.token, selectedProjectId),
@@ -752,6 +877,11 @@ export function App() {
       await refreshNotifications(session.data.token);
       setAssetDetail({ status: "ready", data: nextAsset, error: null });
       setAssetHistory({ status: "ready", data: nextHistory, error: null });
+      setAssetRelationships({ status: "ready", data: nextRelationships, error: null });
+      setIncomingRelationships({ status: "ready", data: nextIncomingRelationships, error: null });
+      setOutgoingRelationships({ status: "ready", data: nextOutgoingRelationships, error: null });
+      setAssetReferences({ status: "ready", data: nextReferences, error: null });
+      setAssetGraph({ status: "ready", data: nextGraph, error: null });
       setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
       setAssets({ status: "ready", data: refreshedAssets, error: null });
@@ -1220,6 +1350,207 @@ export function App() {
                       Created {formatTimestamp(assetDetail.data.created_at)} and updated{" "}
                       {formatTimestamp(assetDetail.data.updated_at)}.
                     </p>
+                  </article>
+
+                  <article className="detail-card relationship-card">
+                    <div className="detail-row">
+                      <div>
+                        <h3>Asset relationships</h3>
+                        <p>
+                          Explore explicit Asset-to-Asset links without adding engineering-domain
+                          semantics.
+                        </p>
+                      </div>
+                      <span className="status-pill">
+                        {assetRelationships.data.length} link
+                        {assetRelationships.data.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    {assetRelationships.status === "error" ||
+                    incomingRelationships.status === "error" ||
+                    outgoingRelationships.status === "error" ? (
+                      <p className="error-message" role="alert">
+                        {assetRelationships.error ??
+                          incomingRelationships.error ??
+                          outgoingRelationships.error}
+                      </p>
+                    ) : null}
+
+                    <div className="relationship-grid">
+                      <section className="relationship-column">
+                        <div className="relationship-column-header">
+                          <h4>Incoming</h4>
+                          <span>{incomingRelationships.data.length}</span>
+                        </div>
+                        {incomingRelationships.data.length > 0 ? (
+                          <div className="relationship-list">
+                            {incomingRelationships.data.map((relationship) => (
+                              <article key={relationship.id} className="relationship-item">
+                                <div>
+                                  <strong>{formatRelationshipType(relationship.relationship_type)}</strong>
+                                  <p>
+                                    From{" "}
+                                    {assetNameById.get(relationship.source_asset_id) ??
+                                      relationship.source_asset_id}
+                                  </p>
+                                  <small>{formatTimestamp(relationship.created_at)}</small>
+                                  {formatMetadataSummary(relationship.metadata) ? (
+                                    <small>{formatMetadataSummary(relationship.metadata)}</small>
+                                  ) : null}
+                                </div>
+                                <button
+                                  className="secondary-button"
+                                  onClick={() => setSelectedAssetId(relationship.source_asset_id)}
+                                  type="button"
+                                >
+                                  Open asset
+                                </button>
+                              </article>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="empty-state">No Assets currently point to this Asset.</p>
+                        )}
+                      </section>
+
+                      <section className="relationship-column">
+                        <div className="relationship-column-header">
+                          <h4>Outgoing</h4>
+                          <span>{outgoingRelationships.data.length}</span>
+                        </div>
+                        {outgoingRelationships.data.length > 0 ? (
+                          <div className="relationship-list">
+                            {outgoingRelationships.data.map((relationship) => (
+                              <article key={relationship.id} className="relationship-item">
+                                <div>
+                                  <strong>{formatRelationshipType(relationship.relationship_type)}</strong>
+                                  <p>
+                                    To{" "}
+                                    {assetNameById.get(relationship.target_asset_id) ??
+                                      relationship.target_asset_id}
+                                  </p>
+                                  <small>{formatTimestamp(relationship.created_at)}</small>
+                                  {formatMetadataSummary(relationship.metadata) ? (
+                                    <small>{formatMetadataSummary(relationship.metadata)}</small>
+                                  ) : null}
+                                </div>
+                                <button
+                                  className="secondary-button"
+                                  onClick={() => setSelectedAssetId(relationship.target_asset_id)}
+                                  type="button"
+                                >
+                                  Open asset
+                                </button>
+                              </article>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="empty-state">This Asset has no outgoing relationships yet.</p>
+                        )}
+                      </section>
+                    </div>
+                  </article>
+
+                  <article className="detail-card relationship-card">
+                    <div className="detail-row">
+                      <div>
+                        <h3>Generic references</h3>
+                        <p>
+                          References stay distinct from graph edges so unresolved or external pointers
+                          do not appear as Assets.
+                        </p>
+                      </div>
+                      <span className="status-pill">
+                        {assetReferences.data.length} reference
+                        {assetReferences.data.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    {assetReferences.status === "error" ? (
+                      <p className="error-message" role="alert">
+                        {assetReferences.error}
+                      </p>
+                    ) : null}
+
+                    {assetReferences.data.length > 0 ? (
+                      <div className="reference-list">
+                        {assetReferences.data.map((reference) => (
+                          <article key={reference.id} className="relationship-item reference-item">
+                            <div>
+                              <strong>{reference.label || reference.reference_type}</strong>
+                              <p>{reference.target_uri}</p>
+                              <small>{reference.reference_type}</small>
+                              {formatMetadataSummary(reference.metadata) ? (
+                                <small>{formatMetadataSummary(reference.metadata)}</small>
+                              ) : null}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty-state">
+                        No generic references are attached to this Asset yet.
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="detail-card relationship-card">
+                    <div className="detail-row">
+                      <div>
+                        <h3>Bounded graph summary</h3>
+                        <p>
+                          The Web UI uses the approved Phase 3 bounded graph read with direction{" "}
+                          <code>both</code> and depth <code>3</code>.
+                        </p>
+                      </div>
+                      <span className="status-pill">
+                        {assetGraph.data?.has_cycle ? "cycle detected" : "no cycle"}
+                      </span>
+                    </div>
+
+                    {assetGraph.status === "error" ? (
+                      <p className="error-message" role="alert">
+                        {assetGraph.error}
+                      </p>
+                    ) : null}
+
+                    {assetGraph.data ? (
+                      <div className="graph-summary-grid">
+                        <article className="graph-summary-card">
+                          <strong>Nodes</strong>
+                          <span>{assetGraph.data.nodes.length}</span>
+                        </article>
+                        <article className="graph-summary-card">
+                          <strong>Relationships</strong>
+                          <span>{assetGraph.data.relationships.length}</span>
+                        </article>
+                        <article className="graph-summary-card">
+                          <strong>Direction</strong>
+                          <span>{assetGraph.data.direction}</span>
+                        </article>
+                        <article className="graph-summary-card">
+                          <strong>Max depth</strong>
+                          <span>{assetGraph.data.max_depth}</span>
+                        </article>
+                        <article className="graph-summary-card">
+                          <strong>Path target</strong>
+                          <span>{assetGraph.data.target_asset_id ?? "Not requested"}</span>
+                        </article>
+                        <article className="graph-summary-card">
+                          <strong>Path exists</strong>
+                          <span>
+                            {assetGraph.data.path_exists === null
+                              ? "Not evaluated"
+                              : assetGraph.data.path_exists
+                                ? "Yes"
+                                : "No"}
+                          </span>
+                        </article>
+                      </div>
+                    ) : (
+                      <p className="empty-state">Graph summary is loading for this Asset.</p>
+                    )}
                   </article>
 
                   <article className="detail-card collaboration-card">
