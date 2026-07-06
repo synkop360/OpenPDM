@@ -3,13 +3,10 @@
 OpenPDM is an open-source Engineering Collaboration Platform for organizing,
 versioning, relating and securing Engineering Assets.
 
-The project is in **Phase 0 - Foundation**. This phase establishes the technical
-foundation only: repository structure, development environment, CI, architecture
-skeleton, local deployment and initial documentation.
-
-Phase 0 intentionally does not implement Platform Core MVP behavior such as
-Assets, Revisions, authentication, permissions, search or plugin runtime
-capabilities. Those belong to later roadmap phases.
+The repository currently includes a working backend API and a Vite-based web UI
+for the Core Platform. The implementation already covers authentication,
+organizations, projects, assets, revisions, collaboration flows, blob upload and
+download, metadata, search, and plugin registration.
 
 ## Quickstart
 
@@ -19,7 +16,7 @@ Required tools:
 * uv
 * Docker
 * Node.js 22+ and pnpm for frontend work
-* Rust and the Tauri prerequisites for desktop work
+* Rust and the Tauri prerequisites only if you are working on the desktop shell
 
 Install dependencies:
 
@@ -41,25 +38,37 @@ Run the backend API locally:
 python scripts/dev.py run-backend
 ```
 
-Start the local deployment environment:
+The backend is available at:
+
+* `http://localhost:8000/health`
+* `http://localhost:8000/foundation`
+* `http://localhost:8000/docs`
+
+Start the local deployment environment with PostgreSQL and MinIO:
 
 ```bash
 python scripts/dev.py compose-up
 ```
 
-The Phase 0 backend exposes:
+The compose environment exposes the backend on `http://localhost:18000`.
 
-* `GET /health`
-* `GET /foundation`
-* OpenAPI documentation at `/docs`
+Run the web UI locally:
+
+```bash
+cd frontend
+pnpm run dev
+```
+
+If the frontend is not served from the same origin as the backend, set
+`VITE_API_BASE_URL=http://localhost:8000` before starting Vite.
 
 ## Repository Structure
 
 ```text
-backend/      FastAPI modular monolith backend skeleton.
-frontend/     React, TypeScript and Vite Web UI skeleton.
-desktop/      Tauri desktop client skeleton.
-deployment/   Local Docker Compose deployment.
+backend/      FastAPI core platform API implementation.
+frontend/     React, TypeScript and Vite web UI.
+desktop/      Tauri desktop client shell.
+deployment/   Docker Compose services for local development.
 docs/         Project documentation and ADRs.
 scripts/      Developer validation and command helpers.
 tests/        Repository-level architecture boundary tests.
@@ -76,7 +85,7 @@ Before contributing, read these documents in order:
 5. `ROADMAP.md`
 6. Accepted ADRs in `docs/adr/`
 
-Useful Phase 0 guides:
+Useful guides:
 
 * `docs/DEVELOPMENT.md`
 * `docs/DEPLOYMENT.md`
