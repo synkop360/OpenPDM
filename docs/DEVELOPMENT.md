@@ -1,6 +1,7 @@
 ﻿# OpenPDM Development
 
-This document describes the Phase 0 development workflow.
+This document describes the current local development workflow for the backend
+API, the Vite web UI, and the local Docker Compose environment.
 
 The authoritative architecture remains:
 
@@ -17,7 +18,7 @@ Use these versions or newer compatible versions:
 * Docker
 * Node.js 22+ and pnpm for Web UI work
 * Rust and Tauri 2 prerequisites only if you are explicitly working on the
-  deferred Desktop Client track
+  desktop shell track
 
 ## Install Dependencies
 
@@ -27,9 +28,6 @@ python scripts/dev.py install
 
 This installs Python dependencies with uv. If pnpm is available, it also installs
 frontend and desktop JavaScript dependencies.
-
-The desktop workspace remains in the repository for future development, but it is
-not on the critical path for the current v1 collaboration scope.
 
 ## Validate Locally
 
@@ -41,8 +39,7 @@ python scripts/dev.py test
 
 Validation includes:
 
-* Phase 0 repository structure checks;
-* GitHub Project configuration validation;
+* repository structure and project configuration checks;
 * Ruff formatting and lint checks;
 * pytest backend and architecture tests;
 * frontend TypeScript and Vitest checks when JavaScript dependencies are installed.
@@ -53,29 +50,19 @@ Validation includes:
 python scripts/dev.py run-backend
 ```
 
-The Phase 0 API is available at:
+The backend API is available at:
 
 * `http://localhost:8000/health`
 * `http://localhost:8000/foundation`
 * `http://localhost:8000/docs`
 
-The delivered Phase 2 collaboration API now includes:
+The current implementation includes public endpoints for:
 
-* `GET /assets/{id}/collaboration-state`
-* `POST /assets/{id}/checkout`
-* `POST /assets/{id}/checkin`
-* `POST /assets/{id}/unlock`
-* `GET /assets/{id}/timeline`
-* `GET /notifications`
-* `POST /notifications/{id}/read`
-
-Notification behavior stays within the approved v1 scope:
-
-* notifications are in-app only;
-* recipients are derived from current readable Project membership;
-* successful collaboration events do not notify the acting user;
-* `conflict detected` notifications target only the acting user;
-* notifications remain visible after they are marked as read.
+* authentication (`/auth/*`)
+* organizations and projects (`/organizations`, `/projects`)
+* assets, revisions and collaboration (`/assets/*`, `/notifications`)
+* blob upload and download (`/blobs/*`)
+* metadata, search and plugin registration (`/metadata`, `/search/assets`, `/plugins`)
 
 ## Run the Web UI
 
@@ -84,8 +71,21 @@ cd frontend
 pnpm run dev
 ```
 
-The Web UI is an API consumer. It must not bypass the public application API or
-call Platform Module internals.
+The Vite app is an API consumer and should use the public application API rather
+than any internal module interfaces. If you run the frontend on a different host
+or port, set `VITE_API_BASE_URL=http://localhost:8000` before starting Vite.
+
+## Run the Local Deployment Environment
+
+```bash
+python scripts/dev.py compose-up
+```
+
+The compose stack provides:
+
+* the FastAPI backend on `http://localhost:18000`
+* PostgreSQL on `localhost:5432`
+* MinIO on `http://localhost:9000` and `http://localhost:9001`
 
 ## Run the Desktop Client
 
@@ -94,30 +94,19 @@ cd desktop
 pnpm run dev
 ```
 
-The Desktop Client is also an API consumer. It is currently a deferred track and
-is not required to deliver the approved v1 collaboration scope.
-
-Desktop-specific collaboration behavior remains out of scope for the current
-Phase 2 delivery, including:
-
-* desktop synchronization;
-* desktop notifications;
-* local file conflict handling;
-* any collaboration behavior that bypasses the public application API.
+The desktop shell remains a separate track and is not required for the core
+backend and web UI workflow.
 
 ## Architecture Boundaries
 
-Phase 0 establishes structure without implementing Platform Core business
-capabilities.
+The implementation already exercises the Platform Core boundaries in a concrete
+way.
 
 Rules:
 
-* Platform Modules expose Public Module Interfaces.
+* Platform Modules expose public interfaces.
 * Platform Modules do not access another module's internals.
-* Plugins depend on the Extension API, not Public Module Interfaces.
+* Plugins depend on the Extension API, not public module interfaces.
 * Infrastructure adapters remain replaceable.
 * Engineering-domain knowledge belongs to plugins, not the Platform Core.
-
-Asset lifecycle behavior starts in Phase 1. Plugin lifecycle behavior starts in
-later roadmap phases.
 

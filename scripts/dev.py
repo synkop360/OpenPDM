@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -11,15 +12,38 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VENV_PYTHON = ROOT / ".venv" / "Scripts" / "python.exe"
+TMP_DIR = ROOT / ".tmp"
+UV_CACHE_DIR = TMP_DIR / "uv-cache"
+RUFF_CACHE_DIR = TMP_DIR / "ruff-cache"
+PYTEST_BASETEMP = TMP_DIR / "pytest"
+PYTEST_CACHE_DIR = TMP_DIR / "pytest-cache"
 
 
 class CommandError(RuntimeError):
     """Raised when a developer command cannot be completed."""
 
 
-def run(command: Sequence[str], cwd: Path = ROOT) -> None:
+def ensure_local_tool_dirs() -> None:
+    for path in [TMP_DIR, UV_CACHE_DIR, RUFF_CACHE_DIR, PYTEST_BASETEMP, PYTEST_CACHE_DIR]:
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def command_env(extra_env: dict[str, str] | None = None) -> dict[str, str]:
+    ensure_local_tool_dirs()
+    env = os.environ.copy()
+    env["TMP"] = str(TMP_DIR)
+    env["TEMP"] = str(TMP_DIR)
+    env["TMPDIR"] = str(TMP_DIR)
+    env["UV_CACHE_DIR"] = str(UV_CACHE_DIR)
+    env["RUFF_CACHE_DIR"] = str(RUFF_CACHE_DIR)
+    if extra_env is not None:
+        env.update(extra_env)
+    return env
+
+
+def run(command: Sequence[str], cwd: Path = ROOT, extra_env: dict[str, str] | None = None) -> None:
     print(f"> {' '.join(command)}")
-    completed = subprocess.run(command, cwd=cwd, check=False)
+    completed = subprocess.run(command, cwd=cwd, check=False, env=command_env(extra_env))
     if completed.returncode != 0:
         raise CommandError(f"command failed with exit code {completed.returncode}")
 
@@ -83,7 +107,12 @@ def lint() -> None:
 
 
 def test() -> None:
-    run_python_module("pytest")
+    run_python_module(
+        "pytest",
+        f"--basetemp={PYTEST_BASETEMP}",
+        "-o",
+        f"cache_dir={PYTEST_CACHE_DIR}",
+    )
     run_python_script("scripts/validate_phase0.py")
     run_python_script(
         ".github/automation/project/validate.py",
