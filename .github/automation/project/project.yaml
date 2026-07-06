@@ -5821,6 +5821,8 @@ roadmap:
               Platform Area: Frontend
               Complexity: M
               ADR: ADR-0007, ADR-0029
+=======
+>>>>>>> b74fe43f9ddb463ab8cc91ec3dcdb06357f1026d
 
           - title: "Phase 3 Task: Expose generic references in the exploration surface"
             body: |
@@ -5859,6 +5861,7 @@ roadmap:
               Platform Area: Frontend
               Complexity: S
               ADR: ADR-0031
+            closed: true
 
       - title: "Phase 3 Epic: Dependency Graph and Query Foundations"
         body: |
@@ -5902,6 +5905,7 @@ roadmap:
           Platform Area: Platform Core
           Complexity: L
           ADR: ADR-0028, ADR-0029, ADR-0030, ADR-0032
+        closed: true
         sub_issues:
 
           - title: "Phase 3 Task: Implement traversal primitives for bounded dependency reads"
@@ -6053,6 +6057,7 @@ roadmap:
               Platform Area: Documentation
               Complexity: S
               ADR: ADR-0030
+            closed: true
 
   - phase: Plugin Platform
     milestone: Plugin Platform
