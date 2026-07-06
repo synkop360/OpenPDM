@@ -4839,6 +4839,7 @@ roadmap:
               Complexity: M
               ADR: ADR-0007, ADR-0029
             closed: true
+<<<<<<< HEAD
 
           - title: "Phase 3 Task: Expose generic references in the exploration surface"
             body: |
