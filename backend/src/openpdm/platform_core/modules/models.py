@@ -164,6 +164,53 @@ class Asset(Base):
     )
 
 
+class AssetRelationship(Base):
+    """Generic Phase 3 relationship between two Assets."""
+
+    __tablename__ = "asset_relationships"
+    __table_args__ = (
+        UniqueConstraint("source_asset_id", "target_asset_id", "relationship_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
+    target_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
+    relationship_type: Mapped[str] = mapped_column(String(64), index=True)
+    direction: Mapped[str] = mapped_column(String(32), default="directed", nullable=False)
+    metadata_json: Mapped[dict[str, object]] = mapped_column("metadata", JSON, default=dict)
+    created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    source_asset: Mapped[Asset] = relationship(foreign_keys=[source_asset_id])
+    target_asset: Mapped[Asset] = relationship(foreign_keys=[target_asset_id])
+    created_by: Mapped[User] = relationship()
+
+
+class AssetReference(Base):
+    """Generic Phase 3 external or unresolved pointer from an Asset."""
+
+    __tablename__ = "asset_references"
+    __table_args__ = (
+        UniqueConstraint("source_asset_id", "reference_type", "target_uri"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
+    reference_type: Mapped[str] = mapped_column(String(64), index=True)
+    target_uri: Mapped[str] = mapped_column(Text)
+    label: Mapped[str] = mapped_column(String(255), default="")
+    metadata_json: Mapped[dict[str, object]] = mapped_column("metadata", JSON, default=dict)
+    created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    source_asset: Mapped[Asset] = relationship(foreign_keys=[source_asset_id])
+    created_by: Mapped[User] = relationship()
+
+
 class Revision(Base):
     """Immutable state of an Asset."""
 

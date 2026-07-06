@@ -8,6 +8,8 @@ from sqlalchemy import select
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
 from openpdm.infrastructure.database import dispose_engines, session_scope
 from openpdm.platform_core.modules.models import (
+    AssetReference,
+    AssetRelationship,
     AuditRecord,
     DomainEvent,
     NotificationRecord,
@@ -958,3 +960,475 @@ def test_collaboration_notifications_are_generated_visible_and_mark_read(tmp_pat
             )
         )
         assert len(notification_audits) >= 3
+
+
+def test_asset_graph_relationship_and_reference_crud_flow(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client,
+        email="graph-owner@example.com",
+        display_name="Graph Owner",
+        password="secret123",
+    )
+    member_token = register_and_sign_in(
+        client,
+        email="graph-member@example.com",
+        display_name="Graph Member",
+        password="secret123",
+    )
+    outsider_token = register_and_sign_in(
+        client,
+        email="graph-outsider@example.com",
+        display_name="Graph Outsider",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-graph-crud"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Graph", "description": "Phase 3"},
+    ).json()
+    member_user = client.get("/auth/session", headers=auth_header(member_token)).json()["user"]
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": member_user["id"], "role": "Contributor"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/projects/{project['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_id": member_user["id"], "role": "Contributor"},
+        ).status_code
+        == 200
+    )
+
+    asset_a = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Asset A", "description": "A"},
+    ).json()
+    asset_b = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Asset B", "description": "B"},
+    ).json()
+    asset_c = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Asset C", "description": "C"},
+    ).json()
+    second_project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Graph 2", "description": "Other"},
+    ).json()
+    asset_other = client.post(
+        f"/projects/{second_project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Asset Other", "description": "Other"},
+    ).json()
+
+    relationship = client.post(
+        f"/assets/{asset_a['id']}/relationships",
+        headers=auth_header(owner_token),
+        json={
+            "target_asset_id": asset_b["id"],
+            "relationship_type": "depends_on",
+            "metadata": {"strength": "strong"},
+        },
+    )
+    assert relationship.status_code == 201
+    relationship_payload = relationship.json()
+    assert relationship_payload["source_asset_id"] == asset_a["id"]
+    assert relationship_payload["target_asset_id"] == asset_b["id"]
+    assert relationship_payload["relationship_type"] == "depends_on"
+
+    duplicate = client.post(
+        f"/assets/{asset_a['id']}/relationships",
+        headers=auth_header(owner_token),
+        json={"target_asset_id": asset_b["id"], "relationship_type": "depends_on", "metadata": {}},
+    )
+    assert duplicate.status_code == 409
+
+    self_relationship = client.post(
+        f"/assets/{asset_a['id']}/relationships",
+        headers=auth_header(owner_token),
+        json={"target_asset_id": asset_a["id"], "relationship_type": "related_to", "metadata": {}},
+    )
+    assert self_relationship.status_code == 400
+
+    cross_project = client.post(
+        f"/assets/{asset_a['id']}/relationships",
+        headers=auth_header(owner_token),
+        json={
+            "target_asset_id": asset_other["id"],
+            "relationship_type": "related_to",
+            "metadata": {},
+        },
+    )
+    assert cross_project.status_code == 400
+
+    outgoing = client.get(
+        f"/assets/{asset_a['id']}/relationships/outgoing",
+        headers=auth_header(member_token),
+    )
+    assert outgoing.status_code == 200
+    assert outgoing.json()[0]["target_asset_id"] == asset_b["id"]
+
+    incoming = client.get(
+        f"/assets/{asset_b['id']}/relationships/incoming",
+        headers=auth_header(member_token),
+    )
+    assert incoming.status_code == 200
+    assert incoming.json()[0]["source_asset_id"] == asset_a["id"]
+
+    updated_relationship = client.put(
+        f"/relationships/{relationship_payload['id']}/metadata",
+        headers=auth_header(owner_token),
+        json={"metadata": {"strength": "critical", "owner": "phase-3"}},
+    )
+    assert updated_relationship.status_code == 200
+    assert updated_relationship.json()["metadata"]["strength"] == "critical"
+
+    reference = client.post(
+        f"/assets/{asset_a['id']}/references",
+        headers=auth_header(owner_token),
+        json={
+            "reference_type": "external_url",
+            "target_uri": "https://example.com/spec",
+            "label": "Spec",
+            "metadata": {"source": "supplier"},
+        },
+    )
+    assert reference.status_code == 201
+    reference_payload = reference.json()
+
+    listed_references = client.get(
+        f"/assets/{asset_a['id']}/references",
+        headers=auth_header(member_token),
+    )
+    assert listed_references.status_code == 200
+    assert listed_references.json()[0]["target_uri"] == "https://example.com/spec"
+
+    resolved_reference = client.post(
+        f"/references/{reference_payload['id']}/resolve",
+        headers=auth_header(owner_token),
+        json={"target_asset_id": asset_c["id"], "relationship_type": "references"},
+    )
+    assert resolved_reference.status_code == 200
+    assert resolved_reference.json()["target_asset_id"] == asset_c["id"]
+
+    listed_references_after_resolution = client.get(
+        f"/assets/{asset_a['id']}/references",
+        headers=auth_header(member_token),
+    )
+    assert listed_references_after_resolution.status_code == 200
+    assert listed_references_after_resolution.json() == []
+
+    delete_relationship = client.delete(
+        f"/relationships/{relationship_payload['id']}",
+        headers=auth_header(owner_token),
+    )
+    assert delete_relationship.status_code == 204
+
+    outsider_view = client.get(
+        f"/assets/{asset_a['id']}/relationships",
+        headers=auth_header(outsider_token),
+    )
+    assert outsider_view.status_code == 403
+
+
+def test_asset_graph_queries_are_bounded_and_can_detect_cycles(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="graph-query@example.com",
+        display_name="Graph Query",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(token),
+        json={"name": "Acme", "slug": "acme-graph-query"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(token),
+        json={"organization_id": organization["id"], "name": "Query", "description": "Phase 3"},
+    ).json()
+    asset_a = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "A", "description": "A"},
+    ).json()
+    asset_b = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "B", "description": "B"},
+    ).json()
+    asset_c = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "C", "description": "C"},
+    ).json()
+    asset_d = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "D", "description": "D"},
+    ).json()
+
+    for source_id, target_id in (
+        (asset_a["id"], asset_b["id"]),
+        (asset_b["id"], asset_c["id"]),
+        (asset_c["id"], asset_a["id"]),
+        (asset_c["id"], asset_d["id"]),
+    ):
+        response = client.post(
+            f"/assets/{source_id}/relationships",
+            headers=auth_header(token),
+            json={"target_asset_id": target_id, "relationship_type": "depends_on", "metadata": {}},
+        )
+        assert response.status_code == 201
+
+    bounded_graph = client.get(
+        f"/assets/{asset_a['id']}/graph",
+        headers=auth_header(token),
+        params={"direction": "outgoing", "max_depth": 2, "target_asset_id": asset_d["id"]},
+    )
+    assert bounded_graph.status_code == 200
+    bounded_payload = bounded_graph.json()
+    assert bounded_payload["path_exists"] is False
+    assert bounded_payload["has_cycle"] is False
+    assert {node["id"] for node in bounded_payload["nodes"]} == {
+        asset_a["id"],
+        asset_b["id"],
+        asset_c["id"],
+    }
+
+    full_graph = client.get(
+        f"/assets/{asset_a['id']}/graph",
+        headers=auth_header(token),
+        params={"direction": "outgoing", "max_depth": 3, "target_asset_id": asset_d["id"]},
+    )
+    assert full_graph.status_code == 200
+    full_payload = full_graph.json()
+    assert full_payload["path_exists"] is True
+    assert full_payload["has_cycle"] is True
+    assert {node["id"] for node in full_payload["nodes"]} == {
+        asset_a["id"],
+        asset_b["id"],
+        asset_c["id"],
+        asset_d["id"],
+    }
+
+    invalid_depth = client.get(
+        f"/assets/{asset_a['id']}/graph",
+        headers=auth_header(token),
+        params={"max_depth": 11},
+    )
+    assert invalid_depth.status_code == 400
+
+
+def test_asset_graph_audit_and_events_cover_relationship_and_reference_mutations(
+    tmp_path: Path,
+) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="graph-audit@example.com",
+        display_name="Graph Audit",
+        password="secret123",
+    )
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(token),
+        json={"name": "Acme", "slug": "acme-graph-audit"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(token),
+        json={"organization_id": organization["id"], "name": "Audit", "description": "Phase 3"},
+    ).json()
+    asset_a = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "Audit A", "description": "A"},
+    ).json()
+    asset_b = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "Audit B", "description": "B"},
+    ).json()
+    asset_c = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(token),
+        json={"name": "Audit C", "description": "C"},
+    ).json()
+
+    assert (
+        client.post(
+            f"/assets/{asset_b['id']}/relationships",
+            headers=auth_header(token),
+            json={"target_asset_id": asset_c["id"], "relationship_type": "depends_on", "metadata": {}},
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            f"/assets/{asset_c['id']}/relationships",
+            headers=auth_header(token),
+            json={"target_asset_id": asset_a["id"], "relationship_type": "depends_on", "metadata": {}},
+        ).status_code
+        == 201
+    )
+
+    relationship_response = client.post(
+        f"/assets/{asset_a['id']}/relationships",
+        headers={**auth_header(token), "X-Request-Id": "req-graph-rel-create"},
+        json={
+            "target_asset_id": asset_b["id"],
+            "relationship_type": "depends_on",
+            "metadata": {"seed": "cycle"},
+        },
+    )
+    assert relationship_response.status_code == 201
+    relationship_id = relationship_response.json()["id"]
+
+    metadata_update = client.put(
+        f"/relationships/{relationship_id}/metadata",
+        headers={**auth_header(token), "X-Request-Id": "req-graph-rel-update"},
+        json={"metadata": {"severity": "high"}},
+    )
+    assert metadata_update.status_code == 200
+
+    reference_response = client.post(
+        f"/assets/{asset_a['id']}/references",
+        headers={**auth_header(token), "X-Request-Id": "req-graph-ref-create"},
+        json={
+            "reference_type": "legacy_path",
+            "target_uri": "legacy://wing/prior-art",
+            "label": "Legacy",
+            "metadata": {"origin": "migration"},
+        },
+    )
+    assert reference_response.status_code == 201
+    reference_id = reference_response.json()["id"]
+
+    resolve_response = client.post(
+        f"/references/{reference_id}/resolve",
+        headers={**auth_header(token), "X-Request-Id": "req-graph-ref-resolve"},
+        json={"target_asset_id": asset_c["id"], "relationship_type": "references"},
+    )
+    assert resolve_response.status_code == 200
+
+    with session_scope() as db:
+        relationship_records = list(
+            db.scalars(
+                select(AuditRecord)
+                .where(
+                    AuditRecord.project_id == project["id"],
+                    AuditRecord.resource_type == "relationship",
+                    AuditRecord.action.in_(
+                        (
+                            "relationship.created",
+                            "relationship.metadata.updated",
+                            "relationship.cycle_detected",
+                        )
+                    ),
+                )
+                .order_by(AuditRecord.occurred_at.asc())
+            )
+        )
+        assert any(
+            record.action == "relationship.created"
+            and record.details["request_id"] == "req-graph-rel-create"
+            for record in relationship_records
+        )
+        assert any(
+            record.action == "relationship.metadata.updated"
+            and record.details["request_id"] == "req-graph-rel-update"
+            for record in relationship_records
+        )
+        assert any(record.action == "relationship.cycle_detected" for record in relationship_records)
+
+        reference_records = list(
+            db.scalars(
+                select(AuditRecord)
+                .where(
+                    AuditRecord.project_id == project["id"],
+                    AuditRecord.resource_type == "reference",
+                    AuditRecord.action.in_(("reference.created", "reference.resolved")),
+                )
+                .order_by(AuditRecord.occurred_at.asc())
+            )
+        )
+        assert any(
+            record.action == "reference.created"
+            and record.details["request_id"] == "req-graph-ref-create"
+            for record in reference_records
+        )
+        assert any(
+            record.action == "reference.resolved"
+            and record.details["request_id"] == "req-graph-ref-resolve"
+            for record in reference_records
+        )
+
+        relationship_events = list(
+            db.scalars(
+                select(DomainEvent)
+                .where(
+                    DomainEvent.project_id == project["id"],
+                    DomainEvent.resource_type == "relationship",
+                    DomainEvent.event_type.in_(
+                        (
+                            "RelationshipCreated",
+                            "RelationshipMetadataUpdated",
+                            "RelationshipCycleDetected",
+                        )
+                    ),
+                )
+                .order_by(DomainEvent.emitted_at.asc())
+            )
+        )
+        assert any(
+            event.event_type == "RelationshipCreated"
+            and event.payload["request_id"] == "req-graph-rel-create"
+            for event in relationship_events
+        )
+        assert any(event.event_type == "RelationshipCycleDetected" for event in relationship_events)
+
+        reference_events = list(
+            db.scalars(
+                select(DomainEvent)
+                .where(
+                    DomainEvent.project_id == project["id"],
+                    DomainEvent.resource_type == "reference",
+                    DomainEvent.event_type.in_(("ReferenceCreated", "ReferenceResolved")),
+                )
+                .order_by(DomainEvent.emitted_at.asc())
+            )
+        )
+        assert any(
+            event.event_type == "ReferenceCreated"
+            and event.payload["request_id"] == "req-graph-ref-create"
+            for event in reference_events
+        )
+        assert any(
+            event.event_type == "ReferenceResolved"
+            and event.payload["request_id"] == "req-graph-ref-resolve"
+            for event in reference_events
+        )
+
+        assert db.get(AssetRelationship, relationship_id) is not None
+        assert db.get(AssetReference, reference_id) is None
