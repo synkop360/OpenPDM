@@ -1,5 +1,10 @@
 # Phase 0 Demonstration
 
+This document describes the Phase 0 foundation demonstration path for OpenPDM.
+The repository has since progressed into Phase 1+ implementation, but the Phase
+0 foundation and local validation workflow remain useful for verifying the
+baseline environment.
+
 Phase 0 is complete when a contributor can build, test and run the OpenPDM
 foundation locally with a reproducible environment.
 

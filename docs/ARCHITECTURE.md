@@ -12,22 +12,23 @@ The platform provides a stable and domain-agnostic foundation that can be extend
 
 Engineering knowledge is intentionally isolated from the Platform Core.
 
+```mermaid
+flowchart TD
+    Applications[Applications]
+    ExtensionAPI[Extension API]
+    PlatformCore[Platform Core]
+    Infrastructure[Infrastructure]
+
+    Applications --> ExtensionAPI
+    ExtensionAPI --> PlatformCore
+    PlatformCore --> Infrastructure
 ```
-                 Applications
-                        │
-                        ▼
-                 Extension API
-                        │
-                        ▼
-┌──────────────────────────────────────┐
-│            Platform Core             │
-├──────────────────────────────────────┤
-│          Platform Modules            │
-└──────────────────────────────────────┘
-                        │
-                        ▼
-                Infrastructure
-```
+
+OpenPDM currently implements the Core Platform API and the early collaboration,
+Asset Graph, metadata, search, and plugin registry behaviors described in the
+accepted ADRs. The active repository provides a working backend, a browser-based
+Web UI, and a desktop shell track, while preserving the platform's generic
+core boundaries.
 
 ---
 
@@ -73,9 +74,10 @@ Engineering concepts (Part, Assembly, PCB, Firmware, etc.) are **not** part of t
 
 Engineering knowledge is represented as a graph.
 
-```
-           Relationship
-Asset ─────────────────────► Asset
+```mermaid
+graph LR
+    AssetA[Asset A] -->|depends_on| AssetB[Asset B]
+    AssetB -->|related_to| AssetC[Asset C]
 ```
 
 Relationships are explicit.
@@ -90,26 +92,40 @@ The Asset Graph is the authoritative representation of engineering knowledge.
 
 The Platform Core contains generic business capabilities.
 
-```
-┌──────────────────────────────────────────────┐
-│              Platform Modules                │
-├──────────────────────────────────────────────┤
-│ Assets                                       │
-│ Revisions                                    │
-│ Relationships                                │
-│ Metadata                                     │
-│ Permissions                                  │
-│ Workflow                                     │
-│ Search                                       │
-│ Audit                                        │
-│ Events                                       │
-│ Plugins                                      │
-└──────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PlatformModules[Platform Modules]
+        Assets[Assets]
+        Revisions[Revisions]
+        Relationships[Relationships]
+        Metadata[Metadata]
+        Permissions[Permissions]
+        Workflow[Workflow]
+        Search[Search]
+        Audit[Audit]
+        Events[Events]
+        Plugins[Plugins]
+    end
 ```
 
 Each Platform Module owns a single business responsibility.
 
 Modules communicate only through their public interfaces.
+
+## Current Implementation
+
+The active repository includes a working implementation of the following core
+capabilities:
+
+* authentication, user sessions, and session revocation
+* organizations, projects, and project-scoped membership
+* generic Assets, immutable Revisions, Representations, and Blobs
+* file upload, secure download, and blob storage orchestration
+* generic metadata attached to assets, revisions, and representations
+* PostgreSQL-backed asset search
+* collaboration state, checkout/checkin, unlock, notifications, and timeline
+* Asset Graph relationships, references, and bounded graph queries
+* a read-only plugin registry skeleton for future plugin discovery
 
 ---
 

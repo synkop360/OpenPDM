@@ -2,9 +2,50 @@
 
 This document provides a visual explanation of how OpenPDM is intended to function internally based on the current authoritative documentation and accepted ADRs.
 
-It is a **reference view of the target Platform Core architecture**, especially for the Phase 1 MVP boundaries. The repository is currently in **Phase 0 - Foundation**, so some capabilities shown here are architectural targets rather than already implemented runtime behavior.
+It is a **reference view of the Platform Core architecture** and the target module boundaries. The repository already implements the Phase 1 core platform and early Phase 2/3 collaboration and Asset Graph capabilities, while preserving the architecture defined by the accepted ADRs.
 
 ## General Overview
+
+```mermaid
+flowchart TD
+    WebUI[Web UI<br/>React + TypeScript + Vite]
+    Desktop[Desktop Client<br/>Tauri + React + TypeScript]
+    Automation[Automation / API Clients]
+
+    AppAPI[Public Application API<br/>REST + OpenAPI]
+    ExtAPI[Extension API<br/>Stable plugin boundary]
+
+    subgraph Core[Platform Core - Modular Monolith]
+        direction TB
+        Organization[Organization Module]
+        Project[Project Module]
+        Permissions[Permissions Module]
+        Assets[Assets Module]
+        Blobs[Blobs Module]
+        Metadata[Metadata Module]
+        Search[Search Module]
+        Audit[Audit Module]
+        Events[Events Module]
+        Workflow[Workflow Module]
+        Plugins[Plugins Module]
+    end
+
+    Postgres[(PostgreSQL)]
+    MinIO[(MinIO / S3)]
+
+    WebUI --> AppAPI
+    Desktop --> AppAPI
+    Automation --> AppAPI
+
+    AppAPI --> Organization
+    AppAPI --> Assets
+    AppAPI --> Search
+    AppAPI --> Plugins
+
+    ExtAPI --> Core
+    Core --> Postgres
+    Core --> MinIO
+```
 
 This overview shows the main architectural layers:
 
