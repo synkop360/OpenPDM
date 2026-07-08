@@ -99,11 +99,21 @@ Expected result:
 * the browser can open the local frontend URL printed by Vite
 * the UI header shows `OpenPDM Web UI Prototype`
 
-The frontend is configured to call:
+The frontend is configured to call the backend through `import.meta.env.VITE_API_BASE_URL` when that environment variable is set.
 
-* `http://127.0.0.1:8000`
+When running the frontend separately from the backend, set:
 
-through `frontend/.env.development`.
+```bash
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+before starting the frontend.
+
+When using the local Docker Compose stack, the frontend can also rely on the
+proxy configuration in `frontend/vite.config.ts`, which forwards API requests for
+`/health`, `/foundation`, `/auth`, `/organizations`, `/projects`, `/assets`,
+`/revisions`, `/blobs`, `/metadata`, `/search`, and `/plugins` to
+`http://localhost:18000`.
 
 ## Test Data Recommendation
 

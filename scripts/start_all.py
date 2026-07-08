@@ -10,12 +10,12 @@ import shutil
 import subprocess
 import sys
 import time
+from http.client import RemoteDisconnected
 from pathlib import Path
 from typing import Sequence
 
-import time
 import urllib.request
-from urllib.error import URLError, HTTPError
+from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,7 +27,7 @@ def wait_for_backend(url: str, timeout: int = 60) -> bool:
             with urllib.request.urlopen(url, timeout=5) as resp:
                 if resp.status == 200:
                     return True
-        except (HTTPError, URLError):
+        except (HTTPError, URLError, RemoteDisconnected, ConnectionError, TimeoutError):
             pass
         time.sleep(1)
     return False

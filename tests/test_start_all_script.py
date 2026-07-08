@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from http.client import RemoteDisconnected
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,3 +52,27 @@ def test_resolve_frontend_runner_uses_resolved_executable_path(monkeypatch) -> N
 
     assert is_available is True
     assert command == ["C:/tools/pnpm.cmd", "run", "dev"]
+
+
+def test_wait_for_backend_handles_remote_disconnect(monkeypatch) -> None:
+    class DummyResponse:
+        status = 200
+
+        def __enter__(self) -> "DummyResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+    attempts = {"count": 0}
+
+    def fake_urlopen(url: str, timeout: int):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RemoteDisconnected("Remote end closed connection without response")
+        return DummyResponse()
+
+    monkeypatch.setattr(start_all.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(start_all.time, "sleep", lambda _: None)
+
+    assert start_all.wait_for_backend("http://localhost:18000/health", timeout=1) is True

@@ -3,10 +3,17 @@
 OpenPDM is an open-source Engineering Collaboration Platform for organizing,
 versioning, relating and securing Engineering Assets.
 
-The repository currently includes a working backend API and a Vite-based web UI
-for the Core Platform. The implementation already covers authentication,
-organizations, projects, assets, revisions, collaboration flows, blob upload and
-download, metadata, search, and plugin registration.
+The repository currently includes a working backend API, a Vite-based web UI,
+and a Tauri desktop shell skeleton. The implementation covers:
+
+* local authentication and session management
+* organizations, projects and membership
+* generic Assets, immutable Revisions, Representations, and Blobs
+* file upload and secure blob download
+* generic metadata and PostgreSQL-backed search
+* collaboration state, checkout/checkin, notifications and timeline
+* generic Asset Graph relationships, references and graph queries
+* a read-only plugin registry skeleton
 
 ## Quickstart
 
@@ -72,6 +79,22 @@ deployment/   Docker Compose services for local development.
 docs/         Project documentation and ADRs.
 scripts/      Developer validation and command helpers.
 tests/        Repository-level architecture boundary tests.
+```
+
+## Architecture
+
+```mermaid
+flowchart TD
+    WebUI[Web UI<br/>React + TypeScript + Vite]
+    Desktop[Desktop Client<br/>Tauri + React + TypeScript]
+    Backend[OpenPDM Backend<br/>FastAPI]
+    Postgres[(PostgreSQL)]
+    MinIO[(MinIO / S3)]
+
+    WebUI --> Backend
+    Desktop --> Backend
+    Backend --> Postgres
+    Backend --> MinIO
 ```
 
 ## Authoritative Documentation
