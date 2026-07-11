@@ -15,6 +15,7 @@ Except for health, foundation, registration and sign-in, endpoints require an op
 | `GET` | `/auth/session` | Resolve the current session |
 | `POST` | `/auth/sign-out` | Revoke the current session |
 | `POST` | `/auth/sessions/{session_id}/revoke` | Revoke one owned session |
+| `PUT` | `/platform/administrators/{user_id}` | Grant or revoke Platform Administrator authority |
 
 ## Organizations, Projects And Membership
 
@@ -82,18 +83,29 @@ Membership addition accepts exactly one of `user_email` or the legacy `user_id`.
 
 Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See [Phase 3 Asset Graph Query Limits](PHASE_3_ASSET_GRAPH_QUERY_LIMITS.md).
 
-## Metadata, Search And Plugins
+## Metadata And Search
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `PUT` | `/metadata/{target_type}/{target_id}` | Upsert generic metadata |
 | `GET` | `/metadata/{target_type}/{target_id}` | List generic metadata |
 | `GET` | `/search/assets` | Search accessible Engineering Assets |
-| `GET` | `/plugins` | List registry entries |
-| `POST` | `/plugins` | Reserved write route; currently returns `403 Forbidden` |
-| `POST` | `/plugins/{plugin_id}/state` | Reserved state route; currently returns `403 Forbidden` |
 
-The plugin registry remains intentionally read-only until a platform administration model is accepted. Its write routes reject authenticated callers and do not expose plugin execution.
+## Plugin Platform
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/plugins` | List installed plugin lifecycle records |
+| `GET` | `/plugins/{plugin_id}` | Inspect one plugin and its diagnostic state |
+| `POST` | `/plugins/packages` | Install a validated plugin package; Platform Administrator only |
+| `POST` | `/plugins/{plugin_id}/state` | Enable or disable a plugin; Platform Administrator only |
+| `GET` | `/plugins/{plugin_id}/configuration` | Read public configuration and configured secret names |
+| `PUT` | `/plugins/{plugin_id}/configuration` | Validate and update deployment configuration; Platform Administrator only |
+| `GET` | `/plugins/{plugin_id}/event-deliveries` | Inspect delivery, retry and failure state |
+| `POST` | `/plugins/{plugin_id}/providers/metadata` | Invoke a Metadata Provider for one authorized target |
+| `POST` | `/plugins/{plugin_id}/providers/assets/{project_id}` | Invoke an Asset Provider within one authorized Project |
+
+`POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file and `plugin_type` query parameter. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
 
 ## Errors And Observability
 

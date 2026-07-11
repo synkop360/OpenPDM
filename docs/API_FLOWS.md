@@ -43,6 +43,9 @@ flowchart TD
     Postgres[("PostgreSQL / SQL database")]
     BlobStorage["BlobStorage abstraction"]
     ObjectStore[("S3-compatible object storage")]
+    PluginPackages[("Immutable plugin packages")]
+    Worker["Sandboxed Wasmtime worker"]
+    Extension["Extension API v1"]
 
     WebUI --> App
     Desktop --> App
@@ -72,6 +75,11 @@ flowchart TD
     Metadata --> SQLA
     Search --> SQLA
     Plugins --> SQLA
+    Plugins --> PluginPackages
+    PluginPackages --> Worker
+    Worker --> Extension
+    Extension --> Assets
+    Extension --> Metadata
 
     SQLA --> Postgres
     BlobModule --> BlobStorage

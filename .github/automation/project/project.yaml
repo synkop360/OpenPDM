@@ -5232,6 +5232,7 @@ roadmap:
     epics:
 
       - title: "Phase 4 Epic: Plugin Architecture Decisions"
+        closed: true
         body: |
           ## Objective
           Accept the durable architectural decisions required before executable plugin work begins.
@@ -5276,6 +5277,7 @@ roadmap:
         sub_issues:
 
           - title: "Phase 4 Task: Accept plugin runtime, administration and compatibility ADRs"
+            closed: true
             body: |
               ## Objective
               Review and accept the runtime, platform-administration and Extension API compatibility decisions.
@@ -5311,6 +5313,7 @@ roadmap:
               ADR: ADR-0034, ADR-0035, ADR-0036
 
           - title: "Phase 4 Task: Accept plugin lifecycle, configuration and extension-contract ADRs"
+            closed: true
             body: |
               ## Objective
               Review and accept the manifest, lifecycle, configuration, provider and event-hook decisions.
@@ -5342,6 +5345,7 @@ roadmap:
               ADR: ADR-0037, ADR-0038, ADR-0039
 
       - title: "Phase 4 Epic: Extension API v1 and Plugin SDK Foundation"
+        closed: true
         body: |
           ## Objective
           Publish the first supported Extension API and plugin-development SDK.
@@ -5369,6 +5373,7 @@ roadmap:
           ADR: ADR-0034, ADR-0036, ADR-0037
         sub_issues:
           - title: "Phase 4 Task: Implement Extension API v1 contracts and manifest validation"
+            closed: true
             body: |
               ## Objective
               Implement the public protocol, types and manifest rules for Extension API v1.
@@ -5401,6 +5406,7 @@ roadmap:
               ADR: ADR-0036, ADR-0037
 
           - title: "Phase 4 Task: Deliver the Plugin SDK and packaging workflow"
+            closed: true
             body: |
               ## Objective
               Provide supported tooling for building and testing a plugin package.
@@ -5433,6 +5439,7 @@ roadmap:
               ADR: ADR-0034, ADR-0036, ADR-0037
 
       - title: "Phase 4 Epic: Governed Plugin Lifecycle"
+        closed: true
         body: |
           ## Objective
           Deliver authorized, observable and failure-contained plugin lifecycle management.
@@ -5460,6 +5467,7 @@ roadmap:
           ADR: ADR-0034, ADR-0035, ADR-0037
         sub_issues:
           - title: "Phase 4 Task: Implement Platform Administrator safeguards"
+            closed: true
             body: |
               ## Objective
               Add the deployment-wide authority required for plugin administration.
@@ -5492,6 +5500,7 @@ roadmap:
               ADR: ADR-0035
 
           - title: "Phase 4 Task: Implement plugin registry lifecycle and runtime supervision"
+            closed: true
             body: |
               ## Objective
               Replace the read-only skeleton with the accepted managed lifecycle.
@@ -5526,6 +5535,7 @@ roadmap:
               ADR: ADR-0034, ADR-0037
 
       - title: "Phase 4 Epic: Generic Provider Contracts"
+        closed: true
         body: |
           ## Objective
           Allow plugins to contribute Engineering Assets and metadata through domain-agnostic contracts.
@@ -5553,6 +5563,7 @@ roadmap:
           ADR: ADR-0003, ADR-0010, ADR-0039
         sub_issues:
           - title: "Phase 4 Task: Implement Asset Provider dispatch"
+            closed: true
             body: |
               ## Objective
               Execute generic Asset Provider commands through the owning public interfaces.
@@ -5584,6 +5595,7 @@ roadmap:
               ADR: ADR-0003, ADR-0039
 
           - title: "Phase 4 Task: Implement Metadata Provider dispatch"
+            closed: true
             body: |
               ## Objective
               Accept generic metadata contributions through the Extension API.
@@ -5615,6 +5627,7 @@ roadmap:
               ADR: ADR-0010, ADR-0039
 
       - title: "Phase 4 Epic: Event Hooks and Plugin Configuration"
+        closed: true
         body: |
           ## Objective
           Deliver controlled event processing and validated, secret-safe plugin configuration.
@@ -5642,6 +5655,7 @@ roadmap:
           ADR: ADR-0038, ADR-0039
         sub_issues:
           - title: "Phase 4 Task: Implement validated plugin configuration and secret storage"
+            closed: true
             body: |
               ## Objective
               Persist deployment-scoped plugin configuration safely.
@@ -5674,6 +5688,7 @@ roadmap:
               ADR: ADR-0038
 
           - title: "Phase 4 Task: Implement post-commit plugin event delivery"
+            closed: true
             body: |
               ## Objective
               Deliver approved domain events to enabled plugins with bounded failure behavior.
@@ -5706,6 +5721,7 @@ roadmap:
               ADR: ADR-0039
 
       - title: "Phase 4 Epic: Reference Official Plugin and Phase Demonstration"
+        closed: true
         body: |
           ## Objective
           Prove that third parties can extend OpenPDM through the supported public contracts.
@@ -5733,6 +5749,7 @@ roadmap:
           ADR: ADR-0034, ADR-0036, ADR-0037, ADR-0038, ADR-0039
         sub_issues:
           - title: "Phase 4 Task: Build the domain-neutral reference Official Plugin"
+            closed: true
             body: |
               ## Objective
               Provide an executable compatibility example for all plugin developers.
@@ -5765,6 +5782,7 @@ roadmap:
               ADR: ADR-0039
 
           - title: "Phase 4 Task: Document, demonstrate and verify the Phase 4 plugin journey"
+            closed: true
             body: |
               ## Objective
               Make the complete plugin developer and administrator workflow reproducible.

@@ -114,6 +114,7 @@ def test() -> None:
         f"cache_dir={PYTEST_CACHE_DIR}",
     )
     run_python_script("scripts/validate_phase0.py")
+    run_python_script("scripts/validate_documentation.py")
     run_python_script(
         ".github/automation/project/validate.py",
         ".github/automation/project/project.yaml",
@@ -152,6 +153,7 @@ def compose_up() -> None:
 
 def validate() -> None:
     run_python_script("scripts/validate_phase0.py")
+    run_python_script("scripts/validate_documentation.py")
     run_python_script(
         ".github/automation/project/validate.py",
         ".github/automation/project/project.yaml",
