@@ -188,6 +188,24 @@ milestones:
   - title: Plugin Platform
     description: Deliver the Extension API and Official Plugins.
 
+  - title: Plugin Architecture Decisions
+    description: Accept the runtime, administration, compatibility, lifecycle, configuration, provider and event-hook decisions required for Phase 4.
+
+  - title: Extension API v1 and Plugin SDK Foundation
+    description: Deliver the versioned Extension API contract, SDK, manifest validation and plugin developer workflow.
+
+  - title: Governed Plugin Lifecycle
+    description: Deliver authorized plugin discovery, installation, activation, diagnostics and failure containment.
+
+  - title: Generic Provider Contracts
+    description: Deliver domain-agnostic Asset Provider and Metadata Provider contracts through the Extension API.
+
+  - title: Event Hooks and Plugin Configuration
+    description: Deliver controlled event delivery and validated deployment-scoped plugin configuration.
+
+  - title: Reference Official Plugin and Phase Demonstration
+    description: Validate the public plugin ecosystem with a domain-neutral Official Plugin and reproducible demonstration.
+
   - title: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
 
@@ -5210,103 +5228,572 @@ roadmap:
 
   - phase: Plugin Platform
     milestone: Plugin Platform
-    description: Deliver the Extension API and Official Plugins.
+    description: Deliver a governed, versioned and domain-agnostic plugin ecosystem through the Extension API.
     epics:
 
-      - title: "Phase 4 Epic: Plugin Platform Governance and Administration Model"
+      - title: "Phase 4 Epic: Plugin Architecture Decisions"
         body: |
           ## Objective
-          Define the platform-wide administration model required before OpenPDM allows mutable plugin-platform operations.
+          Accept the durable architectural decisions required before executable plugin work begins.
 
           ## Description
-          ADR-0026 keeps the Phase 1 plugin registry read-only until OpenPDM adopts an explicit platform administration model in the relevant future plugin platform phase.
-
-          This epic tracks that deferred governance work so Plugin Platform planning starts from the accepted security and architecture boundaries rather than re-opening them implicitly.
+          Define runtime isolation, platform administration, Extension API compatibility, plugin lifecycle, configuration ownership, provider contracts and event hooks while preserving Platform Core boundaries.
 
           ## Expected Deliverable
-          A documented and accepted administration model for platform-wide plugin operations that remains compatible with the modular monolith, Phase 1 RBAC boundaries and the Extension API direction.
+          Accepted ADR-0034 through ADR-0039.
 
           ## Acceptance Criteria
-          - The platform-wide administration scope is explicit.
-          - Plugin-registry mutation authority is defined without reusing Organization or Project roles incorrectly.
-          - The relationship between the administration model and public plugin-platform APIs is clear.
+          - All Phase 4 architectural decisions are accepted.
+          - ADR-0026 is explicitly superseded where platform administration permits mutation.
+          - Official Plugins and Community Plugins receive identical Extension API access.
+          - Phase 5 engineering semantics remain excluded.
 
           ## Dependencies
-          - ADR-0012
-          - ADR-0013
-          - ADR-0026
+          - ADR-0001, ADR-0002, ADR-0003
+          - ADR-0010, ADR-0012, ADR-0013, ADR-0026
 
           ## Risks
-          - Platform-wide operational authority could be introduced implicitly through plugin features instead of an explicit model.
-          - Future plugin administration could bypass established Platform Core and Extension API boundaries.
+          - An underspecified runtime could expose Platform Module internals.
+          - Tenant roles could be confused with deployment-wide authority.
 
           ## Exit Criteria
-          - OpenPDM has an accepted decision for platform-wide plugin administration.
-          - Plugin-registry mutation can be planned against that decision rather than against temporary read-only constraints.
+          - Phase 4 implementation requires no undocumented architectural choices.
 
           ## Suggested Labels
-          architecture, plugin, decision, P2
-        milestone: Plugin Platform
+          architecture, plugin, decision, P0
+        milestone: Plugin Architecture Decisions
         labels:
           - architecture
           - plugin
           - decision
-          - P2
+          - P0
         fields:
           Phase: Plugin Platform
-          Epic: Plugin Platform Governance and Administration Model
+          Epic: Plugin Architecture Decisions
           Platform Area: Extension API
-          Complexity: M
-          ADR: ADR-0012, ADR-0013, ADR-0026
+          Complexity: L
+          ADR: ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039
         sub_issues:
 
-          - title: "Define a platform administration model for future plugin registry management"
+          - title: "Phase 4 Task: Accept plugin runtime, administration and compatibility ADRs"
             body: |
-              ## Context
+              ## Objective
+              Review and accept the runtime, platform-administration and Extension API compatibility decisions.
 
-              ADR-0026 makes the Phase 1 plugin registry read-only to close the current security gap without extending the accepted project-scoped RBAC model.
+              ## Description
+              Finalize ADR-0034, ADR-0035 and ADR-0036, including their explicit relationship with ADR-0026.
 
-              The deferred follow-up is to define how platform-wide operational administration should work once OpenPDM reaches the relevant future plugin platform phase.
+              ## Acceptance Criteria
+              - Runtime failure containment and trust boundaries are explicit.
+              - Platform-wide mutation authority is explicit and auditable.
+              - Extension API compatibility and deprecation rules are testable.
 
-              ## Why this issue exists
+              ## Dependencies
+              - Phase 4 Epic: Plugin Architecture Decisions
 
-              The plugin registry is platform-wide state, not project-scoped state.
-              Current accepted RBAC only covers Organization and Project roles.
-              We intentionally avoided inventing an implicit platform administrator in Phase 1.
-
-              ## Expected outcome
-
-              Define a future platform administration model that can safely authorize plugin-registry mutation and similar platform-wide operational controls.
-
-              ## Decision scope
-
-              This future decision should clarify:
-
-              - whether OpenPDM introduces a platform-level administrator role or capability
-              - how that role is assigned and governed
-              - which platform-wide operations belong to that scope
-              - how the model stays compatible with the modular monolith and Extension API boundaries
-              - how Phase 1 read-only plugin registry behavior is lifted once the model exists
-
-              ## References
-
-              - ADR-0012: project-scoped RBAC for Phase 1
-              - ADR-0013: plugin infrastructure skeleton only in Phase 1
-              - ADR-0026: plugin registry remains read-only until a platform administration model exists
+              ## Implementation Tasks
+              - [ ] Review alternatives and boundary invariants.
+              - [ ] Resolve maintainer feedback.
+              - [ ] Mark the ADRs Accepted after approval.
 
               ## Suggested Labels
-              architecture, decision, plugin, P2
+              architecture, decision, plugin, P0
             labels:
               - architecture
               - decision
               - plugin
-              - P2
+              - P0
             fields:
               Phase: Plugin Platform
-              Epic: Plugin Platform Governance and Administration Model
+              Epic: Plugin Architecture Decisions
               Platform Area: Extension API
-              Complexity: S
-              ADR: ADR-0012, ADR-0013, ADR-0026
+              Complexity: M
+              ADR: ADR-0034, ADR-0035, ADR-0036
+
+          - title: "Phase 4 Task: Accept plugin lifecycle, configuration and extension-contract ADRs"
+            body: |
+              ## Objective
+              Review and accept the manifest, lifecycle, configuration, provider and event-hook decisions.
+
+              ## Description
+              Finalize ADR-0037, ADR-0038 and ADR-0039 without introducing engineering semantics into the Platform Core.
+
+              ## Acceptance Criteria
+              - Lifecycle states and transitions are deterministic.
+              - Configuration ownership and secret handling are explicit.
+              - Provider and event contracts preserve authorization and module boundaries.
+
+              ## Dependencies
+              - Phase 4 Task: Accept plugin runtime, administration and compatibility ADRs
+
+              ## Implementation Tasks
+              - [ ] Review lifecycle and configuration rules.
+              - [ ] Review provider and delivery semantics.
+              - [ ] Resolve feedback and mark the ADRs Accepted after approval.
+
+              ## Suggested Labels
+              architecture, decision, plugin, P0
+            labels: [architecture, decision, plugin, P0]
+            fields:
+              Phase: Plugin Platform
+              Epic: Plugin Architecture Decisions
+              Platform Area: Extension API
+              Complexity: M
+              ADR: ADR-0037, ADR-0038, ADR-0039
+
+      - title: "Phase 4 Epic: Extension API v1 and Plugin SDK Foundation"
+        body: |
+          ## Objective
+          Publish the first supported Extension API and plugin-development SDK.
+
+          ## Description
+          Deliver protocol schemas, public types, manifest validation, compatibility checks, packaging utilities and a reproducible developer workflow without exposing Public Module Interfaces.
+
+          ## Acceptance Criteria
+          - Extension API v1 is versioned and documented.
+          - Invalid and incompatible manifests are rejected.
+          - A contributor can build and test a minimal plugin package.
+
+          ## Dependencies
+          - Phase 4 Epic: Plugin Architecture Decisions
+
+          ## Suggested Labels
+          feature, plugin, P1
+        milestone: Extension API v1 and Plugin SDK Foundation
+        labels: [feature, plugin, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Extension API v1 and Plugin SDK Foundation
+          Platform Area: Extension API
+          Complexity: XL
+          ADR: ADR-0034, ADR-0036, ADR-0037
+        sub_issues:
+          - title: "Phase 4 Task: Implement Extension API v1 contracts and manifest validation"
+            body: |
+              ## Objective
+              Implement the public protocol, types and manifest rules for Extension API v1.
+
+              ## Description
+              Replace the placeholder Extension API with capability-scoped schemas and deterministic compatibility validation.
+
+              ## Acceptance Criteria
+              - Supported manifests validate successfully.
+              - Invalid identifiers, versions, entry points and capabilities fail with actionable errors.
+              - No Extension API type imports Platform Module internals.
+
+              ## Dependencies
+              - Phase 4 Epic: Plugin Architecture Decisions
+
+              ## Implementation Tasks
+              - [ ] Define public request, response and error schemas.
+              - [ ] Implement manifest parser and validator.
+              - [ ] Implement major-version negotiation.
+              - [ ] Add contract and compatibility tests.
+
+              ## Suggested Labels
+              feature, plugin, test, P1
+            labels: [feature, plugin, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Extension API v1 and Plugin SDK Foundation
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0036, ADR-0037
+
+          - title: "Phase 4 Task: Deliver the Plugin SDK and packaging workflow"
+            body: |
+              ## Objective
+              Provide supported tooling for building and testing a plugin package.
+
+              ## Description
+              Add SDK helpers, package validation, test fixtures and contributor commands around the normative Extension API contract.
+
+              ## Acceptance Criteria
+              - The SDK builds a valid plugin package.
+              - Contract fixtures exercise the same interface used by the runtime.
+              - The workflow is reproducible from a clean checkout.
+
+              ## Dependencies
+              - Phase 4 Task: Implement Extension API v1 contracts and manifest validation
+
+              ## Implementation Tasks
+              - [ ] Implement SDK public helpers.
+              - [ ] Implement package validation command.
+              - [ ] Add reusable contract fixtures.
+              - [ ] Document build, test and package commands.
+
+              ## Suggested Labels
+              feature, plugin, documentation, test, P1
+            labels: [feature, plugin, documentation, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Extension API v1 and Plugin SDK Foundation
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0034, ADR-0036, ADR-0037
+
+      - title: "Phase 4 Epic: Governed Plugin Lifecycle"
+        body: |
+          ## Objective
+          Deliver authorized, observable and failure-contained plugin lifecycle management.
+
+          ## Description
+          Introduce Platform Administrator safeguards, persisted lifecycle state, package discovery and the managed runtime supervisor.
+
+          ## Acceptance Criteria
+          - Only Platform Administrators mutate plugin state.
+          - Compatible plugins can be installed, enabled, disabled and inspected.
+          - Plugin failure does not prevent unrelated Platform Core operations.
+
+          ## Dependencies
+          - Phase 4 Epic: Extension API v1 and Plugin SDK Foundation
+
+          ## Suggested Labels
+          feature, core, plugin, P1
+        milestone: Governed Plugin Lifecycle
+        labels: [feature, core, plugin, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Governed Plugin Lifecycle
+          Platform Area: Platform Module
+          Complexity: XL
+          ADR: ADR-0034, ADR-0035, ADR-0037
+        sub_issues:
+          - title: "Phase 4 Task: Implement Platform Administrator safeguards"
+            body: |
+              ## Objective
+              Add the deployment-wide authority required for plugin administration.
+
+              ## Description
+              Implement bootstrap, migration, authorization and last-administrator protection without changing Organization or Project roles.
+
+              ## Acceptance Criteria
+              - Existing and new deployments retain an active Platform Administrator.
+              - Ordinary users cannot mutate plugin state.
+              - Authority changes are audited and tested.
+
+              ## Dependencies
+              - ADR-0035
+
+              ## Implementation Tasks
+              - [ ] Add the persistence migration.
+              - [ ] Implement bootstrap and last-administrator checks.
+              - [ ] Add public administration endpoints.
+              - [ ] Add authorization and audit tests.
+
+              ## Suggested Labels
+              feature, core, test, P0
+            labels: [feature, core, test, P0]
+            fields:
+              Phase: Plugin Platform
+              Epic: Governed Plugin Lifecycle
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0035
+
+          - title: "Phase 4 Task: Implement plugin registry lifecycle and runtime supervision"
+            body: |
+              ## Objective
+              Replace the read-only skeleton with the accepted managed lifecycle.
+
+              ## Description
+              Implement package registration, lifecycle transitions, subprocess supervision, diagnostics and audit/event coverage.
+
+              ## Acceptance Criteria
+              - Valid plugins transition through the approved lifecycle.
+              - Incompatible plugins never execute.
+              - Crashes and timeouts are contained and observable.
+
+              ## Dependencies
+              - Phase 4 Task: Implement Platform Administrator safeguards
+              - Phase 4 Task: Implement Extension API v1 contracts and manifest validation
+
+              ## Implementation Tasks
+              - [ ] Expand lifecycle persistence and migration.
+              - [ ] Implement package discovery and transitions.
+              - [ ] Implement subprocess supervisor and protocol transport.
+              - [ ] Add lifecycle, failure and observability tests.
+
+              ## Suggested Labels
+              feature, module, plugin, test, P1
+            labels: [feature, module, plugin, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Governed Plugin Lifecycle
+              Platform Area: Platform Module
+              Complexity: XL
+              ADR: ADR-0034, ADR-0037
+
+      - title: "Phase 4 Epic: Generic Provider Contracts"
+        body: |
+          ## Objective
+          Allow plugins to contribute Engineering Assets and metadata through domain-agnostic contracts.
+
+          ## Description
+          Implement Asset Provider and Metadata Provider dispatch while the owning Platform Modules retain validation, authorization and persistence.
+
+          ## Acceptance Criteria
+          - Providers cannot access Platform Module internals.
+          - Asset commands preserve the immutable lifecycle.
+          - Metadata remains generic and authorized.
+
+          ## Dependencies
+          - Phase 4 Epic: Governed Plugin Lifecycle
+
+          ## Suggested Labels
+          feature, plugin, core, P1
+        milestone: Generic Provider Contracts
+        labels: [feature, plugin, core, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Generic Provider Contracts
+          Platform Area: Extension API
+          Complexity: XL
+          ADR: ADR-0003, ADR-0010, ADR-0039
+        sub_issues:
+          - title: "Phase 4 Task: Implement Asset Provider dispatch"
+            body: |
+              ## Objective
+              Execute generic Asset Provider commands through the owning public interfaces.
+
+              ## Description
+              Add capability registration, request validation, context propagation, authorization and generic Asset lifecycle results.
+
+              ## Acceptance Criteria
+              - Provider commands use only Extension API schemas.
+              - Actor and Project authorization is rechecked.
+              - Invalid lifecycle requests fail without partial mutation.
+
+              ## Dependencies
+              - Phase 4 Task: Implement plugin registry lifecycle and runtime supervision
+
+              ## Implementation Tasks
+              - [ ] Implement capability registration and dispatch.
+              - [ ] Map commands through Assets and Blobs public interfaces.
+              - [ ] Add authorization and rollback tests.
+
+              ## Suggested Labels
+              feature, plugin, core, test, P1
+            labels: [feature, plugin, core, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Generic Provider Contracts
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0003, ADR-0039
+
+          - title: "Phase 4 Task: Implement Metadata Provider dispatch"
+            body: |
+              ## Objective
+              Accept generic metadata contributions through the Extension API.
+
+              ## Description
+              Validate provider results and persist them through the Metadata Platform Module without interpreting engineering meaning.
+
+              ## Acceptance Criteria
+              - Supported value types are validated.
+              - Metadata source attribution identifies the plugin.
+              - Domain-specific validation is absent from the Platform Core.
+
+              ## Dependencies
+              - Phase 4 Task: Implement Asset Provider dispatch
+
+              ## Implementation Tasks
+              - [ ] Implement metadata capability dispatch.
+              - [ ] Validate generic metadata shape and target scope.
+              - [ ] Add source, authorization and value-type tests.
+
+              ## Suggested Labels
+              feature, plugin, core, test, P1
+            labels: [feature, plugin, core, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Generic Provider Contracts
+              Platform Area: Extension API
+              Complexity: M
+              ADR: ADR-0010, ADR-0039
+
+      - title: "Phase 4 Epic: Event Hooks and Plugin Configuration"
+        body: |
+          ## Objective
+          Deliver controlled event processing and validated, secret-safe plugin configuration.
+
+          ## Description
+          Add post-commit at-least-once delivery, bounded retries, per-plugin ordering and deployment-scoped configuration.
+
+          ## Acceptance Criteria
+          - Enabled plugins receive only declared approved events.
+          - Delivery failure cannot roll back Platform Core actions.
+          - Secrets are encrypted, redacted and isolated per plugin.
+
+          ## Dependencies
+          - Phase 4 Epic: Governed Plugin Lifecycle
+
+          ## Suggested Labels
+          feature, plugin, core, P1
+        milestone: Event Hooks and Plugin Configuration
+        labels: [feature, plugin, core, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Event Hooks and Plugin Configuration
+          Platform Area: Extension API
+          Complexity: XL
+          ADR: ADR-0038, ADR-0039
+        sub_issues:
+          - title: "Phase 4 Task: Implement validated plugin configuration and secret storage"
+            body: |
+              ## Objective
+              Persist deployment-scoped plugin configuration safely.
+
+              ## Description
+              Implement schema validation, encrypted secret values, redacted reads and restart-on-change behavior.
+
+              ## Acceptance Criteria
+              - Invalid configuration prevents activation.
+              - Secret values never appear in reads, logs, audit or events.
+              - Only Platform Administrators can access configuration APIs.
+
+              ## Dependencies
+              - Phase 4 Task: Implement plugin registry lifecycle and runtime supervision
+
+              ## Implementation Tasks
+              - [ ] Implement configuration persistence and migration.
+              - [ ] Implement schema validation and encryption adapter.
+              - [ ] Add public administration endpoints.
+              - [ ] Add redaction and authorization tests.
+
+              ## Suggested Labels
+              feature, plugin, core, test, P0
+            labels: [feature, plugin, core, test, P0]
+            fields:
+              Phase: Plugin Platform
+              Epic: Event Hooks and Plugin Configuration
+              Platform Area: Platform Module
+              Complexity: L
+              ADR: ADR-0038
+
+          - title: "Phase 4 Task: Implement post-commit plugin event delivery"
+            body: |
+              ## Objective
+              Deliver approved domain events to enabled plugins with bounded failure behavior.
+
+              ## Description
+              Persist deliveries after commit and execute them in per-plugin order with timeouts, retries and diagnostics.
+
+              ## Acceptance Criteria
+              - Delivery is at least once and ordered per plugin.
+              - Retry exhaustion is observable and bounded.
+              - Event context cannot be used to bypass authorization.
+
+              ## Dependencies
+              - Phase 4 Task: Implement validated plugin configuration and secret storage
+
+              ## Implementation Tasks
+              - [ ] Implement subscription allowlist validation.
+              - [ ] Implement delivery persistence and dispatcher.
+              - [ ] Implement retry, timeout and failure diagnostics.
+              - [ ] Add duplicate, ordering and failure tests.
+
+              ## Suggested Labels
+              feature, plugin, core, test, P1
+            labels: [feature, plugin, core, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Event Hooks and Plugin Configuration
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0039
+
+      - title: "Phase 4 Epic: Reference Official Plugin and Phase Demonstration"
+        body: |
+          ## Objective
+          Prove that third parties can extend OpenPDM through the supported public contracts.
+
+          ## Description
+          Deliver a domain-neutral Official Plugin and end-to-end administrator/developer demonstration using no privileged capabilities.
+
+          ## Acceptance Criteria
+          - The reference plugin uses only the Plugin SDK and Extension API.
+          - It exercises lifecycle, configuration, an event hook and a provider.
+          - A new contributor can reproduce the workflow.
+
+          ## Dependencies
+          - All preceding Phase 4 Epics
+
+          ## Suggested Labels
+          feature, plugin, documentation, test, P1
+        milestone: Reference Official Plugin and Phase Demonstration
+        labels: [feature, plugin, documentation, test, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Reference Official Plugin and Phase Demonstration
+          Platform Area: Official Plugin
+          Complexity: L
+          ADR: ADR-0034, ADR-0036, ADR-0037, ADR-0038, ADR-0039
+        sub_issues:
+          - title: "Phase 4 Task: Build the domain-neutral reference Official Plugin"
+            body: |
+              ## Objective
+              Provide an executable compatibility example for all plugin developers.
+
+              ## Description
+              Build a minimal plugin that contributes generic metadata on an approved event and uses validated configuration.
+
+              ## Acceptance Criteria
+              - The package passes SDK and runtime compatibility tests.
+              - It has no privileged imports or API paths.
+              - Failure-isolation tests use the same package boundary.
+
+              ## Dependencies
+              - Phase 4 Task: Implement Metadata Provider dispatch
+              - Phase 4 Task: Implement post-commit plugin event delivery
+
+              ## Implementation Tasks
+              - [ ] Implement manifest and entry point.
+              - [ ] Implement configuration, event and metadata behavior.
+              - [ ] Add contract and end-to-end tests.
+
+              ## Suggested Labels
+              feature, plugin, test, P1
+            labels: [feature, plugin, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Reference Official Plugin and Phase Demonstration
+              Platform Area: Official Plugin
+              Complexity: M
+              ADR: ADR-0039
+
+          - title: "Phase 4 Task: Document, demonstrate and verify the Phase 4 plugin journey"
+            body: |
+              ## Objective
+              Make the complete plugin developer and administrator workflow reproducible.
+
+              ## Description
+              Document creation, validation, packaging, installation, configuration, activation, diagnostics and troubleshooting, then reconcile all authoritative documentation.
+
+              ## Acceptance Criteria
+              - A clean-checkout walkthrough succeeds.
+              - Public API, SDK, security, deployment and troubleshooting docs match implementation.
+              - Phase 4 exit criteria and documentation checks pass.
+
+              ## Dependencies
+              - Phase 4 Task: Build the domain-neutral reference Official Plugin
+
+              ## Implementation Tasks
+              - [ ] Document Extension API and SDK contracts.
+              - [ ] Document administrator and deployment workflows.
+              - [ ] Add a reproducible demonstration script.
+              - [ ] Reconcile Charter, Architecture, Vision, Roadmap, ADRs and API docs.
+
+              ## Suggested Labels
+              documentation, plugin, test, P1
+            labels: [documentation, plugin, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Reference Official Plugin and Phase Demonstration
+              Platform Area: Documentation
+              Complexity: L
+              ADR: ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039
 
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
