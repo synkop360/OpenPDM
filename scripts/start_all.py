@@ -10,12 +10,10 @@ import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
-from typing import Sequence
-
-import time
 import urllib.request
-from urllib.error import URLError, HTTPError
+from collections.abc import Sequence
+from pathlib import Path
+from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,10 +41,16 @@ def load_dev_module():
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Start the OpenPDM backend compose stack and frontend dev server.")
-    parser.add_argument("--skip-compose", action="store_true", help="Start only the frontend dev server")
+    parser = argparse.ArgumentParser(
+        description="Start the OpenPDM backend compose stack and frontend dev server."
+    )
+    parser.add_argument(
+        "--skip-compose", action="store_true", help="Start only the frontend dev server"
+    )
     parser.add_argument("--skip-frontend", action="store_true", help="Start only the compose stack")
-    parser.add_argument("--dry-run", action="store_true", help="Print the commands that would be run")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print the commands that would be run"
+    )
     return parser.parse_args()
 
 
@@ -71,7 +75,9 @@ def resolve_frontend_runner() -> tuple[list[str], bool]:
     return [runner_name, "run", "dev"], False
 
 
-def build_dev_helper_command(callback_name: str, cwd: Path | None = None, runner_override: str | None = None) -> list[str]:
+def build_dev_helper_command(
+    callback_name: str, cwd: Path | None = None, runner_override: str | None = None
+) -> list[str]:
     script_path = str(ROOT / "scripts" / "dev.py")
     if callback_name == "compose_up":
         callback = "module.compose_up()"
@@ -109,7 +115,11 @@ def start_process(label: str, command: Sequence[str], cwd: Path) -> subprocess.P
         npm_global_bin = r"C:\Users\thoma\AppData\Roaming\npm"
         existing_path = env.get("PATH", "")
         extra_paths = [node_dir, npm_global_bin]
-        env["PATH"] = os.pathsep.join([existing_path, *extra_paths]) if existing_path else os.pathsep.join(extra_paths)
+        env["PATH"] = (
+            os.pathsep.join([existing_path, *extra_paths])
+            if existing_path
+            else os.pathsep.join(extra_paths)
+        )
         env.setdefault("NODE_PATH", r"C:\Users\thoma\AppData\Roaming\npm\node_modules")
     try:
         kwargs = dict(
@@ -121,9 +131,11 @@ def start_process(label: str, command: Sequence[str], cwd: Path) -> subprocess.P
             env=env,
         )
         if os.name == "nt":
-            return subprocess.Popen(list(command), creationflags=subprocess.CREATE_NEW_CONSOLE, **kwargs)
+            return subprocess.Popen(
+                list(command), creationflags=subprocess.CREATE_NEW_CONSOLE, **kwargs
+            )
         return subprocess.Popen(list(command), **kwargs)
-    
+
     except FileNotFoundError as exc:
         raise RuntimeError(f"Unable to start {label}: {exc}") from exc
 
@@ -144,7 +156,10 @@ def main() -> int:
     args = parse_args()
 
     if args.skip_compose and args.skip_frontend:
-        print("Nothing to start; both --skip-compose and --skip-frontend were provided.", file=sys.stderr)
+        print(
+            "Nothing to start; both --skip-compose and --skip-frontend were provided.",
+            file=sys.stderr,
+        )
         return 2
 
     frontend_command, frontend_available = resolve_frontend_runner()
@@ -157,7 +172,9 @@ def main() -> int:
             print("Frontend:")
             print(f"  {' '.join(frontend_command)} (cwd: frontend)")
             if not frontend_available:
-                print("  Warning: pnpm/npm was not found on PATH; install Node.js tooling before starting the frontend.")
+                print(
+                    "  Warning: pnpm/npm was not found on PATH; install Node.js tooling before starting the frontend."
+                )
         return 0
 
     processes: list[tuple[str, subprocess.Popen[str]]] = []
@@ -179,7 +196,10 @@ def main() -> int:
                 raise RuntimeError("Backend did not become healthy within timeout")
         if not args.skip_frontend:
             if not frontend_available:
-                print("Warning: pnpm/npm was not found on PATH; skipping frontend dev server.", file=sys.stderr)
+                print(
+                    "Warning: pnpm/npm was not found on PATH; skipping frontend dev server.",
+                    file=sys.stderr,
+                )
             else:
                 processes.append(
                     (
@@ -207,7 +227,9 @@ def main() -> int:
         while True:
             for label, process in processes:
                 if process.poll() is not None:
-                    raise RuntimeError(f"{label} exited unexpectedly with code {process.returncode}")
+                    raise RuntimeError(
+                        f"{label} exited unexpectedly with code {process.returncode}"
+                    )
             time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopping services...")

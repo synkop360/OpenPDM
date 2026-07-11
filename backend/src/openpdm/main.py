@@ -9,7 +9,7 @@ from openpdm.api.core import application_lifespan
 from openpdm.api.core import router as core_router
 from openpdm.infrastructure.database import initialize_database
 from openpdm.infrastructure.settings import Settings
-from openpdm.platform_core.modules.services import reset_request_id, set_request_id
+from openpdm.platform_core.request_context import reset_request_id, set_request_id
 
 
 def create_app() -> FastAPI:

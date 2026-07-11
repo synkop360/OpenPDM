@@ -15,35 +15,31 @@ from sqlalchemy.orm import Session
 from openpdm import __version__
 from openpdm.infrastructure.blob_storage import BlobStorage, build_blob_storage
 from openpdm.infrastructure.database import get_db_session, initialize_database
-from openpdm.platform_core.modules.models import (
-    Asset,
-    AssetReference,
-    AssetRelationship,
-    MetadataEntry,
-    NotificationRecord,
-    PluginRecord,
-    Representation,
-    Revision,
-    SessionToken,
+from openpdm.platform_core.composition import MODULES
+from openpdm.platform_core.public import (
+    CollaborationStateView,
+    GraphQueryResultView,
+    SessionContextView,
+    TimelineEntryView,
 )
-from openpdm.platform_core.modules.services import (
-    ALLOWED_STATUSES,
-    AssetsModule,
-    AuthModule,
-    BlobModule,
-    CollaborationModule,
-    CollaborationState,
-    GraphQueryResult,
-    MetadataModule,
-    NotificationsModule,
-    OrganizationModule,
-    PluginsModule,
-    ProjectModule,
-    RelationshipsModule,
-    SearchModule,
-    SessionContext,
-    TimelineEntry,
-)
+
+ALLOWED_STATUSES = {"draft", "active", "archived"}
+CollaborationState = CollaborationStateView
+GraphQueryResult = GraphQueryResultView
+SessionContext = SessionContextView
+TimelineEntry = TimelineEntryView
+
+AuthModule = MODULES.authentication
+OrganizationModule = MODULES.organizations
+ProjectModule = MODULES.projects
+BlobModule = MODULES.blobs
+AssetsModule = MODULES.assets
+RelationshipsModule = MODULES.relationships
+CollaborationModule = MODULES.collaboration
+MetadataModule = MODULES.metadata
+SearchModule = MODULES.search
+PluginsModule = MODULES.plugins
+NotificationsModule = MODULES.notifications
 
 router = APIRouter(tags=["Core Platform"])
 
@@ -406,7 +402,7 @@ def serialize_blob(blob: Any) -> BlobResponse:
     )
 
 
-def serialize_representation(representation: Representation) -> RepresentationResponse:
+def serialize_representation(representation: Any) -> RepresentationResponse:
     return RepresentationResponse(
         id=representation.id,
         revision_id=representation.revision_id,
@@ -418,7 +414,7 @@ def serialize_representation(representation: Representation) -> RepresentationRe
     )
 
 
-def serialize_revision(revision: Revision) -> RevisionResponse:
+def serialize_revision(revision: Any) -> RevisionResponse:
     return RevisionResponse(
         id=revision.id,
         asset_id=revision.asset_id,
@@ -430,7 +426,7 @@ def serialize_revision(revision: Revision) -> RevisionResponse:
     )
 
 
-def serialize_asset(asset: Asset) -> AssetResponse:
+def serialize_asset(asset: Any) -> AssetResponse:
     ordered_revisions = sorted(asset.revisions, key=lambda item: item.number)
     return AssetResponse(
         id=asset.id,
@@ -445,7 +441,7 @@ def serialize_asset(asset: Asset) -> AssetResponse:
     )
 
 
-def serialize_metadata(entry: MetadataEntry) -> MetadataResponse:
+def serialize_metadata(entry: Any) -> MetadataResponse:
     return MetadataResponse(
         id=entry.id,
         asset_id=entry.asset_id,
@@ -459,7 +455,7 @@ def serialize_metadata(entry: MetadataEntry) -> MetadataResponse:
     )
 
 
-def serialize_relationship(relationship: AssetRelationship) -> RelationshipResponse:
+def serialize_relationship(relationship: Any) -> RelationshipResponse:
     return RelationshipResponse(
         id=relationship.id,
         source_asset_id=relationship.source_asset_id,
@@ -472,7 +468,7 @@ def serialize_relationship(relationship: AssetRelationship) -> RelationshipRespo
     )
 
 
-def serialize_reference(reference: AssetReference) -> ReferenceResponse:
+def serialize_reference(reference: Any) -> ReferenceResponse:
     return ReferenceResponse(
         id=reference.id,
         source_asset_id=reference.source_asset_id,
@@ -548,7 +544,7 @@ def serialize_timeline_entry(entry: TimelineEntry) -> TimelineEntryResponse:
     )
 
 
-def serialize_plugin(plugin: PluginRecord) -> PluginResponse:
+def serialize_plugin(plugin: Any) -> PluginResponse:
     return PluginResponse(
         id=plugin.id,
         name=plugin.name,
@@ -560,7 +556,7 @@ def serialize_plugin(plugin: PluginRecord) -> PluginResponse:
     )
 
 
-def serialize_notification(notification: NotificationRecord) -> NotificationResponse:
+def serialize_notification(notification: Any) -> NotificationResponse:
     return NotificationResponse(
         id=notification.id,
         recipient_user_id=notification.recipient_user_id,
@@ -682,9 +678,7 @@ def revoke_session_by_id(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> SessionResponse:
-    target = db.get(SessionToken, session_id)
-    if target is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    target = AuthModule.get_session_by_id(db, session_id=session_id)
     revoked = AuthModule.revoke_session(
         db,
         session_token=target,
@@ -1140,6 +1134,7 @@ def get_asset_graph(
         max_depth=max_depth,
         target_asset_id=target_asset_id,
     )
+    db.commit()
     return serialize_graph(result)
 
 
