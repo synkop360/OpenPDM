@@ -5378,7 +5378,7 @@ roadmap:
 
               ## Acceptance Criteria
               - Supported manifests validate successfully.
-              - Invalid identifiers, versions, entry points and capabilities fail with actionable errors.
+              - Invalid identifiers, versions, WebAssembly Components and capabilities fail with actionable errors.
               - No Extension API type imports Platform Module internals.
 
               ## Dependencies
@@ -5438,7 +5438,7 @@ roadmap:
           Deliver authorized, observable and failure-contained plugin lifecycle management.
 
           ## Description
-          Introduce Platform Administrator safeguards, persisted lifecycle state, package discovery and the managed runtime supervisor.
+          Introduce Platform Administrator safeguards, persisted lifecycle state, immutable package discovery and the managed Wasmtime sandbox worker.
 
           ## Acceptance Criteria
           - Only Platform Administrators mutate plugin state.
@@ -5497,12 +5497,12 @@ roadmap:
               Replace the read-only skeleton with the accepted managed lifecycle.
 
               ## Description
-              Implement package registration, lifecycle transitions, subprocess supervision, diagnostics and audit/event coverage.
+              Implement package registration, lifecycle transitions, WebAssembly Component sandboxing, worker supervision, diagnostics and audit/event coverage.
 
               ## Acceptance Criteria
               - Valid plugins transition through the approved lifecycle.
               - Incompatible plugins never execute.
-              - Crashes and timeouts are contained and observable.
+              - Hostile guest code has no ambient host capabilities and crashes, resource exhaustion and timeouts are contained and observable.
 
               ## Dependencies
               - Phase 4 Task: Implement Platform Administrator safeguards
@@ -5510,9 +5510,10 @@ roadmap:
 
               ## Implementation Tasks
               - [ ] Expand lifecycle persistence and migration.
-              - [ ] Implement package discovery and transitions.
-              - [ ] Implement subprocess supervisor and protocol transport.
-              - [ ] Add lifecycle, failure and observability tests.
+              - [ ] Implement archive safety checks, immutable digest-addressed package storage and lifecycle transitions.
+              - [ ] Implement the Wasmtime Component sandbox with deny-by-default imports and resource limits.
+              - [ ] Implement the separate runtime worker and authenticated protocol transport.
+              - [ ] Add malicious-component, lifecycle, failure and observability tests.
 
               ## Suggested Labels
               feature, module, plugin, test, P1
@@ -5749,7 +5750,7 @@ roadmap:
               - Phase 4 Task: Implement post-commit plugin event delivery
 
               ## Implementation Tasks
-              - [ ] Implement manifest and entry point.
+              - [ ] Implement the manifest and WebAssembly Component exports.
               - [ ] Implement configuration, event and metadata behavior.
               - [ ] Add contract and end-to-end tests.
 
