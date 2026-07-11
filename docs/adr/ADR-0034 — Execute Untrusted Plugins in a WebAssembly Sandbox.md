@@ -1,6 +1,6 @@
 # ADR-0034 — Execute Untrusted Plugins in a WebAssembly Sandbox
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

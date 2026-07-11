@@ -1,6 +1,6 @@
 # ADR-0037 — Define Plugin Manifests and Lifecycle
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

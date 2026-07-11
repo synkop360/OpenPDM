@@ -1,6 +1,6 @@
 # ADR-0036 — Version the Extension API by Major Contract
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

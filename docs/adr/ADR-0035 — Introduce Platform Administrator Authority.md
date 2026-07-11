@@ -1,6 +1,6 @@
 # ADR-0035 — Introduce Platform Administrator Authority
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 
