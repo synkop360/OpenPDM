@@ -29,6 +29,16 @@ python scripts/dev.py install
 This installs Python dependencies with uv. If pnpm is available, it also installs
 frontend and desktop JavaScript dependencies.
 
+```mermaid
+flowchart LR
+    Install[Install dependencies]
+    Validate[Validate repository]
+    Run[Run backend or compose]
+
+    Install --> Validate
+    Validate --> Run
+```
+
 ## Validate Locally
 
 ```bash
@@ -63,6 +73,9 @@ The current implementation includes public endpoints for:
 * assets, revisions and collaboration (`/assets/*`, `/notifications`)
 * blob upload and download (`/blobs/*`)
 * metadata, search and plugin registration (`/metadata`, `/search/assets`, `/plugins`)
+
+The OpenAPI documentation is available at `http://localhost:8000/docs` when the
+backend is running.
 
 ## Run the Web UI
 

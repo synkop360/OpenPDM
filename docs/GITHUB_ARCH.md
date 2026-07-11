@@ -22,5 +22,4 @@
 `-- .github/
 ```
 
-This structure supports Phase 0 only. Platform Core business capabilities are
-introduced in later roadmap phases.
+This structure reflects the Phase 0 foundation and supports the repository's evolving Platform Core implementation, including the current Phase 1+ business capabilities.

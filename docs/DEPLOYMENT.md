@@ -19,6 +19,16 @@ The compose file configures PostgreSQL and MinIO as infrastructure dependencies,
 while the backend remains responsible for application logic and public API
 behavior.
 
+```mermaid
+flowchart LR
+    Backend[backend: FastAPI]
+    Postgres[postgres: PostgreSQL]
+    MinIO[minio: MinIO / S3]
+
+    Backend --> Postgres
+    Backend --> MinIO
+```
+
 ## Start the Environment
 
 ```bash
