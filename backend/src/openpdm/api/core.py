@@ -17,6 +17,7 @@ from openpdm.extension_api import validate_plugin_package
 from openpdm.infrastructure.blob_storage import BlobStorage, build_blob_storage
 from openpdm.infrastructure.database import get_db_session, initialize_database
 from openpdm.infrastructure.plugin_packages import build_plugin_package_storage
+from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.composition import MODULES
 from openpdm.platform_core.public import (
     CollaborationStateView,
@@ -24,6 +25,7 @@ from openpdm.platform_core.public import (
     SessionContextView,
     TimelineEntryView,
 )
+from openpdm.plugin_runtime import WasmtimeWorkerSupervisor
 
 ALLOWED_STATUSES = {"draft", "active", "archived"}
 CollaborationState = CollaborationStateView
@@ -1562,6 +1564,35 @@ def set_plugin_state(
     plugin = PluginsModule.set_plugin_enabled(
         db, plugin_id=plugin_id, enabled=payload.enabled, actor=context.user
     )
+    if payload.enabled:
+        try:
+            archive = build_plugin_package_storage().read(plugin.package_digest)
+            validated = validate_plugin_package(archive)
+            if (
+                validated.digest != plugin.package_digest
+                or validated.manifest.id != plugin.id
+                or validated.manifest.version != plugin.version
+            ):
+                raise ValueError("Installed plugin package integrity check failed.")
+            runtime_settings = Settings()
+            result = WasmtimeWorkerSupervisor(
+                timeout_seconds=runtime_settings.plugin_runtime_timeout_seconds,
+                fuel=runtime_settings.plugin_runtime_fuel,
+                memory_bytes=runtime_settings.plugin_runtime_memory_bytes,
+            ).activate(validated.component)
+            plugin = PluginsModule.record_runtime_state(
+                db,
+                plugin_id=plugin.id,
+                lifecycle_state="running" if result.success else "failed",
+                diagnostic_reason=result.diagnostic_reason,
+            )
+        except Exception:
+            plugin = PluginsModule.record_runtime_state(
+                db,
+                plugin_id=plugin.id,
+                lifecycle_state="failed",
+                diagnostic_reason="Plugin activation failed package integrity validation.",
+            )
     db.commit()
     return serialize_plugin(plugin)
 

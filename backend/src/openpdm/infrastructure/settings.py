@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +21,9 @@ class Settings(BaseSettings):
     s3_secret_key: str = "openpdm-secret"
     blob_local_root: str = ".openpdm-data/blobs"
     plugin_package_root: str = ".openpdm-data/plugins"
+    plugin_runtime_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    plugin_runtime_fuel: int = Field(default=1_000_000, gt=0, le=100_000_000)
+    plugin_runtime_memory_bytes: int = Field(default=64 * 1024 * 1024, gt=0, le=512 * 1024 * 1024)
     audit_graph_queries: bool = False
     api_cors_origins: list[str] = [
         "http://localhost:5173",
