@@ -14,7 +14,7 @@ The Phase 1 registry records only basic metadata and enabled state. Executable p
 
 OpenPDM will identify plugins by a reverse-domain string and describe them with an `openpdm-plugin.json` manifest included in the package.
 
-The manifest requires `id`, `name`, `version`, `extension_api_versions`, `entry_point`, `capabilities` and optional configuration schema metadata. Plugin identifiers are immutable. Versions use semantic `major.minor.patch` form.
+The manifest requires `id`, `name`, `version`, `extension_api_versions`, `component`, `capabilities` and optional configuration schema metadata. `component` identifies the WebAssembly Component inside the immutable package. Native entry points and executable scripts are forbidden. Plugin identifiers are immutable. Versions use semantic `major.minor.patch` form.
 
 The lifecycle states are `discovered`, `installed`, `disabled`, `starting`, `running`, `failed` and `incompatible`. Only Platform Administrators initiate installation, upgrade, enable, disable and removal. Runtime transitions are owned by the Plugins Platform Module through its public interface.
 
