@@ -1,8 +1,37 @@
-"""Extension API boundary.
+"""Versioned public contract used equally by Official Plugins and Community Plugins."""
 
-Phase 0 reserves this boundary so future plugins depend on a public extension
-contract instead of Platform Module internals. Plugin lifecycle behavior is
-introduced in later roadmap phases.
-"""
+from .contracts import (
+    EXTENSION_API_MAJOR_VERSION,
+    EXTENSION_API_VERSION,
+    AssetProviderCommand,
+    Capability,
+    EventEnvelope,
+    ExtensionContext,
+    ExtensionError,
+    InvocationResponse,
+    MetadataContribution,
+    MetadataValueType,
+)
+from .manifest import ConfigurationProperty, ConfigurationSchema, PluginManifest
+from .package import ValidatedPluginPackage, validate_plugin_package
+from .sdk import build_plugin_package, inspect_plugin_package
 
-EXTENSION_API_VERSION = "0.0.0"
+__all__ = [
+    "EXTENSION_API_MAJOR_VERSION",
+    "EXTENSION_API_VERSION",
+    "AssetProviderCommand",
+    "Capability",
+    "ConfigurationProperty",
+    "ConfigurationSchema",
+    "EventEnvelope",
+    "ExtensionContext",
+    "ExtensionError",
+    "InvocationResponse",
+    "MetadataContribution",
+    "MetadataValueType",
+    "PluginManifest",
+    "ValidatedPluginPackage",
+    "build_plugin_package",
+    "inspect_plugin_package",
+    "validate_plugin_package",
+]
