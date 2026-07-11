@@ -525,6 +525,18 @@ class OrganizationModule:
     """Public Organization module service."""
 
     @staticmethod
+    def require_membership_management(db: Session, *, organization_id: str, actor: User) -> str:
+        actor_role = OrganizationModule.check_organization_role(
+            db, organization_id=organization_id, user_id=actor.id
+        )
+        require(
+            actor_role in {"Owner", "Maintainer"},
+            "Organization membership cannot be managed.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        return type_cast(str, actor_role)
+
+    @staticmethod
     def create_organization(db: Session, *, actor: User, name: str, slug: str) -> Organization:
         require(name.strip(), "Organization name is required.")
         require(slug.strip(), "Organization slug is required.")
@@ -585,20 +597,11 @@ class OrganizationModule:
     def add_member(
         db: Session, *, organization_id: str, user_id: str, role: str, actor: User
     ) -> OrganizationMembership:
-        actor_role = _membership_role(
-            db,
-            model=OrganizationMembership,
-            field_name="organization_id",
-            parent_id=organization_id,
-            user_id=actor.id,
-        )
-        require(
-            actor_role in {"Owner", "Maintainer"},
-            "Organization membership cannot be managed.",
-            status.HTTP_403_FORBIDDEN,
+        actor_role = OrganizationModule.require_membership_management(
+            db, organization_id=organization_id, actor=actor
         )
         require(role in ORG_ROLE_PRIORITY, "Invalid Organization role.")
-        get_user_or_404(db, user_id)
+        target_user = get_user_or_404(db, user_id)
         OrganizationModule.get_organization(db, organization_id, actor)
         membership = db.scalar(
             select(OrganizationMembership).where(
@@ -608,32 +611,211 @@ class OrganizationModule:
                 )
             )
         )
-        if membership is None:
-            membership = OrganizationMembership(
-                organization_id=organization_id, user_id=user_id, role=role
+        require(
+            membership is None, "User is already an Organization member.", status.HTTP_409_CONFLICT
+        )
+        if role == "Owner":
+            require(
+                actor_role == "Owner",
+                "Only an Owner can grant the Owner role.",
+                status.HTTP_403_FORBIDDEN,
             )
-            db.add(membership)
-        else:
-            membership.role = role
+        membership = OrganizationMembership(
+            organization_id=organization_id, user_id=target_user.id, role=role
+        )
+        db.add(membership)
         db.flush()
         record_audit(
             db,
             actor_user_id=actor.id,
-            action="organization.membership.upserted",
+            action="organization.membership.created",
             resource_type="organization_membership",
             resource_id=membership.id,
             organization_id=organization_id,
-            details={"target_user_id": user_id, "role": role},
+            details={"target_user_id": target_user.id, "new_role": role},
         )
         emit_event(
             db,
-            event_type="organization.membership.upserted",
+            event_type="organization.membership.created",
             resource_type="organization_membership",
             resource_id=membership.id,
             organization_id=organization_id,
-            payload={"target_user_id": user_id, "role": role},
+            payload={"target_user_id": target_user.id, "new_role": role},
         )
         return membership
+
+    @staticmethod
+    def resolve_registered_user(
+        db: Session, *, user_id: str | None, user_email: str | None
+    ) -> User:
+        require(
+            (user_id is None) != (user_email is None),
+            "Provide exactly one of user_id or user_email.",
+        )
+        if user_id is not None:
+            return get_user_or_404(db, user_id)
+        normalized_email = (user_email or "").strip().lower()
+        require(normalized_email, "User email is required.")
+        user = db.scalar(select(User).where(User.email == normalized_email))
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Registered user not found."
+            )
+        return user
+
+    @staticmethod
+    def get_membership(
+        db: Session, *, organization_id: str, membership_id: str
+    ) -> OrganizationMembership:
+        membership = db.scalar(
+            select(OrganizationMembership)
+            .options(joinedload(OrganizationMembership.user))
+            .where(
+                and_(
+                    OrganizationMembership.id == membership_id,
+                    OrganizationMembership.organization_id == organization_id,
+                )
+            )
+        )
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Organization membership not found."
+            )
+        return membership
+
+    @staticmethod
+    def change_member_role(
+        db: Session, *, organization_id: str, membership_id: str, role: str, actor: User
+    ) -> OrganizationMembership:
+        actor_role = OrganizationModule.require_membership_management(
+            db, organization_id=organization_id, actor=actor
+        )
+        require(role in ORG_ROLE_PRIORITY, "Invalid Organization role.")
+        membership = OrganizationModule.get_membership(
+            db, organization_id=organization_id, membership_id=membership_id
+        )
+        previous_role = membership.role
+        require(
+            previous_role != role,
+            "Organization member already has this role.",
+            status.HTTP_409_CONFLICT,
+        )
+        if previous_role == "Owner" or role == "Owner":
+            require(
+                actor_role == "Owner",
+                "Only an Owner can manage Owner roles.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        if previous_role == "Owner":
+            owner_count = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(OrganizationMembership)
+                    .where(
+                        and_(
+                            OrganizationMembership.organization_id == organization_id,
+                            OrganizationMembership.role == "Owner",
+                        )
+                    )
+                )
+                or 0
+            )
+            require(
+                owner_count > 1,
+                "An Organization must retain at least one Owner.",
+                status.HTTP_409_CONFLICT,
+            )
+        membership.role = role
+        db.flush()
+        details = {
+            "target_user_id": membership.user_id,
+            "previous_role": previous_role,
+            "new_role": role,
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="organization.membership.role_changed",
+            resource_type="organization_membership",
+            resource_id=membership.id,
+            organization_id=organization_id,
+            details=details,
+        )
+        emit_event(
+            db,
+            event_type="organization.membership.role_changed",
+            resource_type="organization_membership",
+            resource_id=membership.id,
+            organization_id=organization_id,
+            payload=details,
+        )
+        return membership
+
+    @staticmethod
+    def remove_member(
+        db: Session, *, organization_id: str, membership_id: str, actor: User
+    ) -> OrganizationMembership:
+        actor_role = OrganizationModule.require_membership_management(
+            db, organization_id=organization_id, actor=actor
+        )
+        membership = OrganizationModule.get_membership(
+            db, organization_id=organization_id, membership_id=membership_id
+        )
+        if membership.role == "Owner":
+            require(
+                actor_role == "Owner",
+                "Only an Owner can remove an Owner.",
+                status.HTTP_403_FORBIDDEN,
+            )
+            owner_count = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(OrganizationMembership)
+                    .where(
+                        and_(
+                            OrganizationMembership.organization_id == organization_id,
+                            OrganizationMembership.role == "Owner",
+                        )
+                    )
+                )
+                or 0
+            )
+            require(
+                owner_count > 1,
+                "An Organization must retain at least one Owner.",
+                status.HTTP_409_CONFLICT,
+            )
+        details = {"target_user_id": membership.user_id, "previous_role": membership.role}
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="organization.membership.removed",
+            resource_type="organization_membership",
+            resource_id=membership.id,
+            organization_id=organization_id,
+            details=details,
+        )
+        emit_event(
+            db,
+            event_type="organization.membership.removed",
+            resource_type="organization_membership",
+            resource_id=membership.id,
+            organization_id=organization_id,
+            payload=details,
+        )
+        db.delete(membership)
+        db.flush()
+        return membership
+
+    @staticmethod
+    def check_organization_role(db: Session, *, organization_id: str, user_id: str) -> str | None:
+        return _membership_role(
+            db,
+            model=OrganizationMembership,
+            field_name="organization_id",
+            parent_id=organization_id,
+            user_id=user_id,
+        )
 
     @staticmethod
     def list_members(
@@ -785,12 +967,8 @@ class ProjectModule:
             db, project_id=project_id, actor=actor, permission="manage_members"
         )
         require(role in PROJECT_ROLE_PRIORITY, "Invalid Project role.")
-        org_role = _membership_role(
-            db,
-            model=OrganizationMembership,
-            field_name="organization_id",
-            parent_id=project.organization_id,
-            user_id=user_id,
+        org_role = OrganizationModule.check_organization_role(
+            db, organization_id=project.organization_id, user_id=user_id
         )
         require(
             org_role is not None, "User must belong to the Organization before joining the Project."
@@ -803,32 +981,245 @@ class ProjectModule:
                 )
             )
         )
-        if membership is None:
-            membership = ProjectMembership(project_id=project_id, user_id=user_id, role=role)
-            db.add(membership)
-        else:
-            membership.role = role
+        require(membership is None, "User is already a Project member.", status.HTTP_409_CONFLICT)
+        actor_role = ProjectModule.check_project_role(db, project_id=project_id, user_id=actor.id)
+        if role == "Owner":
+            require(
+                actor_role == "Owner",
+                "Only an Owner can grant the Owner role.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        membership = ProjectMembership(project_id=project_id, user_id=user_id, role=role)
+        db.add(membership)
         db.flush()
         record_audit(
             db,
             actor_user_id=actor.id,
-            action="project.membership.upserted",
+            action="project.membership.created",
             resource_type="project_membership",
             resource_id=membership.id,
             organization_id=project.organization_id,
             project_id=project.id,
-            details={"target_user_id": user_id, "role": role},
+            details={"target_user_id": user_id, "new_role": role},
         )
         emit_event(
             db,
-            event_type="project.membership.upserted",
+            event_type="project.membership.created",
             resource_type="project_membership",
             resource_id=membership.id,
             organization_id=project.organization_id,
             project_id=project.id,
-            payload={"target_user_id": user_id, "role": role},
+            payload={"target_user_id": user_id, "new_role": role},
         )
         return membership
+
+    @staticmethod
+    def get_membership(db: Session, *, project_id: str, membership_id: str) -> ProjectMembership:
+        membership = db.scalar(
+            select(ProjectMembership)
+            .options(joinedload(ProjectMembership.user))
+            .where(
+                and_(
+                    ProjectMembership.id == membership_id,
+                    ProjectMembership.project_id == project_id,
+                )
+            )
+        )
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project membership not found."
+            )
+        return membership
+
+    @staticmethod
+    def change_member_role(
+        db: Session, *, project_id: str, membership_id: str, role: str, actor: User
+    ) -> ProjectMembership:
+        project = ProjectModule.require_project_permission(
+            db, project_id=project_id, actor=actor, permission="manage_members"
+        )
+        require(role in PROJECT_ROLE_PRIORITY, "Invalid Project role.")
+        actor_role = ProjectModule.check_project_role(db, project_id=project_id, user_id=actor.id)
+        membership = ProjectModule.get_membership(
+            db, project_id=project_id, membership_id=membership_id
+        )
+        previous_role = membership.role
+        require(
+            previous_role != role, "Project member already has this role.", status.HTTP_409_CONFLICT
+        )
+        if previous_role == "Owner" or role == "Owner":
+            require(
+                actor_role == "Owner",
+                "Only an Owner can manage Owner roles.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        if previous_role == "Owner":
+            owner_count = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(ProjectMembership)
+                    .where(
+                        and_(
+                            ProjectMembership.project_id == project_id,
+                            ProjectMembership.role == "Owner",
+                        )
+                    )
+                )
+                or 0
+            )
+            require(
+                owner_count > 1,
+                "A Project must retain at least one Owner.",
+                status.HTTP_409_CONFLICT,
+            )
+        membership.role = role
+        db.flush()
+        details = {
+            "target_user_id": membership.user_id,
+            "previous_role": previous_role,
+            "new_role": role,
+        }
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="project.membership.role_changed",
+            resource_type="project_membership",
+            resource_id=membership.id,
+            organization_id=project.organization_id,
+            project_id=project.id,
+            details=details,
+        )
+        emit_event(
+            db,
+            event_type="project.membership.role_changed",
+            resource_type="project_membership",
+            resource_id=membership.id,
+            organization_id=project.organization_id,
+            project_id=project.id,
+            payload=details,
+        )
+        return membership
+
+    @staticmethod
+    def remove_member(
+        db: Session, *, project_id: str, membership_id: str, actor: User
+    ) -> ProjectMembership:
+        project = ProjectModule.require_project_permission(
+            db, project_id=project_id, actor=actor, permission="manage_members"
+        )
+        actor_role = ProjectModule.check_project_role(db, project_id=project_id, user_id=actor.id)
+        membership = ProjectModule.get_membership(
+            db, project_id=project_id, membership_id=membership_id
+        )
+        if membership.role == "Owner":
+            require(
+                actor_role == "Owner",
+                "Only an Owner can remove an Owner.",
+                status.HTTP_403_FORBIDDEN,
+            )
+            owner_count = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(ProjectMembership)
+                    .where(
+                        and_(
+                            ProjectMembership.project_id == project_id,
+                            ProjectMembership.role == "Owner",
+                        )
+                    )
+                )
+                or 0
+            )
+            require(
+                owner_count > 1,
+                "A Project must retain at least one Owner.",
+                status.HTTP_409_CONFLICT,
+            )
+        details = {"target_user_id": membership.user_id, "previous_role": membership.role}
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="project.membership.removed",
+            resource_type="project_membership",
+            resource_id=membership.id,
+            organization_id=project.organization_id,
+            project_id=project.id,
+            details=details,
+        )
+        emit_event(
+            db,
+            event_type="project.membership.removed",
+            resource_type="project_membership",
+            resource_id=membership.id,
+            organization_id=project.organization_id,
+            project_id=project.id,
+            payload=details,
+        )
+        db.delete(membership)
+        db.flush()
+        return membership
+
+    @staticmethod
+    def remove_user_memberships_for_organization(
+        db: Session, *, organization_id: str, user_id: str, actor: User
+    ) -> list[ProjectMembership]:
+        memberships = list(
+            db.scalars(
+                select(ProjectMembership)
+                .options(joinedload(ProjectMembership.project))
+                .join(Project, Project.id == ProjectMembership.project_id)
+                .where(
+                    and_(
+                        Project.organization_id == organization_id,
+                        ProjectMembership.user_id == user_id,
+                    )
+                )
+            )
+        )
+        for membership in memberships:
+            if membership.role == "Owner":
+                owner_count = (
+                    db.scalar(
+                        select(func.count())
+                        .select_from(ProjectMembership)
+                        .where(
+                            and_(
+                                ProjectMembership.project_id == membership.project_id,
+                                ProjectMembership.role == "Owner",
+                            )
+                        )
+                    )
+                    or 0
+                )
+                require(
+                    owner_count > 1,
+                    "Organization member owns a Project that must retain at least one Owner.",
+                    status.HTTP_409_CONFLICT,
+                )
+        for membership in memberships:
+            details = {"target_user_id": user_id, "previous_role": membership.role}
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="project.membership.removed",
+                resource_type="project_membership",
+                resource_id=membership.id,
+                organization_id=organization_id,
+                project_id=membership.project_id,
+                details=details,
+            )
+            emit_event(
+                db,
+                event_type="project.membership.removed",
+                resource_type="project_membership",
+                resource_id=membership.id,
+                organization_id=organization_id,
+                project_id=membership.project_id,
+                payload=details,
+            )
+            db.delete(membership)
+        db.flush()
+        return memberships
 
     @staticmethod
     def list_members(db: Session, *, project_id: str, actor: User) -> list[ProjectMembership]:

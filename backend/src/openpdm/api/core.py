@@ -267,7 +267,8 @@ class CreateOrganizationRequest(BaseModel):
 
 
 class AddOrganizationMemberRequest(BaseModel):
-    user_id: str
+    user_id: str | None = None
+    user_email: str | None = None
     role: str
 
 
@@ -278,7 +279,12 @@ class CreateProjectRequest(BaseModel):
 
 
 class AddProjectMemberRequest(BaseModel):
-    user_id: str
+    user_id: str | None = None
+    user_email: str | None = None
+    role: str
+
+
+class ChangeMembershipRoleRequest(BaseModel):
     role: str
 
 
@@ -742,16 +748,77 @@ def add_organization_member(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> OrganizationMembershipResponse:
+    OrganizationModule.require_membership_management(
+        db, organization_id=organization_id, actor=context.user
+    )
+    target_user = OrganizationModule.resolve_registered_user(
+        db, user_id=payload.user_id, user_email=payload.user_email
+    )
     membership = OrganizationModule.add_member(
         db,
         organization_id=organization_id,
-        user_id=payload.user_id,
+        user_id=target_user.id,
         role=payload.role,
         actor=context.user,
     )
     db.commit()
     db.refresh(membership)
-    return OrganizationMembershipResponse(id=membership.id, role=membership.role)
+    return OrganizationMembershipResponse(
+        id=membership.id, role=membership.role, user=serialize_user(target_user)
+    )
+
+
+@router.patch(
+    "/organizations/{organization_id}/members/{membership_id}",
+    response_model=OrganizationMembershipResponse,
+)
+def change_organization_member_role(
+    organization_id: str,
+    membership_id: str,
+    payload: ChangeMembershipRoleRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> OrganizationMembershipResponse:
+    membership = OrganizationModule.change_member_role(
+        db,
+        organization_id=organization_id,
+        membership_id=membership_id,
+        role=payload.role,
+        actor=context.user,
+    )
+    db.commit()
+    return OrganizationMembershipResponse(
+        id=membership.id, role=membership.role, user=serialize_user(membership.user)
+    )
+
+
+@router.delete(
+    "/organizations/{organization_id}/members/{membership_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def remove_organization_member(
+    organization_id: str,
+    membership_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    OrganizationModule.require_membership_management(
+        db, organization_id=organization_id, actor=context.user
+    )
+    membership = OrganizationModule.get_membership(
+        db, organization_id=organization_id, membership_id=membership_id
+    )
+    ProjectModule.remove_user_memberships_for_organization(
+        db, organization_id=organization_id, user_id=membership.user_id, actor=context.user
+    )
+    OrganizationModule.remove_member(
+        db,
+        organization_id=organization_id,
+        membership_id=membership_id,
+        actor=context.user,
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -840,11 +907,60 @@ def add_project_member(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> ProjectMembershipResponse:
+    ProjectModule.require_project_permission(
+        db, project_id=project_id, actor=context.user, permission="manage_members"
+    )
+    target_user = OrganizationModule.resolve_registered_user(
+        db, user_id=payload.user_id, user_email=payload.user_email
+    )
     membership = ProjectModule.add_member(
-        db, project_id=project_id, user_id=payload.user_id, role=payload.role, actor=context.user
+        db, project_id=project_id, user_id=target_user.id, role=payload.role, actor=context.user
     )
     db.commit()
-    return ProjectMembershipResponse(id=membership.id, role=membership.role)
+    return ProjectMembershipResponse(
+        id=membership.id, role=membership.role, user=serialize_user(target_user)
+    )
+
+
+@router.patch(
+    "/projects/{project_id}/members/{membership_id}",
+    response_model=ProjectMembershipResponse,
+)
+def change_project_member_role(
+    project_id: str,
+    membership_id: str,
+    payload: ChangeMembershipRoleRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ProjectMembershipResponse:
+    membership = ProjectModule.change_member_role(
+        db,
+        project_id=project_id,
+        membership_id=membership_id,
+        role=payload.role,
+        actor=context.user,
+    )
+    db.commit()
+    return ProjectMembershipResponse(
+        id=membership.id, role=membership.role, user=serialize_user(membership.user)
+    )
+
+
+@router.delete(
+    "/projects/{project_id}/members/{membership_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def remove_project_member(
+    project_id: str,
+    membership_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    ProjectModule.remove_member(
+        db, project_id=project_id, membership_id=membership_id, actor=context.user
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/projects/{project_id}/members", response_model=list[ProjectMembershipResponse])

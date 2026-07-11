@@ -32,6 +32,8 @@ flowchart TD
     Project["ProjectModule"]
     Assets["AssetsModule"]
     Collab["CollaborationModule"]
+    Relationships["RelationshipsModule"]
+    Notifications["NotificationsModule"]
     BlobModule["BlobModule"]
     Metadata["MetadataModule"]
     Search["SearchModule"]
@@ -52,6 +54,8 @@ flowchart TD
     Router --> Project
     Router --> Assets
     Router --> Collab
+    Router --> Relationships
+    Router --> Notifications
     Router --> BlobModule
     Router --> Metadata
     Router --> Search
@@ -62,6 +66,8 @@ flowchart TD
     Project --> SQLA
     Assets --> SQLA
     Collab --> SQLA
+    Relationships --> SQLA
+    Notifications --> SQLA
     BlobModule --> SQLA
     Metadata --> SQLA
     Search --> SQLA
@@ -83,16 +89,20 @@ erDiagram
     USER ||--o{ PROJECT_MEMBERSHIP : receives
     USER ||--o{ ASSET : creates
     USER ||--o| ASSET_COLLABORATION_LOCK : owns
+    USER ||--o{ NOTIFICATION_RECORD : receives
 
     ORGANIZATION ||--o{ ORGANIZATION_MEMBERSHIP : has
     ORGANIZATION ||--o{ PROJECT : contains
 
     PROJECT ||--o{ PROJECT_MEMBERSHIP : has
     PROJECT ||--o{ ASSET : contains
+    PROJECT ||--o{ NOTIFICATION_RECORD : scopes
 
     ASSET ||--o{ REVISION : has
     ASSET ||--o| ASSET_COLLABORATION_LOCK : may_have
     ASSET ||--o{ METADATA_ENTRY : may_have
+    ASSET ||--o{ ASSET_RELATIONSHIP : sources
+    ASSET ||--o{ ASSET_REFERENCE : sources
 
     REVISION ||--o{ REPRESENTATION : has
     REVISION ||--o{ METADATA_ENTRY : may_have
@@ -176,6 +186,66 @@ sequenceDiagram
     Assets-->>API: asset aggregate
     API-->>UI: asset detail
 ```
+
+## Membership Administration API
+
+The public application API exposes an explicit membership lifecycle. New users must already be registered. Organization assignment uses normalized email by default and accepts `user_id` temporarily for compatibility; callers must provide exactly one identifier.
+
+| Operation | Organization endpoint | Project endpoint |
+| --- | --- | --- |
+| List | `GET /organizations/{organization_id}/members` | `GET /projects/{project_id}/members` |
+| Add | `POST /organizations/{organization_id}/members` | `POST /projects/{project_id}/members` |
+| Change role | `PATCH /organizations/{organization_id}/members/{membership_id}` | `PATCH /projects/{project_id}/members/{membership_id}` |
+| Remove | `DELETE /organizations/{organization_id}/members/{membership_id}` | `DELETE /projects/{project_id}/members/{membership_id}` |
+
+The preferred Organization add payload is:
+
+```json
+{
+  "user_email": "member@example.com",
+  "role": "Contributor"
+}
+```
+
+Project assignment selects an existing Organization member and may use their stable user identifier:
+
+```json
+{
+  "user_id": "registered-user-id",
+  "role": "Viewer"
+}
+```
+
+Role changes use `{ "role": "Maintainer" }`. Successful deletion returns `204 No Content`. Membership responses include the membership `id`, `role`, and safe `user` representation.
+
+```mermaid
+sequenceDiagram
+    participant UI as Web UI
+    participant API as FastAPI Router
+    participant Org as OrganizationModule
+    participant Project as ProjectModule
+    participant DB as Database
+
+    UI->>API: POST /organizations/{id}/members\n{user_email, role}
+    API->>Org: resolve_registered_user + add_member
+    Org->>DB: validate authority and create membership + audit + event
+    DB-->>UI: complete Organization membership
+
+    UI->>API: POST /projects/{id}/members\n{user_id, role}
+    API->>Project: add_member
+    Project->>Org: check Organization membership through public interface
+    Project->>DB: create Project membership + audit + event
+    DB-->>UI: complete Project membership
+
+    UI->>API: DELETE /organizations/{id}/members/{membership_id}
+    API->>Project: remove contained Project memberships
+    API->>Org: remove Organization membership
+    Note over API,DB: One database transaction
+    Org->>DB: audit + event + delete
+    API-->>UI: 204 No Content
+```
+
+Owners and Maintainers manage non-Owner members. Only Owners may grant or manage Owner roles, and last-Owner operations return `409 Conflict`. Removing an Organization member atomically removes their contained Project memberships.
 
 ## Asset Check-In Flow
 

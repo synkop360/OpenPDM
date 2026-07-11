@@ -12,9 +12,12 @@ Our goal is to build a modern, maintainable and community-driven Engineering Col
 
 Before contributing, please read:
 
-* `docs/VISION.md`
+* `AGENTS.md`
 * `docs/PROJECT_CHARTER.md`
 * `docs/ARCHITECTURE.md`
+* `docs/VISION.md`
+* `ROADMAP.md`
+* accepted ADRs under `docs/adr/`
 
 These documents describe the project's long-term direction and architectural principles.
 
@@ -31,7 +34,7 @@ When contributing, always aim to:
 * Respect existing architectural decisions.
 * Document significant changes.
 
-If a contribution requires changing the architecture, create or update an ADR before implementation.
+If a contribution requires changing accepted architecture, propose a new ADR before implementation. Do not rewrite an accepted decision implicitly.
 
 ---
 
@@ -85,7 +88,7 @@ Consistency is more important than personal preference.
 
 If a new convention is required, discuss it before applying it across the project.
 
-For Phase 0:
+For the current repository:
 
 * Python code is formatted and linted with Ruff.
 * Backend tests use pytest.
@@ -100,6 +103,13 @@ Run local validation before opening a pull request:
 python scripts/dev.py validate
 python scripts/dev.py lint
 python scripts/dev.py test
+```
+
+For Web UI changes, also confirm the production bundle builds:
+
+```bash
+cd frontend
+pnpm run build
 ```
 
 ---

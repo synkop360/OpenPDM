@@ -21,3 +21,7 @@
 ## Tests
 
 ...
+
+## Documentation and ADR impact
+
+...

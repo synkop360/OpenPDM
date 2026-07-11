@@ -15,6 +15,11 @@
 |-- docs/
 |   |-- PROJECT_CHARTER.md
 |   |-- ARCHITECTURE.md
+|   |-- README.md
+|   |-- API_FLOWS.md
+|   |-- API_REFERENCE.md
+|   |-- DEVELOPMENT.md
+|   |-- DEPLOYMENT.md
 |   |-- VISION.md
 |   `-- adr/
 |-- scripts/
@@ -22,4 +27,4 @@
 `-- .github/
 ```
 
-This structure reflects the Phase 0 foundation and supports the repository's evolving Platform Core implementation, including the current Phase 1+ business capabilities.
+This structure supports the implemented Platform Core, Web UI, desktop shell track, local deployment, repository automation and architectural decision history.

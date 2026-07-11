@@ -84,7 +84,7 @@ Phase 0 exit criteria are:
 * CI validates Python linting, backend tests, frontend tests and project
   automation configuration;
 * documentation explains development, deployment and demonstration paths;
-* no Phase 1 Platform Core MVP behavior is implemented early.
+* the foundation remains reproducible while later Platform Core capabilities continue to pass the same baseline checks.
 
 ## Evidence
 
@@ -95,3 +95,5 @@ Evidence for completion is provided by:
 * `python scripts/dev.py test`
 * CI results for `.github/workflows/ci.yaml`
 * successful local startup of `/health` and `/foundation`
+
+This document is retained as a historical foundation check. Current feature acceptance belongs in the API, Asset Graph and Web UI guides rather than in the Phase 0 exit criteria.

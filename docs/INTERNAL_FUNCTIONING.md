@@ -1,176 +1,121 @@
 # OpenPDM Internal Functioning
 
-This document provides a visual explanation of how OpenPDM is intended to function internally based on the current authoritative documentation and accepted ADRs.
+This document explains the implemented Platform Core and its primary runtime boundaries. Stable architectural direction remains defined by the Project Charter, Architecture document and accepted ADRs.
 
-It is a **reference view of the Platform Core architecture** and the target module boundaries. The repository already implements the Phase 1 core platform and early Phase 2/3 collaboration and Asset Graph capabilities, while preserving the architecture defined by the accepted ADRs.
-
-## General Overview
+## Runtime Layers
 
 ```mermaid
 flowchart TD
-    WebUI[Web UI<br/>React + TypeScript + Vite]
-    Desktop[Desktop Client<br/>Tauri + React + TypeScript]
-    Automation[Automation / API Clients]
+    WebUI["Web UI<br/>React + TypeScript + Vite"]
+    Desktop["Desktop Client shell<br/>Tauri"]
+    Automation["Automation / API clients"]
+    AppAPI["Public application API<br/>FastAPI + REST + OpenAPI"]
+    Composition["Composition root"]
 
-    AppAPI[Public Application API<br/>REST + OpenAPI]
-    ExtAPI[Extension API<br/>Stable plugin boundary]
-
-    subgraph Core[Platform Core - Modular Monolith]
-        direction TB
-        Organization[Organization Module]
-        Project[Project Module]
-        Permissions[Permissions Module]
-        Assets[Assets Module]
-        Blobs[Blobs Module]
-        Metadata[Metadata Module]
-        Search[Search Module]
-        Audit[Audit Module]
-        Events[Events Module]
-        Workflow[Workflow Module]
-        Plugins[Plugins Module]
+    subgraph Core["Platform Core — modular monolith"]
+        Auth["Authentication"]
+        Organization["Organization"]
+        Project["Project"]
+        Assets["Assets"]
+        Blobs["Blobs"]
+        Relationships["Relationships"]
+        Collaboration["Collaboration"]
+        Metadata["Metadata"]
+        Search["Search"]
+        Notifications["Notifications"]
+        Plugins["Plugins registry"]
+        AuditEvents["Audit and domain events"]
     end
 
-    Postgres[(PostgreSQL)]
-    MinIO[(MinIO / S3)]
+    Postgres[("PostgreSQL<br/>business state")]
+    ObjectStore[("S3-compatible storage<br/>MinIO by default")]
 
     WebUI --> AppAPI
     Desktop --> AppAPI
     Automation --> AppAPI
-
-    AppAPI --> Organization
-    AppAPI --> Assets
-    AppAPI --> Search
-    AppAPI --> Plugins
-
-    ExtAPI --> Core
+    AppAPI --> Composition
+    Composition --> Core
     Core --> Postgres
-    Core --> MinIO
+    Blobs --> ObjectStore
 ```
 
-This overview shows the main architectural layers:
+Client applications consume only the public application API. The composition root binds Platform Module facades to their current implementations. Platform business state is stored in PostgreSQL; Blob bytes are coordinated separately through replaceable S3-compatible storage.
 
-* client applications consume the public application API;
-* the Platform Core is implemented as a modular monolith;
-* Platform Modules communicate only through public interfaces;
-* plugins extend OpenPDM through the Extension API only;
-* business data and Blob content are stored separately.
+## Implemented Platform Module Responsibilities
 
-```mermaid
-flowchart TD
-    WebUI[Web UI<br/>React + TypeScript + Vite]
-    Desktop[Desktop Client<br/>Tauri + React + TypeScript]
-    Automation[Automation / API Clients]
+| Capability | Responsibility |
+| --- | --- |
+| Authentication | Local users, opaque server-side sessions, sign-in, sign-out and revocation |
+| Organization | Organization identity, membership and Organization roles |
+| Project | Projects, Project roles and Project-scoped permission checks |
+| Assets | Engineering Assets, immutable Revisions, Representations and generic lifecycle status |
+| Blobs | Blob records, upload/download orchestration and storage abstraction |
+| Relationships | Asset relationships, references and bounded graph queries |
+| Collaboration | Checkout, locks, check-in, conflict recovery and timeline |
+| Metadata | Generic key/value metadata without engineering semantics |
+| Search | PostgreSQL-backed Engineering Asset search |
+| Notifications | Project-scoped in-app collaboration notifications and acknowledgment |
+| Plugins | Read-only plugin registry and discovery skeleton |
+| Audit and events | Traceable business mutations and domain-event emission |
 
-    AppAPI[Public Application API<br/>REST + OpenAPI]
-    ExtAPI[Extension API<br/>Stable plugin boundary]
-
-    subgraph Core[Platform Core - Modular Monolith]
-        direction TB
-        Modules[Platform Modules]
-    end
-
-    subgraph Plugins[Plugins]
-        direction TB
-        Official[Official Plugins]
-        Community[Community Plugins]
-    end
-
-    Postgres[(PostgreSQL<br/>business data)]
-    MinIO[(S3-compatible Blob storage<br/>MinIO by default)]
-
-    WebUI --> AppAPI
-    Desktop --> AppAPI
-    Automation --> AppAPI
-
-    AppAPI --> Core
-    Core --> Postgres
-    Core --> MinIO
-
-    Official --> ExtAPI
-    Community --> ExtAPI
-    ExtAPI --> Core
-```
-
-## Detailed Diagram
-
-This detailed view shows the Phase 1 Platform Module boundaries and the main interaction paths defined by the architecture and ADRs.
+## Key Dependency Paths
 
 ```mermaid
-flowchart TB
-    WebUI[Web UI]
-    Desktop[Desktop Client]
-    APIClients[API Clients]
+flowchart LR
+    API["Application API orchestration"]
+    Org["Organization public interface"]
+    Project["Project public interface"]
+    Assets["Assets public interface"]
+    Blobs["Blobs public interface"]
+    Relationships["Relationships public interface"]
+    Collaboration["Collaboration public interface"]
+    Notifications["Notifications public interface"]
 
-    AppAPI[Public Application API<br/>REST + OpenAPI]
-    Auth[Authentication<br/>local-first sessions]
-    ExtAPI[Extension API placeholder]
-    Postgres[(PostgreSQL 18)]
-    BlobStore[(S3-compatible object storage<br/>MinIO by default)]
-
-    WebUI --> AppAPI
-    Desktop --> AppAPI
-    APIClients --> AppAPI
-    AppAPI --> Auth
-
-    subgraph Core[Platform Core - Modular Monolith]
-        direction TB
-        Organization[Organization Platform Module]
-        Project[Project Platform Module]
-        Permissions[Permissions Platform Module<br/>Project-scoped RBAC]
-        Assets[Assets Platform Module<br/>Asset / Revision / Representation / status]
-        Blobs[Blobs Platform Module<br/>Blob records and storage orchestration]
-        Metadata[Metadata Platform Module<br/>generic key/value metadata]
-        Search[Search Platform Module]
-        Audit[Audit Platform Module]
-        Events[Events Platform Module]
-        Workflow[Workflow Platform Module<br/>generic status primitive only]
-        Plugins[Plugins Platform Module<br/>read-only registry and discovery skeleton]
-    end
-
-    Official[Official Plugins]
-    Community[Community Plugins]
-
-    AppAPI --> Organization
-    AppAPI --> Assets
-    AppAPI --> Search
-    AppAPI --> Plugins
-
-    Project --> Organization
-    Permissions --> Organization
-    Permissions --> Project
+    API --> Org
+    API --> Project
+    API --> Assets
+    API --> Relationships
+    API --> Collaboration
+    Project --> Org
     Assets --> Project
     Assets --> Blobs
-    Metadata --> Assets
-    Search --> Assets
-    Search --> Metadata
-    Search --> Project
-    Workflow --> Assets
-    Audit --> Events
-
-    Plugins --> ExtAPI
-    Official --> ExtAPI
-    Community --> ExtAPI
-    ExtAPI --> Assets
-    ExtAPI --> Events
-
-    Organization --> Postgres
-    Project --> Postgres
-    Permissions --> Postgres
-    Assets --> Postgres
-    Metadata --> Postgres
-    Search --> Postgres
-    Audit --> Postgres
-    Events --> Postgres
-    Plugins --> Postgres
-    Blobs --> Postgres
-    Blobs --> BlobStore
+    Relationships --> Assets
+    Collaboration --> Assets
+    Collaboration --> Notifications
 ```
 
-## Reading Notes
+The Project Platform Module may check Organization membership through the Organization public interface. Organization membership removal is coordinated by the application layer: contained Project memberships are removed before the Organization membership in one transaction, without creating a reverse Organization-to-Project dependency.
 
-* The Platform Core remains domain-agnostic: it manages generic Engineering Asset lifecycle concepts, not CAD or EDA semantics.
-* Engineering knowledge belongs to plugins and must cross the Extension API boundary rather than using Platform Module internals.
-* The Assets Platform Module owns lifecycle behavior, while the Blobs Platform Module owns binary storage coordination.
-* Authorization is decided by the Platform Core, not by plugins or client applications.
-* Search remains generic in Phase 1 and is limited to PostgreSQL-backed search over Platform Core data.
-* The Phase 1 plugin registry is intentionally read-only until OpenPDM defines a dedicated platform administration model in a later phase.
+## Authorization And Membership
+
+Authorization is calculated by the Platform Core. A user must belong to an Organization before receiving a Project role. Project permissions use `Owner`, `Maintainer`, `Contributor` and `Viewer` roles.
+
+Membership administration is exposed through the public application API and Web UI:
+
+* Owners and Maintainers manage non-Owner members;
+* only Owners manage Owner roles;
+* every Organization and Project retains at least one Owner;
+* Organization removal also revokes contained Project memberships;
+* membership mutations produce audit records and domain events.
+
+ADR-0033 records this accepted membership lifecycle and its authorization boundaries.
+
+## Extension Boundary
+
+```mermaid
+flowchart LR
+    Official["Official Plugins"] --> Extension["Extension API"]
+    Community["Community Plugins"] --> Extension
+    Extension --> Core["Platform Core"]
+```
+
+Official Plugins and Community Plugins use the same Extension API. The current plugin capability is a registry skeleton; plugin execution and privileged internal access are not implemented.
+
+## Architectural Invariants
+
+* The Platform Core remains domain-agnostic.
+* Engineering knowledge belongs to plugins.
+* Platform Modules interact through public interfaces.
+* Clients do not call Platform Module internals.
+* Plugins do not bypass the Extension API or Platform Core authorization.
+* Infrastructure adapters remain replaceable.

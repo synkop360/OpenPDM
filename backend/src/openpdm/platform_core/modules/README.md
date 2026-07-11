@@ -1,6 +1,6 @@
 # Platform Modules
 
-Platform Modules live under this package when they are introduced by roadmap phases.
+Platform Modules under this package implement the current Platform Core capabilities and expose their facades through the composition root.
 
 Each Platform Module must:
 
@@ -9,4 +9,6 @@ Each Platform Module must:
 * keep internal implementation details private to the module;
 * communicate with other Platform Modules only through Public Module Interfaces.
 
-Phase 0 intentionally does not implement business modules. Asset lifecycle behavior starts in Phase 1.
+The current composition includes Authentication, Organization, Project, Assets, Blobs, Relationships, Collaboration, Metadata, Search, Plugins and Notifications capabilities. Audit and domain-event behavior is provided through its public audit contract and configured implementation.
+
+Organization membership and Project role assignment remain separate responsibilities. Application-layer orchestration coordinates cross-module Organization removal through public operations; the Organization Platform Module does not depend on Project internals.

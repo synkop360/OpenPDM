@@ -54,6 +54,13 @@ Validation includes:
 * pytest backend and architecture tests;
 * frontend TypeScript and Vitest checks when JavaScript dependencies are installed.
 
+Build the Web UI production bundle after changing frontend behavior:
+
+```bash
+cd frontend
+pnpm run build
+```
+
 ## Run the Backend
 
 ```bash
@@ -69,10 +76,11 @@ The backend API is available at:
 The current implementation includes public endpoints for:
 
 * authentication (`/auth/*`)
-* organizations and projects (`/organizations`, `/projects`)
-* assets, revisions and collaboration (`/assets/*`, `/notifications`)
+* Organizations, Projects, membership and role administration (`/organizations`, `/projects`)
+* Assets, Revisions, collaboration and notifications (`/assets/*`, `/notifications`)
 * blob upload and download (`/blobs/*`)
-* metadata, search and plugin registration (`/metadata`, `/search/assets`, `/plugins`)
+* relationships, references and bounded graph queries (`/relationships`, `/references`, `/assets/*/graph`)
+* metadata, search and the read-only plugin registry (`/metadata`, `/search/assets`, `/plugins`)
 
 The OpenAPI documentation is available at `http://localhost:8000/docs` when the
 backend is running.
@@ -109,6 +117,18 @@ pnpm run dev
 
 The desktop shell remains a separate track and is not required for the core
 backend and web UI workflow.
+
+## Start Backend And Web UI Together
+
+```bash
+python scripts/start_all.py
+```
+
+This starts the Compose backend on `http://localhost:18000`, waits for its health check and starts the Vite Web UI on `http://localhost:5173`. Use `--skip-compose`, `--skip-frontend` or `--dry-run` for focused workflows.
+
+## Runtime Configuration
+
+Backend environment variables use the `OPENPDM_` prefix. The common development settings are documented in `.env.example`; they cover database and S3 connections, the backend host port and optional successful graph-query auditing. Cross-origin browser access defaults to the local Vite development and preview origins and can be overridden with `OPENPDM_API_CORS_ORIGINS`.
 
 ## Architecture Boundaries
 
