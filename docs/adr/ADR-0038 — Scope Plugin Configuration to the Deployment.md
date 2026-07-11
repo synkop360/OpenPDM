@@ -1,6 +1,6 @@
 # ADR-0038 — Scope Plugin Configuration to the Deployment
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

@@ -1,6 +1,6 @@
 # ADR-0039 — Expose Capability-Scoped Providers and Event Hooks
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 
