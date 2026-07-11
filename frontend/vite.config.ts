@@ -15,6 +15,7 @@ export default defineConfig({
       "/revisions": "http://localhost:18000",
       "/blobs": "http://localhost:18000",
       "/metadata": "http://localhost:18000",
+      "/notifications": "http://localhost:18000",
       "/search": "http://localhost:18000",
       "/plugins": "http://localhost:18000"
     }

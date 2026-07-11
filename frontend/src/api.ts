@@ -236,6 +236,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
     throw new ApiError(message, response.status, code, context);
   }
+  const contentType = response.headers?.get?.("content-type") ?? "application/json";
+  if (!contentType.includes("application/json")) {
+    throw new ApiError(
+      `OpenPDM API returned an unexpected ${contentType || "unknown"} response for ${path}`,
+      response.status,
+    );
+  }
   return response.json() as Promise<T>;
 }
 
