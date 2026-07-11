@@ -1,7 +1,7 @@
 # OpenPDM Web UI Manual Test Guide
 
 This guide describes how to manually test the current Web UI prototype across
-the delivered Phase 1 workflow and the implemented Phase 2 collaboration slice.
+the delivered Platform Core workflow, membership administration, Phase 2 collaboration slice and Phase 3 Asset Graph surface.
 
 The Web UI is a normal consumer of the public application API. It exercises the
 Platform Core through the browser and does not bypass Platform Module
@@ -15,6 +15,8 @@ This guide covers the implemented prototype workflow for:
 * local sign-in and sign-out
 * Organization bootstrap
 * Project bootstrap
+* Organization and Project membership administration
+* role assignment and access revocation
 * Engineering Asset creation
 * immutable Revision creation through file upload
 * Blob-backed file download
@@ -24,6 +26,7 @@ This guide covers the implemented prototype workflow for:
 * collaboration timeline visibility
 * collaboration conflict feedback in the Web UI
 * in-app collaboration notification visibility and read acknowledgment
+* relationship, reference and bounded graph exploration
 
 This guide does not cover:
 
@@ -43,6 +46,8 @@ The current browser workflow exercises these Platform Modules:
 * Assets
 * Blobs
 * Collaboration
+* Relationships
+* Notifications
 
 It also relies on the public authentication and authorization capabilities
 defined for Phase 1.
@@ -61,8 +66,24 @@ You need:
 Optional but useful for the multi-user collaboration checks:
 
 * a second local user account
-* API access through `http://127.0.0.1:8000/docs` to add Project members when
-  the Web UI does not expose membership management directly
+
+## Verify Membership Administration
+
+1. Register two local users and sign in as the user who owns an Organization and Project.
+2. In **Organization members**, add the second registered user by email and assign a role.
+3. Confirm the user appears with their display name, email and selected role.
+4. In **Project members**, select that Organization member and assign a Project role.
+5. Change the Project role and confirm the updated role remains after refresh.
+6. Sign in as the second user and confirm the Organization and Project are accessible according to the assigned role.
+7. Remove the user from the Organization and confirm their Project membership and access are revoked.
+8. Confirm a Maintainer cannot manage an Owner and that the UI reports the last-Owner safeguard when applicable.
+
+Expected result:
+
+* Owners and Maintainers can manage non-Owner memberships;
+* only Owners can grant or manage Owner roles;
+* Project candidates come from existing Organization members;
+* every Organization and Project retains at least one Owner.
 
 Install dependencies:
 
@@ -371,7 +392,7 @@ Potential artifacts to watch for:
 ### 13. Verify Lock Contention with a Second User
 
 This check uses two browser sessions. If the second user is not already a member
-of the same Project, add them first through the public API docs.
+of the same Project, add them through the Organization and Project member panels first.
 
 1. In browser A, sign in as user 1 and check out the Asset.
 2. In browser B, sign in as user 2 and open the same Asset.
@@ -568,5 +589,7 @@ Treat the prototype workflow as passing when all of the following are true:
 * collaboration conflicts are visible and understandable in the Web UI
 * collaboration timeline entries refresh after lock and check-in actions
 * in-app collaboration notifications are visible and can be marked as read
+* Organization and Project members can be added, assigned roles and removed according to Owner safeguards
+* relationship and reference information remains distinct in the Asset Graph surface
 * the session survives a browser refresh
 * sign-out removes access to the protected workspace

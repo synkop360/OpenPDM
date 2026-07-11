@@ -1,6 +1,8 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
 import {
   ApiError,
+  addOrganizationMember,
+  addProjectMember,
   type AssetGraph,
   checkinAsset,
   checkoutAsset,
@@ -9,6 +11,8 @@ import {
   createOrganization,
   createProject,
   createRevision,
+  changeOrganizationMemberRole,
+  changeProjectMemberRole,
   downloadBlob,
   fetchFoundationStatus,
   getAsset,
@@ -23,11 +27,15 @@ import {
   listIncomingAssetRelationships,
   listNotifications,
   listOrganizationProjects,
+  listOrganizationMembers,
   listOutgoingAssetRelationships,
   listOrganizations,
   listProjectsForUser,
+  listProjectMembers,
   markNotificationRead,
   registerUser,
+  removeOrganizationMember,
+  removeProjectMember,
   signIn,
   signOut,
   type ReferenceRecord,
@@ -40,6 +48,7 @@ import {
   type NotificationRecord,
   type OrganizationMembership,
   type Project,
+  type ProjectMembership,
   type Revision,
   type SessionInfo,
   type TimelineEntry,
@@ -197,6 +206,12 @@ export function App() {
     createLoadable<OrganizationMembership[]>([]),
   );
   const [projects, setProjects] = useState<Loadable<Project[]>>(createLoadable<Project[]>([]));
+  const [organizationMembers, setOrganizationMembers] = useState<Loadable<OrganizationMembership[]>>(
+    createLoadable<OrganizationMembership[]>([]),
+  );
+  const [projectMembers, setProjectMembers] = useState<Loadable<ProjectMembership[]>>(
+    createLoadable<ProjectMembership[]>([]),
+  );
   const [assets, setAssets] = useState<Loadable<Asset[]>>(createLoadable<Asset[]>([]));
   const [assetDetail, setAssetDetail] = useState<Loadable<Asset | null>>(
     createLoadable<Asset | null>(null),
@@ -240,6 +255,11 @@ export function App() {
   });
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
+  const [organizationMemberForm, setOrganizationMemberForm] = useState({
+    email: "",
+    role: "Viewer",
+  });
+  const [projectMemberForm, setProjectMemberForm] = useState({ userId: "", role: "Viewer" });
   const [assetForm, setAssetForm] = useState({ name: "", description: "" });
   const [uploadForm, setUploadForm] = useState({
     file: null as File | null,
@@ -293,6 +313,8 @@ export function App() {
     if (!token) {
       setOrganizations(createLoadable([]));
       setProjects(createLoadable([]));
+      setOrganizationMembers(createLoadable([]));
+      setProjectMembers(createLoadable([]));
       setAssets(createLoadable([]));
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
@@ -336,6 +358,42 @@ export function App() {
         });
       });
   }, [session.data?.token, selectedOrganizationId]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || !selectedOrganizationId) {
+      setOrganizationMembers(createLoadable([]));
+      return;
+    }
+    setOrganizationMembers((current) => ({ ...current, status: "loading", error: null }));
+    listOrganizationMembers(token, selectedOrganizationId)
+      .then((result) => setOrganizationMembers({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setOrganizationMembers({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Organization members could not be loaded.",
+        }),
+      );
+  }, [session.data?.token, selectedOrganizationId]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || !selectedProjectId) {
+      setProjectMembers(createLoadable([]));
+      return;
+    }
+    setProjectMembers((current) => ({ ...current, status: "loading", error: null }));
+    listProjectMembers(token, selectedProjectId)
+      .then((result) => setProjectMembers({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setProjectMembers({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Project members could not be loaded.",
+        }),
+      );
+  }, [session.data?.token, selectedProjectId]);
 
   useEffect(() => {
     const token = session.data?.token;
@@ -556,6 +614,15 @@ export function App() {
   const isAuthenticated = Boolean(session.data?.token);
   const hasOrganizations = organizations.data.length > 0;
   const hasProjects = projects.data.length > 0;
+  const currentOrganizationRole = organizations.data.find(
+    (membership) => membership.organization?.id === selectedOrganizationId,
+  )?.role;
+  const currentProjectRole = projectMembers.data.find(
+    (membership) => membership.user?.id === session.data?.user.id,
+  )?.role;
+  const canManageOrganizationMembers =
+    currentOrganizationRole === "Owner" || currentOrganizationRole === "Maintainer";
+  const canManageProjectMembers = currentProjectRole === "Owner" || currentProjectRole === "Maintainer";
   const hasAssets = assets.data.length > 0;
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
@@ -673,6 +740,142 @@ export function App() {
       setProjects({ status: "ready", data: refreshed, error: null });
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Project could not be created.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function refreshMemberships(): Promise<void> {
+    if (!session.data?.token || !selectedOrganizationId) {
+      return;
+    }
+    const refreshedOrganizations = await listOrganizations(session.data.token);
+    setOrganizations({ status: "ready", data: refreshedOrganizations, error: null });
+    const refreshedOrganizationMembers = await listOrganizationMembers(
+      session.data.token,
+      selectedOrganizationId,
+    );
+    setOrganizationMembers({ status: "ready", data: refreshedOrganizationMembers, error: null });
+    if (selectedProjectId) {
+      const refreshedProjectMembers = await listProjectMembers(session.data.token, selectedProjectId);
+      setProjectMembers({ status: "ready", data: refreshedProjectMembers, error: null });
+    }
+  }
+
+  async function handleAddOrganizationMember(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !selectedOrganizationId) return;
+    setBusyAction("add-organization-member");
+    setBanner(null);
+    try {
+      await addOrganizationMember(session.data.token, selectedOrganizationId, {
+        user_email: organizationMemberForm.email,
+        role: organizationMemberForm.role,
+      });
+      setOrganizationMemberForm({ email: "", role: "Viewer" });
+      await refreshMemberships();
+      setBanner("Organization member added.");
+    } catch (error) {
+      setBanner(error instanceof Error ? error.message : "Organization member could not be added.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleOrganizationRoleChange(membershipId: string, role: string): Promise<void> {
+    if (!session.data?.token || !selectedOrganizationId) return;
+    setBusyAction(`organization-role-${membershipId}`);
+    setBanner(null);
+    try {
+      await changeOrganizationMemberRole(
+        session.data.token,
+        selectedOrganizationId,
+        membershipId,
+        role,
+      );
+      await refreshMemberships();
+      setBanner("Organization role updated.");
+    } catch (error) {
+      setBanner(error instanceof Error ? error.message : "Organization role could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRemoveOrganizationMember(membership: OrganizationMembership): Promise<void> {
+    if (!session.data?.token || !selectedOrganizationId) return;
+    if (!window.confirm(`Remove ${membership.user?.display_name ?? "this user"} from the Organization?`)) return;
+    setBusyAction(`remove-organization-${membership.id}`);
+    setBanner(null);
+    try {
+      await removeOrganizationMember(session.data.token, selectedOrganizationId, membership.id);
+      if (membership.user?.id === session.data.user.id) {
+        setSelectedOrganizationId(null);
+        setSelectedProjectId(null);
+        const refreshedOrganizations = await listOrganizations(session.data.token);
+        setOrganizations({ status: "ready", data: refreshedOrganizations, error: null });
+      } else {
+        await refreshMemberships();
+      }
+      setBanner("Organization member removed.");
+    } catch (error) {
+      setBanner(error instanceof Error ? error.message : "Organization member could not be removed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleAddProjectMember(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !selectedProjectId || !projectMemberForm.userId) return;
+    setBusyAction("add-project-member");
+    setBanner(null);
+    try {
+      await addProjectMember(session.data.token, selectedProjectId, {
+        user_id: projectMemberForm.userId,
+        role: projectMemberForm.role,
+      });
+      setProjectMemberForm({ userId: "", role: "Viewer" });
+      await refreshMemberships();
+      setBanner("Project member added.");
+    } catch (error) {
+      setBanner(error instanceof Error ? error.message : "Project member could not be added.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleProjectRoleChange(membershipId: string, role: string): Promise<void> {
+    if (!session.data?.token || !selectedProjectId) return;
+    setBusyAction(`project-role-${membershipId}`);
+    setBanner(null);
+    try {
+      await changeProjectMemberRole(session.data.token, selectedProjectId, membershipId, role);
+      await refreshMemberships();
+      setBanner("Project role updated.");
+    } catch (error) {
+      setBanner(error instanceof Error ? error.message : "Project role could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRemoveProjectMember(membership: ProjectMembership): Promise<void> {
+    if (!session.data?.token || !selectedProjectId) return;
+    if (!window.confirm(`Remove ${membership.user?.display_name ?? "this user"} from the Project?`)) return;
+    setBusyAction(`remove-project-${membership.id}`);
+    setBanner(null);
+    try {
+      await removeProjectMember(session.data.token, selectedProjectId, membership.id);
+      if (membership.user?.id === session.data.user.id) {
+        setSelectedProjectId(null);
+        setProjectMembers(createLoadable([]));
+      } else {
+        await refreshMemberships();
+      }
+      setBanner("Project member removed.");
+    } catch (error) {
+      setBanner(error instanceof Error ? error.message : "Project member could not be removed.");
     } finally {
       setBusyAction(null);
     }
@@ -1179,6 +1382,168 @@ export function App() {
                         </button>
                       ))}
                     </div>
+                  ) : null}
+
+                  {selectedOrganizationId ? (
+                    <section className="membership-panel" aria-labelledby="organization-members-heading">
+                      <h3 id="organization-members-heading">Organization members</h3>
+                      <p className="muted-text">
+                        Owners control Owner roles. Every Organization must retain an Owner.
+                      </p>
+                      {organizationMembers.status === "error" ? (
+                        <p className="error-message" role="alert">{organizationMembers.error}</p>
+                      ) : null}
+                      <div className="member-list">
+                        {organizationMembers.data.map((membership) => {
+                          const canManageTarget =
+                            canManageOrganizationMembers &&
+                            (membership.role !== "Owner" || currentOrganizationRole === "Owner");
+                          return (
+                            <div className="member-row" key={membership.id}>
+                              <span>
+                                <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
+                                <small>{membership.user?.email}</small>
+                              </span>
+                              <select
+                                aria-label={`Organization role for ${membership.user?.display_name ?? "member"}`}
+                                disabled={!canManageTarget || busyAction === `organization-role-${membership.id}`}
+                                value={membership.role}
+                                onChange={(event) => void handleOrganizationRoleChange(membership.id, event.target.value)}
+                              >
+                                {currentOrganizationRole === "Owner" || membership.role === "Owner" ? <option>Owner</option> : null}
+                                <option>Maintainer</option>
+                                <option>Contributor</option>
+                                <option>Viewer</option>
+                              </select>
+                              {canManageTarget ? (
+                                <button
+                                  className="secondary-button"
+                                  disabled={busyAction === `remove-organization-${membership.id}`}
+                                  onClick={() => void handleRemoveOrganizationMember(membership)}
+                                  type="button"
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {canManageOrganizationMembers ? (
+                        <form className="form-grid compact-form" onSubmit={handleAddOrganizationMember}>
+                          <h4>Add registered user</h4>
+                          <label>
+                            Email
+                            <input
+                              required
+                              type="email"
+                              value={organizationMemberForm.email}
+                              onChange={(event) => setOrganizationMemberForm((current) => ({ ...current, email: event.target.value }))}
+                            />
+                          </label>
+                          <label>
+                            Organization role
+                            <select
+                              value={organizationMemberForm.role}
+                              onChange={(event) => setOrganizationMemberForm((current) => ({ ...current, role: event.target.value }))}
+                            >
+                              {currentOrganizationRole === "Owner" ? <option>Owner</option> : null}
+                              <option>Maintainer</option>
+                              <option>Contributor</option>
+                              <option>Viewer</option>
+                            </select>
+                          </label>
+                          <button className="primary-button" disabled={busyAction === "add-organization-member"} type="submit">
+                            {busyAction === "add-organization-member" ? "Adding..." : "Add member"}
+                          </button>
+                        </form>
+                      ) : null}
+                    </section>
+                  ) : null}
+
+                  {selectedProjectId ? (
+                    <section className="membership-panel" aria-labelledby="project-members-heading">
+                      <h3 id="project-members-heading">Project members</h3>
+                      <p className="muted-text">
+                        Project members must already belong to the Organization.
+                      </p>
+                      {projectMembers.status === "error" ? (
+                        <p className="error-message" role="alert">{projectMembers.error}</p>
+                      ) : null}
+                      <div className="member-list">
+                        {projectMembers.data.map((membership) => {
+                          const canManageTarget =
+                            canManageProjectMembers &&
+                            (membership.role !== "Owner" || currentProjectRole === "Owner");
+                          return (
+                            <div className="member-row" key={membership.id}>
+                              <span>
+                                <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
+                                <small>{membership.user?.email}</small>
+                              </span>
+                              <select
+                                aria-label={`Project role for ${membership.user?.display_name ?? "member"}`}
+                                disabled={!canManageTarget || busyAction === `project-role-${membership.id}`}
+                                value={membership.role}
+                                onChange={(event) => void handleProjectRoleChange(membership.id, event.target.value)}
+                              >
+                                {currentProjectRole === "Owner" || membership.role === "Owner" ? <option>Owner</option> : null}
+                                <option>Maintainer</option>
+                                <option>Contributor</option>
+                                <option>Viewer</option>
+                              </select>
+                              {canManageTarget ? (
+                                <button
+                                  className="secondary-button"
+                                  disabled={busyAction === `remove-project-${membership.id}`}
+                                  onClick={() => void handleRemoveProjectMember(membership)}
+                                  type="button"
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {canManageProjectMembers ? (
+                        <form className="form-grid compact-form" onSubmit={handleAddProjectMember}>
+                          <h4>Add Organization member</h4>
+                          <label>
+                            User
+                            <select
+                              required
+                              value={projectMemberForm.userId}
+                              onChange={(event) => setProjectMemberForm((current) => ({ ...current, userId: event.target.value }))}
+                            >
+                              <option value="">Select a user</option>
+                              {organizationMembers.data
+                                .filter((candidate) => candidate.user && !projectMembers.data.some((member) => member.user?.id === candidate.user?.id))
+                                .map((candidate) => (
+                                  <option key={candidate.id} value={candidate.user?.id}>
+                                    {candidate.user?.display_name} ({candidate.user?.email})
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <label>
+                            Project role
+                            <select
+                              value={projectMemberForm.role}
+                              onChange={(event) => setProjectMemberForm((current) => ({ ...current, role: event.target.value }))}
+                            >
+                              {currentProjectRole === "Owner" ? <option>Owner</option> : null}
+                              <option>Maintainer</option>
+                              <option>Contributor</option>
+                              <option>Viewer</option>
+                            </select>
+                          </label>
+                          <button className="primary-button" disabled={busyAction === "add-project-member"} type="submit">
+                            {busyAction === "add-project-member" ? "Adding..." : "Add to Project"}
+                          </button>
+                        </form>
+                      ) : null}
+                    </section>
                   ) : null}
                 </>
               )}

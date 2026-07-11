@@ -1034,6 +1034,8 @@ roadmap:
 
           ## Acceptance Criteria
           - Organizations and Projects exist as Core Platform capabilities.
+          - Registered users can be assigned to Organizations and Projects with explicit roles.
+          - Membership role changes and removals preserve Owner safeguards and revoke access predictably.
           - User identity and authentication behavior are defined and implemented through the public application API.
           - Baseline authorization exists for the delivered Organization and Project capabilities.
           - The design remains consistent with the modular monolith and public Platform Module interface rules.
@@ -1045,7 +1047,7 @@ roadmap:
           - ADR-0002
 
           ## Risks
-          - Authentication and user ownership choices are currently underspecified in accepted ADRs.
+          - Membership administration must not weaken Organization and Project ownership boundaries.
           - Authorization could become entangled with future collaboration or workflow requirements if scope is not controlled.
 
           ## Exit Criteria
@@ -1066,7 +1068,7 @@ roadmap:
           Epic: Platform Access and Tenant Foundations
           Platform Area: Platform Core
           Complexity: XL
-          ADR: ADR-0001, ADR-0002
+          ADR: ADR-0001, ADR-0002, ADR-0009, ADR-0012, ADR-0015, ADR-0033
         closed: true
         sub_issues:
 
@@ -1243,6 +1245,134 @@ roadmap:
               Platform Area: Platform Core
               Complexity: L
               ADR: ADR-0009
+            closed: true
+
+          - title: "Phase 1 Task: Accept the membership lifecycle and role administration decision"
+            body: |
+              ## Objective
+              Record the durable membership lifecycle and Owner-safety rules for Organization and Project administration.
+
+              ## Description
+              Accept ADR-0033 so administrator-assigned membership, role authority, last-Owner protection, transactional Organization removal and module coordination are part of the documented architecture.
+
+              ## Acceptance Criteria
+              - ADR-0033 is marked Accepted.
+              - The decision complements ADR-0009, ADR-0012 and ADR-0015 without superseding them.
+              - Platform Core and Extension API boundaries remain explicit.
+              - Active documentation describes ADR-0033 as accepted.
+
+              ## Suggested Labels
+              architecture, decision, documentation, P1
+            labels:
+              - architecture
+              - decision
+              - documentation
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Core
+              Complexity: S
+              ADR: ADR-0033
+            closed: true
+
+          - title: "Phase 1 Task: Implement the Organization and Project membership lifecycle API"
+            body: |
+              ## Objective
+              Deliver explicit add, role-change and removal operations for Organization and Project membership.
+
+              ## Description
+              Add registered users by normalized email or compatible user identifier, enforce Organization membership before Project assignment, preserve Owner authority and revoke contained Project access when Organization membership is removed.
+
+              ## Acceptance Criteria
+              - Public application API endpoints support membership listing, addition, role change and removal.
+              - Only Owners manage Owner roles and each scope retains at least one Owner.
+              - Organization removal revokes contained Project memberships in one transaction.
+              - Mutations emit distinct audit records and domain events.
+              - Backend tests cover authorization, compatibility, revocation and failure cases.
+
+              ## Dependencies
+              - Phase 1 Task: Accept the membership lifecycle and role administration decision
+
+              ## Suggested Labels
+              feature, core, test, P1
+            labels:
+              - feature
+              - core
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Platform Core
+              Complexity: L
+              ADR: ADR-0009, ADR-0012, ADR-0015, ADR-0033
+            closed: true
+
+          - title: "Phase 1 Task: Expose membership administration in the Web UI"
+            body: |
+              ## Objective
+              Allow authorized users to manage Organization and Project members through the Web UI.
+
+              ## Description
+              Add member lists, registered-user assignment, role controls, removal confirmation and clear Owner-safety guidance while keeping backend authorization authoritative.
+
+              ## Acceptance Criteria
+              - Owners and Maintainers can manage permitted Organization and Project memberships.
+              - Project candidates are selected from existing Organization members.
+              - Owner-only operations are unavailable to Maintainers.
+              - Loading, empty, validation and error states are accessible and tested.
+              - Removing the current user clears inaccessible selections.
+
+              ## Dependencies
+              - Phase 1 Task: Implement the Organization and Project membership lifecycle API
+
+              ## Suggested Labels
+              feature, frontend, test, P1
+            labels:
+              - feature
+              - frontend
+              - test
+              - P1
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0007, ADR-0033
+            closed: true
+
+          - title: "Phase 1 Task: Document and validate membership administration"
+            body: |
+              ## Objective
+              Keep contributor, API and user documentation aligned with the delivered membership lifecycle.
+
+              ## Description
+              Document API contracts, Platform Module coordination, Web UI validation, Owner safeguards and the accepted ADR while adding automated and manual verification coverage.
+
+              ## Acceptance Criteria
+              - Public API reference and flow documentation cover every membership endpoint.
+              - Architecture and internal-functioning documentation describe module ownership and coordination.
+              - The Web UI manual guide covers assignment, role changes, removal and revocation.
+              - Backend and frontend tests prove the documented behavior.
+              - Repository validation and documentation consistency checks pass.
+
+              ## Dependencies
+              - Phase 1 Task: Implement the Organization and Project membership lifecycle API
+              - Phase 1 Task: Expose membership administration in the Web UI
+
+              ## Suggested Labels
+              documentation, test, P2
+            labels:
+              - documentation
+              - test
+              - P2
+            fields:
+              Phase: Core Platform
+              Epic: Platform Access and Tenant Foundations
+              Platform Area: Documentation
+              Complexity: M
+              ADR: ADR-0033
             closed: true
 
       - title: "Phase 1 Epic: Engineering Asset Lifecycle MVP"

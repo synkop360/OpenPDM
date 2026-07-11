@@ -24,7 +24,7 @@ flowchart TD
     PlatformCore --> Infrastructure
 ```
 
-OpenPDM currently implements the Core Platform API and the early collaboration,
+OpenPDM currently implements the public application API and the early collaboration,
 Asset Graph, metadata, search, and plugin registry behaviors described in the
 accepted ADRs. The active repository provides a working backend, a browser-based
 Web UI, and a desktop shell track, while preserving the platform's generic
@@ -118,7 +118,7 @@ The active repository includes a working implementation of the following core
 capabilities:
 
 * authentication, user sessions, and session revocation
-* organizations, projects, and project-scoped membership
+* administrator-managed Organization and Project membership with role assignment and Owner safeguards
 * generic Assets, immutable Revisions, Representations, and Blobs
 * file upload, secure download, and blob storage orchestration
 * generic metadata attached to assets, revisions, and representations

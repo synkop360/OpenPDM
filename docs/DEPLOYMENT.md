@@ -11,7 +11,7 @@ production hardening guide.
 
 The local deployment uses Docker Compose:
 
-* `backend`: FastAPI backend serving the current core platform API.
+* `backend`: FastAPI backend serving the public application API and Platform Core.
 * `postgres`: PostgreSQL 18 primary database.
 * `minio`: MinIO S3-compatible blob storage.
 
@@ -55,10 +55,11 @@ After startup:
 The backend now exposes a concrete API surface for:
 
 * authentication and sessions (`/auth/*`)
-* organizations and projects (`/organizations`, `/projects`)
-* assets, revisions and collaboration (`/assets/*`, `/notifications`)
+* Organizations, Projects, membership and role administration (`/organizations`, `/projects`)
+* Assets, Revisions, collaboration and notifications (`/assets/*`, `/notifications`)
 * blob upload and download (`/blobs/*`)
-* metadata, search and plugin registration (`/metadata`, `/search/assets`, `/plugins`)
+* relationships, references and bounded graph queries (`/relationships`, `/references`, `/assets/*/graph`)
+* metadata, search and the read-only plugin registry (`/metadata`, `/search/assets`, `/plugins`)
 
 ## Asset Graph Audit Configuration
 
@@ -89,6 +90,12 @@ pnpm run dev
 
 If the UI is not served from the same origin as the backend, set
 `VITE_API_BASE_URL=http://localhost:8000` before starting Vite.
+
+To start the Compose backend and frontend development server together, run `python scripts/start_all.py` from the repository root.
+
+## Configuration Notes
+
+`.env.example` contains development defaults for PostgreSQL, MinIO, the exposed backend port and graph-query audit behavior. Backend settings use the `OPENPDM_` prefix. The checked-in credentials are local defaults and must not be reused for a production deployment.
 
 ## Limitations
 

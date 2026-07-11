@@ -50,6 +50,14 @@ def auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def membership_by_email(memberships: list[dict[str, object]], email: str) -> dict[str, object]:
+    return next(
+        membership
+        for membership in memberships
+        if isinstance(membership.get("user"), dict) and membership["user"].get("email") == email
+    )
+
+
 def test_health_and_foundation_expose_core_platform_metadata(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     assert client.get("/health").json() == {"status": "ok"}
@@ -121,6 +129,230 @@ def test_access_and_membership_flow(tmp_path: Path) -> None:
     )
     assert project_access.status_code == 200
     assert project_access.json()["organization_id"] == organization["id"]
+
+
+def test_membership_lifecycle_enforces_owner_safety_and_revokes_project_access(
+    tmp_path: Path,
+) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client, email="membership-owner@example.com", display_name="Owner", password="secret123"
+    )
+    maintainer_token = register_and_sign_in(
+        client,
+        email="membership-maintainer@example.com",
+        display_name="Maintainer",
+        password="secret123",
+    )
+    member_token = register_and_sign_in(
+        client, email="membership-user@example.com", display_name="Member", password="secret123"
+    )
+    member_user = client.get("/auth/session", headers=auth_header(member_token)).json()["user"]
+
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Membership", "slug": "membership-lifecycle"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Lifecycle"},
+    ).json()
+
+    add_maintainer = client.post(
+        f"/organizations/{organization['id']}/members",
+        headers=auth_header(owner_token),
+        json={"user_email": "  MEMBERSHIP-MAINTAINER@example.com ", "role": "Maintainer"},
+    )
+    assert add_maintainer.status_code == 200
+    assert add_maintainer.json()["user"]["email"] == "membership-maintainer@example.com"
+    assert (
+        client.post(
+            f"/projects/{project['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_email": "membership-maintainer@example.com", "role": "Maintainer"},
+        ).status_code
+        == 200
+    )
+
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_email": "membership-maintainer@example.com", "role": "Viewer"},
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={"user_email": "missing@example.com", "role": "Viewer"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(owner_token),
+            json={
+                "user_id": member_user["id"],
+                "user_email": member_user["email"],
+                "role": "Viewer",
+            },
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            f"/organizations/{organization['id']}/members",
+            headers=auth_header(maintainer_token),
+            json={"user_id": member_user["id"], "role": "Owner"},
+        ).status_code
+        == 403
+    )
+
+    added_member = client.post(
+        f"/organizations/{organization['id']}/members",
+        headers=auth_header(owner_token),
+        json={"user_id": member_user["id"], "role": "Contributor"},
+    )
+    assert added_member.status_code == 200
+    project_member = client.post(
+        f"/projects/{project['id']}/members",
+        headers=auth_header(owner_token),
+        json={"user_id": member_user["id"], "role": "Viewer"},
+    )
+    assert project_member.status_code == 200
+    changed_organization_role = client.patch(
+        f"/organizations/{organization['id']}/members/{added_member.json()['id']}",
+        headers=auth_header(maintainer_token),
+        json={"role": "Viewer"},
+    )
+    assert changed_organization_role.status_code == 200
+    assert (
+        client.get(f"/projects/{project['id']}", headers=auth_header(member_token)).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/projects/{project['id']}/assets",
+            headers=auth_header(member_token),
+            json={"name": "Forbidden"},
+        ).status_code
+        == 403
+    )
+
+    project_members = client.get(
+        f"/projects/{project['id']}/members", headers=auth_header(owner_token)
+    ).json()
+    owner_project_membership = membership_by_email(project_members, "membership-owner@example.com")
+    assert (
+        client.patch(
+            f"/projects/{project['id']}/members/{project_member.json()['id']}",
+            headers=auth_header(maintainer_token),
+            json={"role": "Owner"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.patch(
+            f"/projects/{project['id']}/members/{owner_project_membership['id']}",
+            headers=auth_header(maintainer_token),
+            json={"role": "Viewer"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.patch(
+            f"/projects/{project['id']}/members/{owner_project_membership['id']}",
+            headers=auth_header(owner_token),
+            json={"role": "Viewer"},
+        ).status_code
+        == 409
+    )
+    assert (
+        client.delete(
+            f"/projects/{project['id']}/members/{owner_project_membership['id']}",
+            headers=auth_header(owner_token),
+        ).status_code
+        == 409
+    )
+
+    changed = client.patch(
+        f"/projects/{project['id']}/members/{project_member.json()['id']}",
+        headers=auth_header(maintainer_token),
+        json={"role": "Contributor"},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["role"] == "Contributor"
+    assert (
+        client.post(
+            f"/projects/{project['id']}/assets",
+            headers=auth_header(member_token),
+            json={"name": "Allowed"},
+        ).status_code
+        == 201
+    )
+
+    removed = client.delete(
+        f"/organizations/{organization['id']}/members/{added_member.json()['id']}",
+        headers=auth_header(maintainer_token),
+    )
+    assert removed.status_code == 204
+    assert (
+        client.get(f"/projects/{project['id']}", headers=auth_header(member_token)).status_code
+        == 403
+    )
+    remaining_project_members = client.get(
+        f"/projects/{project['id']}/members", headers=auth_header(owner_token)
+    ).json()
+    assert all(item["user"]["id"] != member_user["id"] for item in remaining_project_members)
+
+    organization_members = client.get(
+        f"/organizations/{organization['id']}/members", headers=auth_header(owner_token)
+    ).json()
+    owner_organization_membership = membership_by_email(
+        organization_members, "membership-owner@example.com"
+    )
+    assert (
+        client.patch(
+            f"/organizations/{organization['id']}/members/{owner_organization_membership['id']}",
+            headers=auth_header(owner_token),
+            json={"role": "Viewer"},
+        ).status_code
+        == 409
+    )
+    assert (
+        client.delete(
+            f"/organizations/{organization['id']}/members/{owner_organization_membership['id']}",
+            headers=auth_header(owner_token),
+        ).status_code
+        == 409
+    )
+
+    with session_scope() as db:
+        actions = set(
+            db.scalars(
+                select(AuditRecord.action).where(
+                    AuditRecord.action.in_(
+                        (
+                            "organization.membership.created",
+                            "organization.membership.role_changed",
+                            "project.membership.created",
+                            "project.membership.role_changed",
+                            "organization.membership.removed",
+                            "project.membership.removed",
+                        )
+                    )
+                )
+            )
+        )
+        event_types = set(
+            db.scalars(select(DomainEvent.event_type).where(DomainEvent.event_type.in_(actions)))
+        )
+        assert actions == event_types
 
 
 def test_asset_lifecycle_blob_and_metadata_flow(tmp_path: Path) -> None:
@@ -703,14 +935,12 @@ def test_stale_lock_when_owner_loses_write_role(tmp_path: Path) -> None:
         ).status_code
         == 200
     )
-    assert (
-        client.post(
-            f"/projects/{project['id']}/members",
-            headers=auth_header(owner_token),
-            json={"user_id": maintainer_user["id"], "role": "Maintainer"},
-        ).status_code
-        == 200
+    second_owner = client.post(
+        f"/projects/{project['id']}/members",
+        headers=auth_header(owner_token),
+        json={"user_id": maintainer_user["id"], "role": "Owner"},
     )
+    assert second_owner.status_code == 200
 
     asset = client.post(
         f"/projects/{project['id']}/assets",
@@ -723,11 +953,18 @@ def test_stale_lock_when_owner_loses_write_role(tmp_path: Path) -> None:
         == 200
     )
 
-    owner_user = client.get("/auth/session", headers=auth_header(owner_token)).json()["user"]
-    downgrade = client.post(
-        f"/projects/{project['id']}/members",
-        headers=auth_header(maintainer_token),
-        json={"user_id": owner_user["id"], "role": "Viewer"},
+    memberships = client.get(
+        f"/projects/{project['id']}/members", headers=auth_header(owner_token)
+    ).json()
+    owner_membership = next(
+        membership
+        for membership in memberships
+        if membership["user"]["email"] == "owner-stale@example.com"
+    )
+    downgrade = client.patch(
+        f"/projects/{project['id']}/members/{owner_membership['id']}",
+        headers=auth_header(owner_token),
+        json={"role": "Viewer"},
     )
     assert downgrade.status_code == 200
 

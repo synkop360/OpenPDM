@@ -7,7 +7,7 @@ The repository currently includes a working backend API, a Vite-based web UI,
 and a Tauri desktop shell skeleton. The implementation covers:
 
 * local authentication and session management
-* organizations, projects and membership
+* administrator-managed Organization and Project membership with role assignment
 * generic Assets, immutable Revisions, Representations, and Blobs
 * file upload and secure blob download
 * generic metadata and PostgreSQL-backed search
@@ -59,6 +59,12 @@ python scripts/dev.py compose-up
 
 The compose environment exposes the backend on `http://localhost:18000`.
 
+Start the Compose backend and Web UI together:
+
+```bash
+python scripts/start_all.py
+```
+
 Run the web UI locally:
 
 ```bash
@@ -72,7 +78,7 @@ If the frontend is not served from the same origin as the backend, set
 ## Repository Structure
 
 ```text
-backend/      FastAPI core platform API implementation.
+backend/      FastAPI public application API and Platform Core implementation.
 frontend/     React, TypeScript and Vite web UI.
 desktop/      Tauri desktop client shell.
 deployment/   Docker Compose services for local development.
@@ -110,11 +116,14 @@ Before contributing, read these documents in order:
 
 Useful guides:
 
+* `docs/README.md`
 * `docs/DEVELOPMENT.md`
 * `docs/DEPLOYMENT.md`
 * `docs/INTERNAL_FUNCTIONING.md`
 * `docs/API_FLOWS.md`
+* `docs/API_REFERENCE.md`
 * `docs/PHASE_0_DEMO.md`
+* `docs/WEB_UI_MANUAL_TEST_GUIDE.md`
 
 Phase 3 Asset Graph implementation guide:
 

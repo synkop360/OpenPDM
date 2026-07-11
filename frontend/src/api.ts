@@ -236,6 +236,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
     throw new ApiError(message, response.status, code, context);
   }
+  if (response.status === 204) {
+    return undefined as T;
+  }
   return response.json() as Promise<T>;
 }
 
@@ -293,6 +296,54 @@ export async function createOrganization(
   });
 }
 
+export async function listOrganizationMembers(
+  token: string,
+  organizationId: string,
+): Promise<OrganizationMembership[]> {
+  return request<OrganizationMembership[]>(`/organizations/${organizationId}/members`, { token });
+}
+
+export async function addOrganizationMember(
+  token: string,
+  organizationId: string,
+  payload: { user_email: string; role: string },
+): Promise<OrganizationMembership> {
+  return request<OrganizationMembership>(`/organizations/${organizationId}/members`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function changeOrganizationMemberRole(
+  token: string,
+  organizationId: string,
+  membershipId: string,
+  role: string,
+): Promise<OrganizationMembership> {
+  return request<OrganizationMembership>(
+    `/organizations/${organizationId}/members/${membershipId}`,
+    {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ role }),
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
+export async function removeOrganizationMember(
+  token: string,
+  organizationId: string,
+  membershipId: string,
+): Promise<void> {
+  await request<void>(`/organizations/${organizationId}/members/${membershipId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
 export async function listProjectsForUser(
   token: string,
   organizationId: string,
@@ -316,6 +367,51 @@ export async function createProject(
     token,
     body: JSON.stringify(payload),
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function listProjectMembers(
+  token: string,
+  projectId: string,
+): Promise<ProjectMembership[]> {
+  return request<ProjectMembership[]>(`/projects/${projectId}/members`, { token });
+}
+
+export async function addProjectMember(
+  token: string,
+  projectId: string,
+  payload: { user_id: string; role: string },
+): Promise<ProjectMembership> {
+  return request<ProjectMembership>(`/projects/${projectId}/members`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function changeProjectMemberRole(
+  token: string,
+  projectId: string,
+  membershipId: string,
+  role: string,
+): Promise<ProjectMembership> {
+  return request<ProjectMembership>(`/projects/${projectId}/members/${membershipId}`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ role }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function removeProjectMember(
+  token: string,
+  projectId: string,
+  membershipId: string,
+): Promise<void> {
+  await request<void>(`/projects/${projectId}/members/${membershipId}`, {
+    method: "DELETE",
+    token,
   });
 }
 

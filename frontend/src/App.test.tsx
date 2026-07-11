@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -864,5 +864,71 @@ describe("App", () => {
     const readButton = await screen.findByRole("button", { name: "Mark as read" });
     fireEvent.click(readButton);
     expect(await screen.findByText("read")).toBeInTheDocument();
+  });
+
+  it("lets an Owner add, change, and remove Organization and Project members", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const owner = { id: "user-1", email: "owner@example.com", display_name: "Owner", is_active: true, created_at: "2026-01-01T00:00:00" };
+    const member = { id: "user-2", email: "member@example.com", display_name: "Member", is_active: true, created_at: "2026-01-01T00:00:00" };
+    let organizationMembers = [{ id: "org-member-1", role: "Owner", user: owner }];
+    let projectMembers = [{ id: "project-member-1", role: "Owner", user: owner }];
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === "/foundation") return jsonResponse({ name: "OpenPDM", version: "0", phase: "Core Platform", architecture: "Modular Monolith" });
+      if (path === "/auth/session") return jsonResponse({ id: "session-1", token: "token-123", user: owner });
+      if (path === "/organizations") return jsonResponse([{ id: "org-member-1", role: "Owner", organization: { id: "org-1", name: "Acme", slug: "acme", created_at: "2026-01-01T00:00:00" } }]);
+      if (path === "/organizations/org-1/projects/me") return jsonResponse([{ id: "project-member-1", role: "Owner", project: { id: "project-1", organization_id: "org-1", name: "Rocket", description: "", created_at: "2026-01-01T00:00:00" } }]);
+      if (path === "/organizations/org-1/projects") return jsonResponse([{ id: "project-1", organization_id: "org-1", name: "Rocket", description: "", created_at: "2026-01-01T00:00:00" }]);
+      if (path === "/organizations/org-1/members" && method === "GET") return jsonResponse(organizationMembers);
+      if (path === "/organizations/org-1/members" && method === "POST") {
+        organizationMembers = [...organizationMembers, { id: "org-member-2", role: "Viewer", user: member }];
+        return jsonResponse(organizationMembers[1]);
+      }
+      if (path === "/projects/project-1/members" && method === "GET") return jsonResponse(projectMembers);
+      if (path === "/projects/project-1/members" && method === "POST") {
+        projectMembers = [...projectMembers, { id: "project-member-2", role: "Viewer", user: member }];
+        return jsonResponse(projectMembers[1]);
+      }
+      if (path === "/projects/project-1/members/project-member-2" && method === "PATCH") {
+        projectMembers = projectMembers.map((item) => item.id === "project-member-2" ? { ...item, role: "Contributor" } : item);
+        return jsonResponse(projectMembers[1]);
+      }
+      if (path === "/projects/project-1/members/project-member-2" && method === "DELETE") {
+        projectMembers = projectMembers.filter((item) => item.id !== "project-member-2");
+        return jsonResponse(undefined, 204);
+      }
+      if (path === "/projects/project-1/assets" || path === "/notifications") return jsonResponse([]);
+      throw new Error(`Unexpected request: ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Organization members" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "member@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add member" }));
+    expect(await screen.findAllByText("Member")).not.toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText("User"), { target: { value: "user-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add to Project" }));
+    const roleSelect = await screen.findByLabelText("Project role for Member");
+    fireEvent.change(roleSelect, { target: { value: "Contributor" } });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/projects/project-1/members/project-member-2",
+      expect.objectContaining({ method: "PATCH" }),
+    ));
+    const memberRow = (await screen.findByLabelText("Project role for Member")).closest(".member-row");
+    const removeButton = memberRow?.querySelector("button");
+    expect(removeButton).not.toBeNull();
+    fireEvent.click(removeButton!);
+    await waitFor(() => expect(screen.queryByLabelText("Project role for Member")).not.toBeInTheDocument());
+
+    expect(screen.getByLabelText("Organization role for Owner")).not.toBeDisabled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/organizations/org-1/members",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ user_email: "member@example.com", role: "Viewer" }) }),
+    );
   });
 });
