@@ -46,7 +46,9 @@ class ConfigurationSchema(BaseModel):
     def required_properties_exist(self) -> ConfigurationSchema:
         missing = sorted(set(self.required) - set(self.properties))
         if missing:
-            raise ValueError(f"Required configuration properties are undefined: {', '.join(missing)}")
+            raise ValueError(
+                f"Required configuration properties are undefined: {', '.join(missing)}"
+            )
         return self
 
 
@@ -130,4 +132,3 @@ class PluginManifest(BaseModel):
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError("Plugin manifest is not valid UTF-8 JSON.") from exc
         return cls.model_validate(value)
-

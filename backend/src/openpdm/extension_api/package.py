@@ -93,4 +93,3 @@ def validate_plugin_package(archive: bytes) -> ValidatedPluginPackage:
         component=component,
         archive=archive,
     )
-

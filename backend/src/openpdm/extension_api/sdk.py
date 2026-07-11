@@ -30,4 +30,3 @@ def build_plugin_package(manifest: PluginManifest, component: bytes) -> bytes:
 
 def inspect_plugin_package(archive: bytes) -> ValidatedPluginPackage:
     return validate_plugin_package(archive)
-

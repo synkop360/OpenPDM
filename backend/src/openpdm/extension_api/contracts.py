@@ -88,4 +88,3 @@ class InvocationResponse(BaseModel):
     metadata: list[MetadataContribution] = Field(default_factory=list, max_length=1000)
     commands: list[AssetProviderCommand] = Field(default_factory=list, max_length=100)
     error: ExtensionError | None = None
-
