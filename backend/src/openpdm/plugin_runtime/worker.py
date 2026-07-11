@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .sandbox import SandboxLimits, WasmtimeSandbox
 
 PROTOCOL_VERSION = 1
-MAX_REQUEST_BYTES = 24 * 1024 * 1024
+MAX_REQUEST_BYTES = 32 * 1024 * 1024
 
 
 class WorkerRequest(BaseModel):
@@ -20,7 +20,7 @@ class WorkerRequest(BaseModel):
 
     protocol_version: int
     request_id: str = Field(min_length=1, max_length=255)
-    component: str = Field(min_length=1, max_length=23 * 1024 * 1024)
+    component: str = Field(min_length=1, max_length=31 * 1024 * 1024)
     export_name: str = Field(min_length=1, max_length=128)
     arguments: list[str] = Field(default_factory=list, max_length=8)
     fuel: int = Field(gt=0, le=100_000_000)

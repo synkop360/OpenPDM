@@ -14,6 +14,7 @@ from openpdm.extension_api import (
     ConfigurationSchema,
     PluginManifest,
     build_plugin_package,
+    extension_api_wit_path,
     validate_plugin_package,
 )
 
@@ -129,3 +130,10 @@ def test_manifest_rejects_unknown_fields_and_undefined_required_configuration() 
         )
     with pytest.raises(ValidationError, match="undefined"):
         ConfigurationSchema(required=["missing"])
+
+
+def test_sdk_exposes_the_versioned_wit_contract() -> None:
+    with extension_api_wit_path() as contract:
+        contents = contract.read_text(encoding="utf-8")
+    assert "package openpdm:extension@1.0.0" in contents
+    assert "export invoke" in contents

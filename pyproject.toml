@@ -28,6 +28,7 @@ dev = [
   "pytest>=8.3,<9.0",
   "requests>=2.32,<3.0",
   "ruff>=0.8,<0.9",
+  "componentize-py>=0.25.0",
 ]
 
 [tool.uv]
@@ -38,6 +39,9 @@ where = ["backend/src"]
 
 [tool.setuptools.package-dir]
 "" = "backend/src"
+
+[tool.setuptools.package-data]
+"openpdm.extension_api" = ["wit/*.wit"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests", "tests"]
