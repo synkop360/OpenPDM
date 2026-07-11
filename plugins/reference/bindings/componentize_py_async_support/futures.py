@@ -6,7 +6,8 @@ from typing import TypeVar, Generic, cast, Self, Any, Callable
 from types import TracebackType
 from componentize_py_async_support import _ReturnCode
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class FutureReader(Generic[T]):
     """Represents the readable end of a Component Model `future`.
@@ -18,6 +19,7 @@ class FutureReader(Generic[T]):
     closed via finalization.
 
     """
+
     def __init__(self, type_: int, handle: int):
         """Constructor for internal use by generated code.
 
@@ -30,7 +32,9 @@ class FutureReader(Generic[T]):
         """
         self.type_ = type_
         self.handle: int | None = handle
-        self.finalizer = weakref.finalize(self, componentize_py_runtime.future_drop_readable, type_, handle)
+        self.finalizer = weakref.finalize(
+            self, componentize_py_runtime.future_drop_readable, type_, handle
+        )
 
     async def read(self) -> T:
         """Asynchronously read the value sent to this `future`.
@@ -42,7 +46,7 @@ class FutureReader(Generic[T]):
         `read` more than once will raise an `AssertionError`.
 
         """
-        
+
         self.finalizer.detach()
         handle = self.handle
         self.handle = None
@@ -57,11 +61,13 @@ class FutureReader(Generic[T]):
 
     def __enter__(self) -> Self:
         return self
-        
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_value: BaseException | None,
-                 traceback: TracebackType | None) -> bool | None:
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         if self.handle is not None:
             self.finalizer.detach()
             handle = self.handle
@@ -70,15 +76,18 @@ class FutureReader(Generic[T]):
 
         return None
 
+
 async def _write(type_: int, handle: int, value: Any) -> None:
     await componentize_py_async_support.await_result(
         componentize_py_runtime.future_write(type_, handle, value)
     )
-    componentize_py_runtime.future_drop_writable(type_, handle)    
+    componentize_py_runtime.future_drop_writable(type_, handle)
+
 
 def _write_default(type_: int, handle: int, default: Callable[[], Any]) -> None:
     componentize_py_async_support.spawn(_write(type_, handle, default()))
-            
+
+
 class FutureWriter(Generic[T]):
     """Represents the writable end of a Component Model `future`.
 
@@ -89,6 +98,7 @@ class FutureWriter(Generic[T]):
     sending the default value which was specified during construction.
 
     """
+
     def __init__(self, type_: int, handle: int, default: Callable[[], T]):
         """Constructor for internal use by generated code.
 
@@ -138,11 +148,13 @@ class FutureWriter(Generic[T]):
 
     def __enter__(self) -> Self:
         return self
-        
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_value: BaseException | None,
-                 traceback: TracebackType | None) -> bool | None:
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         if self.handle is not None:
             componentize_py_async_support.spawn(self.write(self.default()))
 

@@ -10,9 +10,7 @@ import weakref
 from componentize_py_types import Result, Ok, Err, Some
 
 
-
 class WitWorld(Protocol):
-
     @abstractmethod
     def activate(self) -> None:
         raise NotImplementedError
@@ -20,4 +18,3 @@ class WitWorld(Protocol):
     @abstractmethod
     def invoke(self, request: str) -> str:
         raise NotImplementedError
-

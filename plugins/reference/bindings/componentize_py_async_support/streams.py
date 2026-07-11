@@ -6,6 +6,7 @@ from typing import TypeVar, Generic, Self, cast
 from types import TracebackType
 from componentize_py_async_support import _ReturnCode
 
+
 class ByteStreamReader:
     """Represents the readable end of a Component Model `stream<u8>`.
 
@@ -16,6 +17,7 @@ class ByteStreamReader:
     finalization.
 
     """
+
     def __init__(self, type_: int, handle: int):
         """Constructor for internal use by generated code.
 
@@ -29,7 +31,9 @@ class ByteStreamReader:
         self.writer_dropped = False
         self.type_ = type_
         self.handle: int | None = handle
-        self.finalizer = weakref.finalize(self, componentize_py_runtime.stream_drop_readable, type_, handle)
+        self.finalizer = weakref.finalize(
+            self, componentize_py_runtime.stream_drop_readable, type_, handle
+        )
 
     async def read(self, max_count: int) -> bytes:
         """Asynchronously read up to `max_count` bytes sent to this `stream`.
@@ -46,7 +50,7 @@ class ByteStreamReader:
         """
         if self.writer_dropped:
             return bytes()
-        
+
         handle = self.handle
         self.handle = None
         code, values = await self._read(max_count, handle)
@@ -54,30 +58,36 @@ class ByteStreamReader:
 
         if code == _ReturnCode.DROPPED:
             self.writer_dropped = True
-        
+
         return values
-        
+
     async def _read(self, max_count: int, handle: int | None) -> tuple[int, bytes]:
         if handle is not None:
-            return cast(tuple[int, bytes], await componentize_py_async_support.await_result(
-                componentize_py_runtime.stream_read(self.type_, handle, max_count)
-            ))
+            return cast(
+                tuple[int, bytes],
+                await componentize_py_async_support.await_result(
+                    componentize_py_runtime.stream_read(self.type_, handle, max_count)
+                ),
+            )
         else:
             raise AssertionError
 
     def __enter__(self) -> Self:
         return self
-        
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_value: BaseException | None,
-                 traceback: TracebackType | None) -> bool | None:
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         self.finalizer.detach()
         handle = self.handle
         self.handle = None
         if handle is not None:
             componentize_py_runtime.stream_drop_readable(self.type_, handle)
         return None
+
 
 class ByteStreamWriter:
     """Represents the writable end of a Component Model `stream<u8>`.
@@ -89,6 +99,7 @@ class ByteStreamWriter:
     finalization.
 
     """
+
     def __init__(self, type_: int, handle: int):
         """Constructor for internal use by generated code.
 
@@ -102,7 +113,9 @@ class ByteStreamWriter:
         self.reader_dropped = False
         self.type_ = type_
         self.handle: int | None = handle
-        self.finalizer = weakref.finalize(self, componentize_py_runtime.stream_drop_writable, type_, handle)
+        self.finalizer = weakref.finalize(
+            self, componentize_py_runtime.stream_drop_writable, type_, handle
+        )
 
     async def write(self, source: bytes) -> int:
         """Asynchronously write (some of) the specified bytes to the `stream`.
@@ -123,7 +136,7 @@ class ByteStreamWriter:
         """
         if self.reader_dropped:
             return 0
-        
+
         handle = self.handle
         self.handle = None
         code, count = await self._write(source, handle)
@@ -131,7 +144,7 @@ class ByteStreamWriter:
 
         if code == _ReturnCode.DROPPED:
             self.reader_dropped = True
-        
+
         return count
 
     async def _write(self, source: bytes, handle: int | None) -> tuple[int, int]:
@@ -152,21 +165,23 @@ class ByteStreamWriter:
 
         """
         total = 0
-        
+
         while len(source) > 0 and not self.reader_dropped:
             count = await self.write(source)
             source = source[count:]
             total += count
-            
+
         return total
 
     def __enter__(self) -> Self:
         return self
-        
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_value: BaseException | None,
-                 traceback: TracebackType | None) -> bool | None:
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         self.finalizer.detach()
         handle = self.handle
         self.handle = None
@@ -174,7 +189,9 @@ class ByteStreamWriter:
             componentize_py_runtime.stream_drop_writable(self.type_, handle)
         return None
 
-T = TypeVar('T')
+
+T = TypeVar("T")
+
 
 class StreamReader(Generic[T]):
     """Represents the readable end of a Component Model `stream`.
@@ -186,6 +203,7 @@ class StreamReader(Generic[T]):
     finalization.
 
     """
+
     def __init__(self, type_: int, handle: int):
         """Constructor for internal use by generated code.
 
@@ -199,7 +217,9 @@ class StreamReader(Generic[T]):
         self.writer_dropped = False
         self.type_ = type_
         self.handle: int | None = handle
-        self.finalizer = weakref.finalize(self, componentize_py_runtime.stream_drop_readable, type_, handle)
+        self.finalizer = weakref.finalize(
+            self, componentize_py_runtime.stream_drop_readable, type_, handle
+        )
 
     async def read(self, max_count: int) -> list[T]:
         """Asynchronously read up to `max_count` items sent to this `stream`.
@@ -216,7 +236,7 @@ class StreamReader(Generic[T]):
         """
         if self.writer_dropped:
             return []
-        
+
         handle = self.handle
         self.handle = None
         code, values = await self._read(max_count, handle)
@@ -224,30 +244,36 @@ class StreamReader(Generic[T]):
 
         if code == _ReturnCode.DROPPED:
             self.writer_dropped = True
-        
+
         return values
-        
+
     async def _read(self, max_count: int, handle: int | None) -> tuple[int, list[T]]:
         if handle is not None:
-            return cast(tuple[int, list[T]], await componentize_py_async_support.await_result(
-                componentize_py_runtime.stream_read(self.type_, handle, max_count)
-            ))
+            return cast(
+                tuple[int, list[T]],
+                await componentize_py_async_support.await_result(
+                    componentize_py_runtime.stream_read(self.type_, handle, max_count)
+                ),
+            )
         else:
-            raise AssertionError        
+            raise AssertionError
 
     def __enter__(self) -> Self:
         return self
-        
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_value: BaseException | None,
-                 traceback: TracebackType | None) -> bool | None:
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         self.finalizer.detach()
         handle = self.handle
         self.handle = None
         if handle is not None:
             componentize_py_runtime.stream_drop_readable(self.type_, handle)
         return None
+
 
 class StreamWriter(Generic[T]):
     """Represents the writable end of a Component Model `stream`.
@@ -259,6 +285,7 @@ class StreamWriter(Generic[T]):
     finalization.
 
     """
+
     def __init__(self, type_: int, handle: int):
         """Constructor for internal use by generated code.
 
@@ -272,7 +299,9 @@ class StreamWriter(Generic[T]):
         self.reader_dropped = False
         self.type_ = type_
         self.handle: int | None = handle
-        self.finalizer = weakref.finalize(self, componentize_py_runtime.stream_drop_writable, type_, handle)
+        self.finalizer = weakref.finalize(
+            self, componentize_py_runtime.stream_drop_writable, type_, handle
+        )
 
     async def write(self, source: list[T]) -> int:
         """Asynchronously write (some of) the specified itmes to the `stream`.
@@ -293,7 +322,7 @@ class StreamWriter(Generic[T]):
         """
         if self.reader_dropped:
             return 0
-        
+
         handle = self.handle
         self.handle = None
         code, count = await self._write(source, handle)
@@ -301,7 +330,7 @@ class StreamWriter(Generic[T]):
 
         if code == _ReturnCode.DROPPED:
             self.reader_dropped = True
-        
+
         return count
 
     async def _write(self, source: list[T], handle: int | None) -> tuple[int, int]:
@@ -310,7 +339,7 @@ class StreamWriter(Generic[T]):
                 componentize_py_runtime.stream_write(self.type_, handle, source)
             )
         else:
-            raise AssertionError        
+            raise AssertionError
 
     async def write_all(self, source: list[T]) -> int:
         """Asynchronously write the specified items to the `stream`.
@@ -322,21 +351,23 @@ class StreamWriter(Generic[T]):
 
         """
         total = 0
-        
+
         while len(source) > 0 and not self.reader_dropped:
             count = await self.write(source)
             source = source[count:]
             total += count
-            
+
         return total
 
     def __enter__(self) -> Self:
         return self
-        
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_value: BaseException | None,
-                 traceback: TracebackType | None) -> bool | None:
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         self.finalizer.detach()
         handle = self.handle
         self.handle = None
