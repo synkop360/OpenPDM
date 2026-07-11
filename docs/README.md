@@ -23,6 +23,9 @@ Read project authority in this order:
 
 ## Understand The Implementation
 
+* [Plugin Development](PLUGIN_DEVELOPMENT.md) — Extension API v1, SDK, packaging and reference-plugin workflow.
+* [Plugin Security](PLUGIN_SECURITY.md) — sandbox, administration, secret handling and troubleshooting.
+
 * [Internal Functioning](INTERNAL_FUNCTIONING.md) — implemented Platform Modules and boundaries.
 * [API Flows](API_FLOWS.md) — public application API request paths and Mermaid schematics.
 * [Public Application API Reference](API_REFERENCE.md) — complete route inventory by capability.

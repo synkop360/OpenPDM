@@ -80,7 +80,7 @@ The current implementation includes public endpoints for:
 * Assets, Revisions, collaboration and notifications (`/assets/*`, `/notifications`)
 * blob upload and download (`/blobs/*`)
 * relationships, references and bounded graph queries (`/relationships`, `/references`, `/assets/*/graph`)
-* metadata, search and the read-only plugin registry (`/metadata`, `/search/assets`, `/plugins`)
+* metadata, search and the governed Plugin Platform (`/metadata`, `/search/assets`, `/plugins`)
 
 The OpenAPI documentation is available at `http://localhost:8000/docs` when the
 backend is running.
@@ -128,7 +128,17 @@ This starts the Compose backend on `http://localhost:18000`, waits for its healt
 
 ## Runtime Configuration
 
-Backend environment variables use the `OPENPDM_` prefix. The common development settings are documented in `.env.example`; they cover database and S3 connections, the backend host port and optional successful graph-query auditing. Cross-origin browser access defaults to the local Vite development and preview origins and can be overridden with `OPENPDM_API_CORS_ORIGINS`.
+Backend environment variables use the `OPENPDM_` prefix. The common development settings are documented in `.env.example`; they cover database and S3 connections, plugin package storage, sandbox limits, plugin configuration encryption, the backend host port and optional successful graph-query auditing. Cross-origin browser access defaults to the local Vite development and preview origins and can be overridden with `OPENPDM_API_CORS_ORIGINS`.
+
+## Develop A Plugin
+
+The normative WIT contract is packaged at `openpdm.extension_api/wit/openpdm-extension.wit`. Build the domain-neutral Official Plugin with:
+
+```bash
+uv run python scripts/build_reference_plugin.py
+```
+
+The generated `.openpdm-plugin` archive is written under `plugins/reference/dist/`. See [Plugin Development](PLUGIN_DEVELOPMENT.md) for the package, SDK and invocation workflow.
 
 ## Architecture Boundaries
 

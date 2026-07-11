@@ -55,7 +55,7 @@ Client applications consume only the public application API. The composition roo
 | Metadata | Generic key/value metadata without engineering semantics |
 | Search | PostgreSQL-backed Engineering Asset search |
 | Notifications | Project-scoped in-app collaboration notifications and acknowledgment |
-| Plugins | Read-only plugin registry and discovery skeleton |
+| Plugins | Platform-wide administration, immutable packages, lifecycle, configuration and delivery state |
 | Audit and events | Traceable business mutations and domain-event emission |
 
 ## Key Dependency Paths
@@ -70,12 +70,19 @@ flowchart LR
     Relationships["Relationships public interface"]
     Collaboration["Collaboration public interface"]
     Notifications["Notifications public interface"]
+    Plugins["Plugins public interface"]
+    Extension["Extension API v1"]
+    Worker["Wasmtime worker"]
 
     API --> Org
     API --> Project
     API --> Assets
     API --> Relationships
     API --> Collaboration
+    API --> Plugins
+    Plugins --> Worker
+    Worker --> Extension
+    Extension --> Assets
     Project --> Org
     Assets --> Project
     Assets --> Blobs
@@ -109,7 +116,7 @@ flowchart LR
     Extension --> Core["Platform Core"]
 ```
 
-Official Plugins and Community Plugins use the same Extension API. The current plugin capability is a registry skeleton; plugin execution and privileged internal access are not implemented.
+Official Plugins and Community Plugins use the same Extension API, WIT world, package validation and Wasmtime sandbox. The application layer reauthorizes provider results through owning Platform Module public interfaces. Plugins never receive privileged internal access.
 
 ## Architectural Invariants
 

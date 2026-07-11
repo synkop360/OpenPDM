@@ -25,7 +25,7 @@ flowchart TD
 ```
 
 OpenPDM currently implements the public application API and the early collaboration,
-Asset Graph, metadata, search, and plugin registry behaviors described in the
+Asset Graph, metadata, search, and Phase 4 plugin-platform behaviors described in the
 accepted ADRs. The active repository provides a working backend, a browser-based
 Web UI, and a desktop shell track, while preserving the platform's generic
 core boundaries.
@@ -125,7 +125,23 @@ capabilities:
 * PostgreSQL-backed asset search
 * collaboration state, checkout/checkin, unlock, notifications, and timeline
 * Asset Graph relationships, references, and bounded graph queries
-* a read-only plugin registry skeleton for future plugin discovery
+* a governed plugin lifecycle, Extension API v1, sandboxed WebAssembly Component runtime, generic providers and event hooks
+
+Plugin packages are hostile input. The Platform Core validates and stores them immutably, then a separate worker executes their WebAssembly Components in a Wasmtime sandbox with no ambient host capabilities. Provider commands return through the Extension API and are reauthorized by the owning Platform Modules.
+
+```mermaid
+flowchart LR
+    Admin["Platform Administrator"] --> API["Public application API"]
+    API --> Plugins["Plugins Platform Module"]
+    Plugins --> Packages["Immutable package storage"]
+    API --> Worker["Wasmtime worker"]
+    Packages --> Worker
+    Worker --> Extension["Extension API v1"]
+    Extension --> Assets["Assets public interface"]
+    Extension --> Metadata["Metadata public interface"]
+    Events["Committed domain events"] --> Queue["Plugin delivery queue"]
+    Queue --> Worker
+```
 
 ---
 

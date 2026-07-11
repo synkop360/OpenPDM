@@ -59,7 +59,7 @@ The backend now exposes a concrete API surface for:
 * Assets, Revisions, collaboration and notifications (`/assets/*`, `/notifications`)
 * blob upload and download (`/blobs/*`)
 * relationships, references and bounded graph queries (`/relationships`, `/references`, `/assets/*/graph`)
-* metadata, search and the read-only plugin registry (`/metadata`, `/search/assets`, `/plugins`)
+* metadata, search and the governed Plugin Platform (`/metadata`, `/search/assets`, `/plugins`)
 
 ## Asset Graph Audit Configuration
 
@@ -95,7 +95,21 @@ To start the Compose backend and frontend development server together, run `pyth
 
 ## Configuration Notes
 
-`.env.example` contains development defaults for PostgreSQL, MinIO, the exposed backend port and graph-query audit behavior. Backend settings use the `OPENPDM_` prefix. The checked-in credentials are local defaults and must not be reused for a production deployment.
+`.env.example` contains development defaults for PostgreSQL, MinIO, the exposed backend port, graph-query auditing and the plugin sandbox. Backend settings use the `OPENPDM_` prefix. The checked-in credentials are local defaults and must not be reused for a production deployment.
+
+Generate `OPENPDM_PLUGIN_CONFIGURATION_KEY` before storing plugin secrets:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Protect and back up this key outside the database. Losing it makes encrypted plugin configuration unreadable. Set `OPENPDM_PLUGIN_PACKAGE_ROOT` to persistent storage owned only by the backend process. Sandbox fuel, memory and timeout settings are bounded by application validation and should be reduced only after testing installed plugins.
+
+Upgrade existing databases before starting the new application version:
+
+```bash
+uv run alembic upgrade head
+```
 
 ## Limitations
 
@@ -105,4 +119,7 @@ This deployment remains focused on local development and does not yet cover:
 * TLS termination;
 * backup and restore procedures;
 * full production observability and hardening;
-* plugin execution outside the current registry and state model.
+* remote plugin registries and unattended package upgrades;
+* publisher-signature verification;
+* tenant-scoped plugin instances or configuration;
+* hostile-code isolation beyond the accepted WebAssembly sandbox and deployment hardening model.

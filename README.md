@@ -13,7 +13,7 @@ and a Tauri desktop shell skeleton. The implementation covers:
 * generic metadata and PostgreSQL-backed search
 * collaboration state, checkout/checkin, notifications and timeline
 * generic Asset Graph relationships, references and graph queries
-* a read-only plugin registry skeleton
+* a governed, sandboxed plugin platform with Extension API v1
 
 ## Quickstart
 
@@ -81,11 +81,21 @@ If the frontend is not served from the same origin as the backend, set
 backend/      FastAPI public application API and Platform Core implementation.
 frontend/     React, TypeScript and Vite web UI.
 desktop/      Tauri desktop client shell.
+plugins/      Official Plugin source and generated Extension API bindings.
 deployment/   Docker Compose services for local development.
 docs/         Project documentation and ADRs.
 scripts/      Developer validation and command helpers.
 tests/        Repository-level architecture boundary tests.
 ```
+
+Build and exercise the domain-neutral reference Official Plugin with:
+
+```bash
+uv run python scripts/build_reference_plugin.py
+uv run pytest backend/tests/test_reference_plugin_e2e.py -v
+```
+
+See [`docs/PLUGIN_DEVELOPMENT.md`](docs/PLUGIN_DEVELOPMENT.md) and [`docs/PLUGIN_SECURITY.md`](docs/PLUGIN_SECURITY.md).
 
 ## Architecture
 
