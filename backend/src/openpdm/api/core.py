@@ -13,8 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from openpdm import __version__
+from openpdm.extension_api import validate_plugin_package
 from openpdm.infrastructure.blob_storage import BlobStorage, build_blob_storage
 from openpdm.infrastructure.database import get_db_session, initialize_database
+from openpdm.infrastructure.plugin_packages import build_plugin_package_storage
 from openpdm.platform_core.composition import MODULES
 from openpdm.platform_core.public import (
     CollaborationStateView,
@@ -66,6 +68,7 @@ class UserResponse(ApiModel):
     email: str
     display_name: str
     is_active: bool
+    is_platform_admin: bool
     created_at: str
 
 
@@ -229,8 +232,14 @@ class PluginResponse(BaseModel):
     version: str
     type: str = Field(alias="plugin_type")
     capabilities: list[str]
+    extension_api_versions: list[int]
+    component: str
+    package_digest: str
+    lifecycle_state: str
+    diagnostic_reason: str | None
     enabled: bool
     created_at: str
+    updated_at: str
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -363,6 +372,10 @@ class SetPluginStateRequest(BaseModel):
     enabled: bool
 
 
+class SetPlatformAdministratorRequest(BaseModel):
+    enabled: bool
+
+
 def _iso(value: object) -> str:
     return cast(datetime, value).isoformat()
 
@@ -373,6 +386,7 @@ def serialize_user(user: Any) -> UserResponse:
         email=user.email,
         display_name=user.display_name,
         is_active=user.is_active,
+        is_platform_admin=user.is_platform_admin,
         created_at=_iso(user.created_at),
     )
 
@@ -557,8 +571,14 @@ def serialize_plugin(plugin: Any) -> PluginResponse:
         version=plugin.version,
         type=plugin.plugin_type,
         capabilities=plugin.capabilities,
+        extension_api_versions=plugin.extension_api_versions,
+        component=plugin.component,
+        package_digest=plugin.package_digest,
+        lifecycle_state=plugin.lifecycle_state,
+        diagnostic_reason=plugin.diagnostic_reason,
         enabled=plugin.enabled,
         created_at=_iso(plugin.created_at),
+        updated_at=_iso(plugin.updated_at),
     )
 
 
@@ -696,6 +716,23 @@ def revoke_session_by_id(
         token=revoked.token,
         user=serialize_user(context.user),
     )
+
+
+@router.put("/platform/administrators/{user_id}", response_model=UserResponse)
+def set_platform_administrator(
+    user_id: str,
+    payload: SetPlatformAdministratorRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> UserResponse:
+    target = AuthModule.set_platform_administrator(
+        db,
+        target_user_id=user_id,
+        enabled=payload.enabled,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_user(target)
 
 
 @router.post(
@@ -1470,12 +1507,49 @@ def register_plugin(
     return serialize_plugin(plugin)
 
 
+@router.post(
+    "/plugins/packages",
+    response_model=PluginResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def install_plugin_package(
+    package: UploadFile = File(...),
+    plugin_type: str = "community",
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginResponse:
+    PluginsModule.require_platform_admin(context.user)
+    archive = await package.read(32 * 1024 * 1024 + 1)
+    try:
+        validated = validate_plugin_package(archive)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    plugin = PluginsModule.install_package(
+        db,
+        package=validated,
+        package_storage=build_plugin_package_storage(),
+        plugin_type=plugin_type,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_plugin(plugin)
+
+
 @router.get("/plugins", response_model=list[PluginResponse])
 def list_plugins(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> list[PluginResponse]:
     return [serialize_plugin(item) for item in PluginsModule.list_plugins(db, actor=context.user)]
+
+
+@router.get("/plugins/{plugin_id}", response_model=PluginResponse)
+def get_plugin(
+    plugin_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginResponse:
+    return serialize_plugin(PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=context.user))
 
 
 @router.post("/plugins/{plugin_id}/state", response_model=PluginResponse)

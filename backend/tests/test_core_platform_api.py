@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 from sqlalchemy import select
 
+from openpdm.extension_api import Capability, PluginManifest, build_plugin_package
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
 from openpdm.infrastructure.database import dispose_engines, session_scope
 from openpdm.platform_core.modules.models import (
@@ -26,6 +27,7 @@ def build_client(tmp_path: Path) -> TestClient:
     os.environ["OPENPDM_DATABASE_URL"] = f"sqlite+pysqlite:///{tmp_path / 'openpdm.db'}"
     os.environ["OPENPDM_S3_ENDPOINT_URL"] = "file://local"
     os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
+    os.environ["OPENPDM_PLUGIN_PACKAGE_ROOT"] = str(tmp_path / "plugins")
     reset_blob_storage_cache()
     dispose_engines()
     from openpdm.main import create_app
@@ -508,7 +510,9 @@ def test_blob_upload_normalizes_filename_and_keeps_local_storage_within_bucket(
     assert stored_path.is_relative_to(bucket_root)
 
 
-def test_search_and_plugin_registry_is_read_only_in_phase_1(tmp_path: Path) -> None:
+def test_search_and_legacy_plugin_registration_requires_package_installation(
+    tmp_path: Path,
+) -> None:
     client = build_client(tmp_path)
     token = register_and_sign_in(
         client,
@@ -562,8 +566,8 @@ def test_search_and_plugin_registry_is_read_only_in_phase_1(tmp_path: Path) -> N
             "capabilities": [],
         },
     )
-    assert read_only_write.status_code == 403
-    assert "read-only" in read_only_write.json()["detail"]
+    assert read_only_write.status_code == 400
+    assert "validated OpenPDM plugin package" in read_only_write.json()["detail"]
 
     with session_scope() as db:
         db.add(
@@ -586,8 +590,88 @@ def test_search_and_plugin_registry_is_read_only_in_phase_1(tmp_path: Path) -> N
         headers=auth_header(token),
         json={"enabled": False},
     )
-    assert plugin_state.status_code == 403
-    assert "read-only" in plugin_state.json()["detail"]
+    assert plugin_state.status_code == 200
+    assert plugin_state.json()["lifecycle_state"] == "disabled"
+
+
+def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    admin_token = register_and_sign_in(
+        client,
+        email="admin@example.com",
+        display_name="Admin",
+        password="secret123",
+    )
+    member_token = register_and_sign_in(
+        client,
+        email="member@example.com",
+        display_name="Member",
+        password="secret123",
+    )
+    admin_session = client.get("/auth/session", headers=auth_header(admin_token)).json()
+    member_session = client.get("/auth/session", headers=auth_header(member_token)).json()
+    assert admin_session["user"]["is_platform_admin"] is True
+    assert member_session["user"]["is_platform_admin"] is False
+
+    plugin_package = build_plugin_package(
+        PluginManifest(
+            id="org.openpdm.lifecycle-test",
+            name="Lifecycle Test",
+            version="1.0.0",
+            extension_api_versions=[1],
+            component="plugin.wasm",
+            capabilities=[Capability.METADATA_PROVIDER],
+        ),
+        b"\x00asm\x0d\x00\x01\x00",
+    )
+    denied = client.post(
+        "/plugins/packages",
+        params={"plugin_type": "community"},
+        headers=auth_header(member_token),
+        files={"package": ("example.openpdm-plugin", plugin_package, "application/zip")},
+    )
+    assert denied.status_code == 403
+
+    installed = client.post(
+        "/plugins/packages",
+        params={"plugin_type": "community"},
+        headers=auth_header(admin_token),
+        files={"package": ("example.openpdm-plugin", plugin_package, "application/zip")},
+    )
+    assert installed.status_code == 201
+    assert installed.json()["lifecycle_state"] == "installed"
+    assert installed.json()["enabled"] is False
+    assert len(installed.json()["package_digest"]) == 64
+
+    enabled = client.post(
+        "/plugins/org.openpdm.lifecycle-test/state",
+        headers=auth_header(admin_token),
+        json={"enabled": True},
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["lifecycle_state"] == "starting"
+
+    last_admin = client.put(
+        f"/platform/administrators/{admin_session['user']['id']}",
+        headers=auth_header(admin_token),
+        json={"enabled": False},
+    )
+    assert last_admin.status_code == 409
+
+    granted = client.put(
+        f"/platform/administrators/{member_session['user']['id']}",
+        headers=auth_header(admin_token),
+        json={"enabled": True},
+    )
+    assert granted.status_code == 200
+    assert granted.json()["is_platform_admin"] is True
+
+    revoked = client.put(
+        f"/platform/administrators/{admin_session['user']['id']}",
+        headers=auth_header(member_token),
+        json={"enabled": False},
+    )
+    assert revoked.status_code == 200
 
 
 def test_sign_out_revokes_session(tmp_path: Path) -> None:

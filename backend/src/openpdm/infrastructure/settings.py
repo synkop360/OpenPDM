@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     s3_access_key: str = "openpdm"
     s3_secret_key: str = "openpdm-secret"
     blob_local_root: str = ".openpdm-data/blobs"
+    plugin_package_root: str = ".openpdm-data/plugins"
     audit_graph_queries: bool = False
     api_cors_origins: list[str] = [
         "http://localhost:5173",
