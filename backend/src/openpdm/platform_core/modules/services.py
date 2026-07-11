@@ -18,7 +18,9 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import String, and_, cast, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from openpdm.extension_api import ValidatedPluginPackage
 from openpdm.infrastructure.blob_storage import BlobStorage
+from openpdm.infrastructure.plugin_packages import PluginPackageStorage
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.modules.audit import (
     AuditEventsInterface,
@@ -61,6 +63,14 @@ PROJECT_PERMISSION_ROLES = {
 ALLOWED_STATUSES = {"draft", "active", "archived"}
 ALLOWED_METADATA_TYPES = {"string", "number", "boolean", "date", "json"}
 ALLOWED_PLUGIN_TYPES = {"official", "community"}
+PLUGIN_LIFECYCLE_STATES = {
+    "installed",
+    "disabled",
+    "starting",
+    "running",
+    "failed",
+    "incompatible",
+}
 COLLABORATION_STATES = {"available", "locked", "stale_lock"}
 FORCE_UNLOCK_ROLES = {"Owner", "Maintainer"}
 LOCK_OWNER_WRITE_ROLES = {"Owner", "Maintainer", "Contributor"}
@@ -427,10 +437,12 @@ class AuthModule:
             "Email is already registered.",
             status.HTTP_409_CONFLICT,
         )
+        first_user = db.scalar(select(func.count()).select_from(User)) == 0
         user = User(
             email=email.lower().strip(),
             display_name=display_name.strip(),
             password_hash=hash_password(password),
+            is_platform_admin=first_user,
         )
         db.add(user)
         db.flush()
@@ -442,6 +454,20 @@ class AuthModule:
             resource_id=user.id,
         )
         emit_event(db, event_type="user.registered", resource_type="user", resource_id=user.id)
+        if first_user:
+            record_audit(
+                db,
+                actor_user_id=user.id,
+                action="platform_administrator.bootstrapped",
+                resource_type="user",
+                resource_id=user.id,
+            )
+            emit_event(
+                db,
+                event_type="platform_administrator.bootstrapped",
+                resource_type="user",
+                resource_id=user.id,
+            )
         return user
 
     @staticmethod
@@ -468,6 +494,46 @@ class AuthModule:
             db, event_type="session.created", resource_type="session", resource_id=session_token.id
         )
         return user, session_token
+
+    @staticmethod
+    def set_platform_administrator(
+        db: Session, *, target_user_id: str, enabled: bool, actor: User
+    ) -> User:
+        require(
+            actor.is_active and actor.is_platform_admin,
+            "Platform Administrator authority is required.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        target = get_user_or_404(db, target_user_id)
+        if not enabled and target.is_platform_admin:
+            administrator_count = db.scalar(
+                select(func.count())
+                .select_from(User)
+                .where(and_(User.is_active.is_(True), User.is_platform_admin.is_(True)))
+            )
+            require(
+                administrator_count is not None and administrator_count > 1,
+                "The deployment must retain at least one active Platform Administrator.",
+                status.HTTP_409_CONFLICT,
+            )
+        previous = target.is_platform_admin
+        target.is_platform_admin = enabled
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="platform_administrator.updated",
+            resource_type="user",
+            resource_id=target.id,
+            details={"previous": previous, "enabled": enabled},
+        )
+        emit_event(
+            db,
+            event_type="platform_administrator.updated",
+            resource_type="user",
+            resource_id=target.id,
+            payload={"previous": previous, "enabled": enabled},
+        )
+        return target
 
     @staticmethod
     def get_session(db: Session, token: str) -> SessionToken:
@@ -3245,13 +3311,14 @@ class SearchModule:
 
 
 class PluginsModule:
-    """Public Plugins module service."""
+    """Public Plugins Platform Module lifecycle service."""
 
     @staticmethod
-    def _write_not_available() -> None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The Phase 1 plugin registry is read-only until a platform administration model is defined.",
+    def require_platform_admin(actor: User) -> None:
+        require(
+            actor.is_active and actor.is_platform_admin,
+            "Platform Administrator authority is required.",
+            status.HTTP_403_FORBIDDEN,
         )
 
     @staticmethod
@@ -3265,38 +3332,75 @@ class PluginsModule:
         capabilities: list[str],
         actor: User,
     ) -> PluginRecord:
-        PluginsModule._write_not_available()
+        """Legacy metadata-only registration is not a supported Phase 4 installation path."""
+        PluginsModule.require_platform_admin(actor)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Install a validated OpenPDM plugin package instead of registering metadata.",
+        )
+
+    @staticmethod
+    def install_package(
+        db: Session,
+        *,
+        package: ValidatedPluginPackage,
+        package_storage: PluginPackageStorage,
+        plugin_type: str,
+        actor: User,
+    ) -> PluginRecord:
+        PluginsModule.require_platform_admin(actor)
         require(plugin_type in ALLOWED_PLUGIN_TYPES, "Invalid plugin type.")
-        existing = db.get(PluginRecord, plugin_id)
-        require(existing is None, "Plugin already exists.", status.HTTP_409_CONFLICT)
+        manifest = package.manifest
+        existing = db.get(PluginRecord, manifest.id)
+        require(existing is None, "Plugin is already installed.", status.HTTP_409_CONFLICT)
+        package_storage.put(package.digest, package.archive)
         plugin = PluginRecord(
-            id=plugin_id.strip(),
-            name=name.strip(),
-            version=version.strip(),
+            id=manifest.id,
+            name=manifest.name,
+            version=manifest.version,
             plugin_type=plugin_type,
-            capabilities=capabilities,
-            enabled=True,
+            capabilities=[capability.value for capability in manifest.capabilities],
+            extension_api_versions=manifest.extension_api_versions,
+            component=manifest.component,
+            package_digest=package.digest,
+            lifecycle_state="installed",
+            diagnostic_reason=None,
+            installed_by_user_id=actor.id,
+            enabled=False,
         )
         db.add(plugin)
         db.flush()
         record_audit(
             db,
             actor_user_id=actor.id,
-            action="plugin.registered",
+            action="plugin.installed",
             resource_type="plugin",
             resource_id=plugin.id,
+            details={
+                "version": plugin.version,
+                "package_digest": plugin.package_digest,
+                "plugin_type": plugin.plugin_type,
+            },
         )
         emit_event(
             db,
-            event_type="plugin.registered",
+            event_type="plugin.installed",
             resource_type="plugin",
             resource_id=plugin.id,
+            payload={"version": plugin.version, "package_digest": plugin.package_digest},
         )
         return plugin
 
     @staticmethod
     def list_plugins(db: Session, actor: User) -> list[PluginRecord]:
         return list(db.scalars(select(PluginRecord).order_by(PluginRecord.created_at.desc())))
+
+    @staticmethod
+    def get_plugin(db: Session, *, plugin_id: str, actor: User) -> PluginRecord:
+        plugin = db.get(PluginRecord, plugin_id)
+        if plugin is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found.")
+        return plugin
 
     @staticmethod
     def set_plugin_enabled(
@@ -3306,25 +3410,64 @@ class PluginsModule:
         enabled: bool,
         actor: User,
     ) -> PluginRecord:
-        PluginsModule._write_not_available()
+        PluginsModule.require_platform_admin(actor)
         plugin = db.get(PluginRecord, plugin_id)
         if plugin is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found.")
         plugin.enabled = enabled
+        plugin.lifecycle_state = "starting" if enabled else "disabled"
+        plugin.diagnostic_reason = None
+        plugin.updated_at = utc_now()
         record_audit(
             db,
             actor_user_id=actor.id,
             action="plugin.state.updated",
             resource_type="plugin",
             resource_id=plugin.id,
-            details={"enabled": enabled},
+            details={"enabled": enabled, "lifecycle_state": plugin.lifecycle_state},
         )
         emit_event(
             db,
             event_type="plugin.state.updated",
             resource_type="plugin",
             resource_id=plugin.id,
-            payload={"enabled": enabled},
+            payload={"enabled": enabled, "lifecycle_state": plugin.lifecycle_state},
+        )
+        return plugin
+
+    @staticmethod
+    def record_runtime_state(
+        db: Session,
+        *,
+        plugin_id: str,
+        lifecycle_state: str,
+        diagnostic_reason: str | None,
+    ) -> PluginRecord:
+        require(lifecycle_state in PLUGIN_LIFECYCLE_STATES, "Invalid plugin lifecycle state.")
+        plugin = db.get(PluginRecord, plugin_id)
+        if plugin is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found.")
+        plugin.lifecycle_state = lifecycle_state
+        plugin.enabled = lifecycle_state in {"starting", "running"}
+        plugin.diagnostic_reason = diagnostic_reason[:1024] if diagnostic_reason else None
+        plugin.updated_at = utc_now()
+        record_audit(
+            db,
+            actor_user_id=None,
+            action="plugin.runtime_state.updated",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            details={
+                "lifecycle_state": lifecycle_state,
+                "diagnostic_reason": plugin.diagnostic_reason,
+            },
+        )
+        emit_event(
+            db,
+            event_type="plugin.runtime_state.updated",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            payload={"lifecycle_state": lifecycle_state},
         )
         return plugin
 

@@ -31,6 +31,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(512))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )
@@ -342,7 +343,7 @@ class NotificationRecord(Base):
 
 
 class PluginRecord(Base):
-    """Phase 1 plugin registry record."""
+    """Governed Phase 4 plugin registry and lifecycle record."""
 
     __tablename__ = "plugins"
 
@@ -351,7 +352,18 @@ class PluginRecord(Base):
     version: Mapped[str] = mapped_column(String(64))
     plugin_type: Mapped[str] = mapped_column(String(64))
     capabilities: Mapped[list[str]] = mapped_column(JSON, default=list)
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    extension_api_versions: Mapped[list[int]] = mapped_column(JSON, default=list)
+    component: Mapped[str] = mapped_column(String(255), default="")
+    package_digest: Mapped[str] = mapped_column(String(64), default="", index=True)
+    lifecycle_state: Mapped[str] = mapped_column(String(32), default="installed", index=True)
+    diagnostic_reason: Mapped[str | None] = mapped_column(Text)
+    installed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    installed_by: Mapped[User | None] = relationship()
