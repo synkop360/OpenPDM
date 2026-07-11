@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from uuid import uuid4
 
 from .worker import PROTOCOL_VERSION
@@ -26,7 +27,7 @@ class WasmtimeWorkerSupervisor:
         self,
         *,
         timeout_seconds: float = 5.0,
-        fuel: int = 1_000_000,
+        fuel: int = 25_000_000,
         memory_bytes: int = 64 * 1024 * 1024,
     ) -> None:
         self.timeout_seconds = timeout_seconds
@@ -52,7 +53,13 @@ class WasmtimeWorkerSupervisor:
             },
             separators=(",", ":"),
         )
-        command = [sys.executable, "-I", "-m", "openpdm.plugin_runtime.worker"]
+        package_root = str(Path(__file__).resolve().parents[2])
+        bootstrap = (
+            "import runpy,sys;"
+            f"sys.path.insert(0,{package_root!r});"
+            "runpy.run_module('openpdm.plugin_runtime.worker',run_name='__main__')"
+        )
+        command = [sys.executable, "-I", "-c", bootstrap]
         try:
             completed = subprocess.run(
                 command,

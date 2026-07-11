@@ -14,7 +14,7 @@ from .contracts import (
 )
 from .manifest import ConfigurationProperty, ConfigurationSchema, PluginManifest
 from .package import ValidatedPluginPackage, validate_plugin_package
-from .sdk import build_plugin_package, inspect_plugin_package
+from .sdk import build_plugin_package, extension_api_wit_path, inspect_plugin_package
 
 __all__ = [
     "EXTENSION_API_MAJOR_VERSION",
@@ -32,6 +32,7 @@ __all__ = [
     "PluginManifest",
     "ValidatedPluginPackage",
     "build_plugin_package",
+    "extension_api_wit_path",
     "inspect_plugin_package",
     "validate_plugin_package",
 ]

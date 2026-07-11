@@ -27,6 +27,12 @@ from openpdm.platform_core.public import (
     SessionContextView,
     TimelineEntryView,
 )
+from openpdm.platform_core.request_context import get_request_id
+from openpdm.plugin_application import (
+    PluginInvocationServices,
+    invoke_asset_provider,
+    invoke_metadata_provider,
+)
 from openpdm.plugin_runtime import WasmtimeWorkerSupervisor, dispatch_due_plugin_events
 
 ALLOWED_STATUSES = {"draft", "active", "archived"}
@@ -404,6 +410,23 @@ class PluginEventDeliveryResponse(BaseModel):
     updated_at: str
 
 
+class InvokeMetadataProviderRequest(BaseModel):
+    target_type: str
+    target_id: str
+    project_id: str
+    organization_id: str | None = None
+
+
+class InvokeAssetProviderRequest(BaseModel):
+    payload: dict[str, Any]
+    organization_id: str | None = None
+
+
+class ProviderResourceResponse(BaseModel):
+    resource_type: str
+    id: str
+
+
 def _iso(value: object) -> str:
     return cast(datetime, value).isoformat()
 
@@ -639,6 +662,19 @@ def activate_installed_plugin(db: Session, plugin: Any) -> Any:
             lifecycle_state="failed",
             diagnostic_reason="Plugin activation failed package integrity validation.",
         )
+
+
+def plugin_invocation_services() -> PluginInvocationServices:
+    settings = Settings()
+    return PluginInvocationServices(
+        package_storage=build_plugin_package_storage(settings),
+        cipher=PluginSecretCipher(settings.plugin_configuration_key),
+        supervisor=WasmtimeWorkerSupervisor(
+            timeout_seconds=settings.plugin_runtime_timeout_seconds,
+            fuel=settings.plugin_runtime_fuel,
+            memory_bytes=settings.plugin_runtime_memory_bytes,
+        ),
+    )
 
 
 def serialize_notification(notification: Any) -> NotificationResponse:
@@ -1703,6 +1739,69 @@ def list_plugin_event_deliveries(
     ]
 
 
+@router.post(
+    "/plugins/{plugin_id}/providers/metadata",
+    response_model=list[MetadataResponse],
+)
+def run_metadata_provider(
+    plugin_id: str,
+    payload: InvokeMetadataProviderRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[MetadataResponse]:
+    entries = invoke_metadata_provider(
+        db,
+        plugin_id=plugin_id,
+        target_type=payload.target_type,
+        target_id=payload.target_id,
+        actor=context.user,
+        context={
+            "request_id": get_request_id() or "unknown",
+            "actor_id": context.user.id,
+            "organization_id": payload.organization_id,
+            "project_id": payload.project_id,
+        },
+        services=plugin_invocation_services(),
+    )
+    db.commit()
+    return [serialize_metadata(entry) for entry in entries]
+
+
+@router.post(
+    "/plugins/{plugin_id}/providers/assets/{project_id}",
+    response_model=list[ProviderResourceResponse],
+)
+def run_asset_provider(
+    plugin_id: str,
+    project_id: str,
+    payload: InvokeAssetProviderRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[ProviderResourceResponse]:
+    resources = invoke_asset_provider(
+        db,
+        plugin_id=plugin_id,
+        project_id=project_id,
+        request_payload=payload.payload,
+        actor=context.user,
+        context={
+            "request_id": get_request_id() or "unknown",
+            "actor_id": context.user.id,
+            "organization_id": payload.organization_id,
+            "project_id": project_id,
+        },
+        services=plugin_invocation_services(),
+    )
+    db.commit()
+    return [
+        ProviderResourceResponse(
+            resource_type=resource.__class__.__name__.lower(),
+            id=resource.id,
+        )
+        for resource in resources
+    ]
+
+
 @router.post("/plugins/{plugin_id}/state", response_model=PluginResponse)
 def set_plugin_state(
     plugin_id: str,
@@ -1740,6 +1839,7 @@ def _dispatch_plugin_events_once() -> None:
         dispatch_due_plugin_events(
             db,
             package_storage=build_plugin_package_storage(settings),
+            cipher=PluginSecretCipher(settings.plugin_configuration_key),
             supervisor=WasmtimeWorkerSupervisor(
                 timeout_seconds=settings.plugin_runtime_timeout_seconds,
                 fuel=settings.plugin_runtime_fuel,

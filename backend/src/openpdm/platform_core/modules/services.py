@@ -3441,6 +3441,18 @@ class PluginsModule:
         return plugin, db.get(PluginConfiguration, plugin_id)
 
     @staticmethod
+    def get_runtime_configuration(
+        db: Session, *, plugin_id: str, cipher: PluginSecretCipher
+    ) -> dict[str, object]:
+        configuration = db.get(PluginConfiguration, plugin_id)
+        if configuration is None:
+            return {}
+        return {
+            **configuration.public_values,
+            **cipher.decrypt(configuration.encrypted_secrets),
+        }
+
+    @staticmethod
     def set_configuration(
         db: Session,
         *,

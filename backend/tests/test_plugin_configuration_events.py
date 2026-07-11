@@ -33,7 +33,7 @@ class SuccessfulSupervisor:
         self, component: bytes, *, export_name: str, arguments: list[str] | None = None
     ) -> RuntimeResult:
         assert component.startswith(b"\x00asm")
-        assert export_name == "handle-event"
+        assert export_name == "invoke"
         assert arguments and "AssetCreated" in arguments[0]
         return RuntimeResult(True, result=InvocationResponse(success=True).model_dump_json())
 
@@ -142,6 +142,7 @@ def test_post_commit_delivery_is_persisted_and_dispatched_once(tmp_path: Path) -
         processed = dispatch_due_plugin_events(
             db,
             package_storage=storage,
+            cipher=PluginSecretCipher(None),
             supervisor=SuccessfulSupervisor(),  # type: ignore[arg-type]
         )
         assert processed == 1

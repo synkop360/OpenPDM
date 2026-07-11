@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+from importlib.resources import as_file, files
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from .manifest import PluginManifest
@@ -30,3 +34,12 @@ def build_plugin_package(manifest: PluginManifest, component: bytes) -> bytes:
 
 def inspect_plugin_package(archive: bytes) -> ValidatedPluginPackage:
     return validate_plugin_package(archive)
+
+
+@contextmanager
+def extension_api_wit_path() -> Iterator[Path]:
+    """Expose the normative Extension API v1 WIT contract to SDK tooling."""
+
+    contract = files("openpdm.extension_api").joinpath("wit/openpdm-extension.wit")
+    with as_file(contract) as path:
+        yield path

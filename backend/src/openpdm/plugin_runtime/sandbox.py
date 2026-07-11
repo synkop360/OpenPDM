@@ -10,12 +10,12 @@ from wasmtime.component import Component, Linker
 
 @dataclass(frozen=True, slots=True)
 class SandboxLimits:
-    fuel: int = 1_000_000
+    fuel: int = 25_000_000
     memory_bytes: int = 64 * 1024 * 1024
     table_elements: int = 10_000
-    instances: int = 10
-    tables: int = 10
-    memories: int = 4
+    instances: int = 100
+    tables: int = 100
+    memories: int = 100
 
 
 class WasmtimeSandbox:
@@ -47,6 +47,12 @@ class WasmtimeSandbox:
         store.set_epoch_deadline(1)
         linker = Linker(self.engine)
         instance = linker.instantiate(store, component)
+        if export_name != "activate":
+            activate = instance.get_func(store, "activate")
+            if activate is None:
+                raise ValueError("Component does not export 'activate'.")
+            if activate(store) is not None:
+                raise ValueError("Component export 'activate' must not return a value.")
         exported = instance.get_func(store, export_name)
         if exported is None:
             raise ValueError(f"Component does not export {export_name!r}.")
