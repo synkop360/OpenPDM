@@ -16,6 +16,7 @@ from .worker import PROTOCOL_VERSION
 class RuntimeResult:
     success: bool
     diagnostic_reason: str | None = None
+    result: str | None = None
 
 
 class WasmtimeWorkerSupervisor:
@@ -33,13 +34,19 @@ class WasmtimeWorkerSupervisor:
         self.memory_bytes = memory_bytes
 
     def activate(self, component: bytes) -> RuntimeResult:
+        return self.invoke(component, export_name="activate")
+
+    def invoke(
+        self, component: bytes, *, export_name: str, arguments: list[str] | None = None
+    ) -> RuntimeResult:
         request_id = str(uuid4())
         request = json.dumps(
             {
                 "protocol_version": PROTOCOL_VERSION,
                 "request_id": request_id,
                 "component": base64.b64encode(component).decode("ascii"),
-                "export_name": "activate",
+                "export_name": export_name,
+                "arguments": arguments or [],
                 "fuel": self.fuel,
                 "memory_bytes": self.memory_bytes,
             },
@@ -70,6 +77,9 @@ class WasmtimeWorkerSupervisor:
         ):
             return RuntimeResult(False, "Plugin runtime response authentication failed.")
         if response.get("success") is True and completed.returncode == 0:
-            return RuntimeResult(True)
+            result = response.get("result")
+            if result is not None and not isinstance(result, str):
+                return RuntimeResult(False, "Plugin runtime returned an invalid result.")
+            return RuntimeResult(True, result=result)
         reason = response.get("error")
         return RuntimeResult(False, str(reason)[:1024] if reason else "Plugin activation failed.")

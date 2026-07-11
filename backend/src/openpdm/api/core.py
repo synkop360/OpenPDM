@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Generator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from typing import Any, cast
 
@@ -15,8 +16,9 @@ from sqlalchemy.orm import Session
 from openpdm import __version__
 from openpdm.extension_api import validate_plugin_package
 from openpdm.infrastructure.blob_storage import BlobStorage, build_blob_storage
-from openpdm.infrastructure.database import get_db_session, initialize_database
+from openpdm.infrastructure.database import get_db_session, initialize_database, session_scope
 from openpdm.infrastructure.plugin_packages import build_plugin_package_storage
+from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.composition import MODULES
 from openpdm.platform_core.public import (
@@ -25,7 +27,7 @@ from openpdm.platform_core.public import (
     SessionContextView,
     TimelineEntryView,
 )
-from openpdm.plugin_runtime import WasmtimeWorkerSupervisor
+from openpdm.plugin_runtime import WasmtimeWorkerSupervisor, dispatch_due_plugin_events
 
 ALLOWED_STATUSES = {"draft", "active", "archived"}
 CollaborationState = CollaborationStateView
@@ -378,6 +380,30 @@ class SetPlatformAdministratorRequest(BaseModel):
     enabled: bool
 
 
+class PutPluginConfigurationRequest(BaseModel):
+    values: dict[str, Any]
+
+
+class PluginConfigurationResponse(BaseModel):
+    plugin_id: str
+    values: dict[str, Any]
+    configured_secret_fields: list[str]
+    updated_at: str | None
+
+
+class PluginEventDeliveryResponse(BaseModel):
+    id: str
+    plugin_id: str
+    domain_event_id: str
+    event_type: str
+    status: str
+    attempt_count: int
+    next_attempt_at: str
+    last_error: str | None
+    created_at: str
+    updated_at: str
+
+
 def _iso(value: object) -> str:
     return cast(datetime, value).isoformat()
 
@@ -582,6 +608,37 @@ def serialize_plugin(plugin: Any) -> PluginResponse:
         created_at=_iso(plugin.created_at),
         updated_at=_iso(plugin.updated_at),
     )
+
+
+def activate_installed_plugin(db: Session, plugin: Any) -> Any:
+    try:
+        archive = build_plugin_package_storage().read(plugin.package_digest)
+        validated = validate_plugin_package(archive)
+        if (
+            validated.digest != plugin.package_digest
+            or validated.manifest.id != plugin.id
+            or validated.manifest.version != plugin.version
+        ):
+            raise ValueError("Installed plugin package integrity check failed.")
+        runtime_settings = Settings()
+        result = WasmtimeWorkerSupervisor(
+            timeout_seconds=runtime_settings.plugin_runtime_timeout_seconds,
+            fuel=runtime_settings.plugin_runtime_fuel,
+            memory_bytes=runtime_settings.plugin_runtime_memory_bytes,
+        ).activate(validated.component)
+        return PluginsModule.record_runtime_state(
+            db,
+            plugin_id=plugin.id,
+            lifecycle_state="running" if result.success else "failed",
+            diagnostic_reason=result.diagnostic_reason,
+        )
+    except Exception:
+        return PluginsModule.record_runtime_state(
+            db,
+            plugin_id=plugin.id,
+            lifecycle_state="failed",
+            diagnostic_reason="Plugin activation failed package integrity validation.",
+        )
 
 
 def serialize_notification(notification: Any) -> NotificationResponse:
@@ -1554,6 +1611,98 @@ def get_plugin(
     return serialize_plugin(PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=context.user))
 
 
+@router.get(
+    "/plugins/{plugin_id}/configuration",
+    response_model=PluginConfigurationResponse,
+)
+def get_plugin_configuration(
+    plugin_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginConfigurationResponse:
+    plugin, configuration = PluginsModule.get_configuration(
+        db, plugin_id=plugin_id, actor=context.user
+    )
+    secret_fields: list[str] = []
+    if configuration is not None and configuration.encrypted_secrets is not None:
+        try:
+            secrets = PluginSecretCipher(Settings().plugin_configuration_key).decrypt(
+                configuration.encrypted_secrets
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        secret_fields = sorted(secrets)
+    return PluginConfigurationResponse(
+        plugin_id=plugin.id,
+        values=configuration.public_values if configuration else {},
+        configured_secret_fields=secret_fields,
+        updated_at=_iso(configuration.updated_at) if configuration else None,
+    )
+
+
+@router.put(
+    "/plugins/{plugin_id}/configuration",
+    response_model=PluginConfigurationResponse,
+)
+def put_plugin_configuration(
+    plugin_id: str,
+    payload: PutPluginConfigurationRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginConfigurationResponse:
+    cipher = PluginSecretCipher(Settings().plugin_configuration_key)
+    try:
+        configuration = PluginsModule.set_configuration(
+            db,
+            plugin_id=plugin_id,
+            values=payload.values,
+            actor=context.user,
+            cipher=cipher,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    plugin = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=context.user)
+    if plugin.enabled:
+        PluginsModule.set_plugin_enabled(db, plugin_id=plugin.id, enabled=True, actor=context.user)
+        activate_installed_plugin(db, plugin)
+    db.commit()
+    configured_secret_fields = sorted(cipher.decrypt(configuration.encrypted_secrets))
+    return PluginConfigurationResponse(
+        plugin_id=configuration.plugin_id,
+        values=configuration.public_values,
+        configured_secret_fields=configured_secret_fields,
+        updated_at=_iso(configuration.updated_at),
+    )
+
+
+@router.get(
+    "/plugins/{plugin_id}/event-deliveries",
+    response_model=list[PluginEventDeliveryResponse],
+)
+def list_plugin_event_deliveries(
+    plugin_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[PluginEventDeliveryResponse]:
+    return [
+        PluginEventDeliveryResponse(
+            id=delivery.id,
+            plugin_id=delivery.plugin_id,
+            domain_event_id=delivery.domain_event_id,
+            event_type=delivery.event_type,
+            status=delivery.status,
+            attempt_count=delivery.attempt_count,
+            next_attempt_at=_iso(delivery.next_attempt_at),
+            last_error=delivery.last_error,
+            created_at=_iso(delivery.created_at),
+            updated_at=_iso(delivery.updated_at),
+        )
+        for delivery in PluginsModule.list_event_deliveries(
+            db, plugin_id=plugin_id, actor=context.user
+        )
+    ]
+
+
 @router.post("/plugins/{plugin_id}/state", response_model=PluginResponse)
 def set_plugin_state(
     plugin_id: str,
@@ -1565,34 +1714,7 @@ def set_plugin_state(
         db, plugin_id=plugin_id, enabled=payload.enabled, actor=context.user
     )
     if payload.enabled:
-        try:
-            archive = build_plugin_package_storage().read(plugin.package_digest)
-            validated = validate_plugin_package(archive)
-            if (
-                validated.digest != plugin.package_digest
-                or validated.manifest.id != plugin.id
-                or validated.manifest.version != plugin.version
-            ):
-                raise ValueError("Installed plugin package integrity check failed.")
-            runtime_settings = Settings()
-            result = WasmtimeWorkerSupervisor(
-                timeout_seconds=runtime_settings.plugin_runtime_timeout_seconds,
-                fuel=runtime_settings.plugin_runtime_fuel,
-                memory_bytes=runtime_settings.plugin_runtime_memory_bytes,
-            ).activate(validated.component)
-            plugin = PluginsModule.record_runtime_state(
-                db,
-                plugin_id=plugin.id,
-                lifecycle_state="running" if result.success else "failed",
-                diagnostic_reason=result.diagnostic_reason,
-            )
-        except Exception:
-            plugin = PluginsModule.record_runtime_state(
-                db,
-                plugin_id=plugin.id,
-                lifecycle_state="failed",
-                diagnostic_reason="Plugin activation failed package integrity validation.",
-            )
+        plugin = activate_installed_plugin(db, plugin)
     db.commit()
     return serialize_plugin(plugin)
 
@@ -1601,4 +1723,37 @@ def set_plugin_state(
 async def application_lifespan(app: FastAPI) -> Generator[None, None, None]:
     initialize_database()
     build_blob_storage()
-    yield
+    stop_dispatcher = asyncio.Event()
+    dispatcher = asyncio.create_task(_plugin_event_dispatch_loop(stop_dispatcher))
+    try:
+        yield
+    finally:
+        stop_dispatcher.set()
+        dispatcher.cancel()
+        with suppress(asyncio.CancelledError):
+            await dispatcher
+
+
+def _dispatch_plugin_events_once() -> None:
+    settings = Settings()
+    with session_scope(settings) as db:
+        dispatch_due_plugin_events(
+            db,
+            package_storage=build_plugin_package_storage(settings),
+            supervisor=WasmtimeWorkerSupervisor(
+                timeout_seconds=settings.plugin_runtime_timeout_seconds,
+                fuel=settings.plugin_runtime_fuel,
+                memory_bytes=settings.plugin_runtime_memory_bytes,
+            ),
+        )
+
+
+async def _plugin_event_dispatch_loop(stop: asyncio.Event) -> None:
+    while not stop.is_set():
+        # Delivery state remains pending for the next bounded polling cycle.
+        with suppress(Exception):
+            await asyncio.to_thread(_dispatch_plugin_events_once)
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=1.0)
+        except TimeoutError:
+            continue

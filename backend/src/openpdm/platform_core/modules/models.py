@@ -352,6 +352,8 @@ class PluginRecord(Base):
     version: Mapped[str] = mapped_column(String(64))
     plugin_type: Mapped[str] = mapped_column(String(64))
     capabilities: Mapped[list[str]] = mapped_column(JSON, default=list)
+    event_subscriptions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    configuration_schema: Mapped[dict[str, object] | None] = mapped_column(JSON)
     extension_api_versions: Mapped[list[int]] = mapped_column(JSON, default=list)
     component: Mapped[str] = mapped_column(String(255), default="")
     package_digest: Mapped[str] = mapped_column(String(64), default="", index=True)
@@ -367,3 +369,48 @@ class PluginRecord(Base):
     )
 
     installed_by: Mapped[User | None] = relationship()
+
+
+class PluginConfiguration(Base):
+    """Deployment-scoped plugin configuration with separately encrypted secrets."""
+
+    __tablename__ = "plugin_configurations"
+
+    plugin_id: Mapped[str] = mapped_column(ForeignKey("plugins.id"), primary_key=True)
+    public_values: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    encrypted_secrets: Mapped[str | None] = mapped_column(Text)
+    updated_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    plugin: Mapped[PluginRecord] = relationship()
+    updated_by: Mapped[User] = relationship()
+
+
+class PluginEventDelivery(Base):
+    """At-least-once post-commit delivery state for one plugin event handler."""
+
+    __tablename__ = "plugin_event_deliveries"
+    __table_args__ = (UniqueConstraint("plugin_id", "domain_event_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    plugin_id: Mapped[str] = mapped_column(ForeignKey("plugins.id"), index=True)
+    domain_event_id: Mapped[str] = mapped_column(ForeignKey("domain_events.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(255), index=True)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False, index=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    plugin: Mapped[PluginRecord] = relationship()
+    domain_event: Mapped[DomainEvent] = relationship()

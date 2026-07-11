@@ -8,7 +8,7 @@ import secrets
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import wraps
 from pathlib import PurePath
 from typing import Literal, TypeVar
@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, joinedload
 from openpdm.extension_api import ValidatedPluginPackage
 from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.infrastructure.plugin_packages import PluginPackageStorage
+from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.modules.audit import (
     AuditEventsInterface,
@@ -39,6 +40,8 @@ from openpdm.platform_core.modules.models import (
     NotificationRecord,
     Organization,
     OrganizationMembership,
+    PluginConfiguration,
+    PluginEventDelivery,
     PluginRecord,
     Project,
     ProjectMembership,
@@ -47,6 +50,7 @@ from openpdm.platform_core.modules.models import (
     SessionToken,
     User,
 )
+from openpdm.platform_core.public import PluginEventDeliveryView
 from openpdm.platform_core.request_context import get_request_id
 
 ORG_ROLE_PRIORITY = {"Owner": 4, "Maintainer": 3, "Contributor": 2, "Viewer": 1}
@@ -399,16 +403,47 @@ def emit_event(
     request_id = get_request_id()
     if request_id is not None:
         event_payload.setdefault("request_id", request_id)
-    db.add(
-        DomainEvent(
-            event_type=event_type,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            organization_id=organization_id,
-            project_id=project_id,
-            payload=event_payload,
+    event = DomainEvent(
+        event_type=event_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        organization_id=organization_id,
+        project_id=project_id,
+        payload=event_payload,
+    )
+    db.add(event)
+    db.flush()
+    candidates = db.scalars(
+        select(PluginRecord).where(
+            and_(
+                PluginRecord.enabled.is_(True),
+                PluginRecord.lifecycle_state == "running",
+            )
         )
     )
+    for plugin in candidates:
+        if (
+            "event_handler" not in plugin.capabilities
+            or event_type not in plugin.event_subscriptions
+        ):
+            continue
+        db.add(
+            PluginEventDelivery(
+                plugin_id=plugin.id,
+                domain_event_id=event.id,
+                event_type=event_type,
+                payload={
+                    "event_id": event.id,
+                    "event_type": event_type,
+                    "resource_type": resource_type,
+                    "resource_id": resource_id,
+                    "organization_id": organization_id,
+                    "project_id": project_id,
+                    "payload": event_payload,
+                    "occurred_at": event.emitted_at.isoformat(),
+                },
+            )
+        )
 
 
 def _membership_role(
@@ -3360,6 +3395,12 @@ class PluginsModule:
             version=manifest.version,
             plugin_type=plugin_type,
             capabilities=[capability.value for capability in manifest.capabilities],
+            event_subscriptions=manifest.event_subscriptions,
+            configuration_schema=(
+                manifest.configuration.model_dump(mode="json")
+                if manifest.configuration is not None
+                else None
+            ),
             extension_api_versions=manifest.extension_api_versions,
             component=manifest.component,
             package_digest=package.digest,
@@ -3390,6 +3431,90 @@ class PluginsModule:
             payload={"version": plugin.version, "package_digest": plugin.package_digest},
         )
         return plugin
+
+    @staticmethod
+    def get_configuration(
+        db: Session, *, plugin_id: str, actor: User
+    ) -> tuple[PluginRecord, PluginConfiguration | None]:
+        PluginsModule.require_platform_admin(actor)
+        plugin = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=actor)
+        return plugin, db.get(PluginConfiguration, plugin_id)
+
+    @staticmethod
+    def set_configuration(
+        db: Session,
+        *,
+        plugin_id: str,
+        values: dict[str, object],
+        actor: User,
+        cipher: PluginSecretCipher,
+    ) -> PluginConfiguration:
+        PluginsModule.require_platform_admin(actor)
+        plugin = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=actor)
+        schema = plugin.configuration_schema
+        require(schema is not None, "Plugin does not declare configuration.")
+        properties = type_cast(dict[str, dict[str, object]], schema.get("properties", {}))
+        required = set(type_cast(list[str], schema.get("required", [])))
+        unknown = sorted(set(values) - set(properties))
+        require(not unknown, f"Unknown plugin configuration properties: {', '.join(unknown)}")
+
+        existing = db.get(PluginConfiguration, plugin_id)
+        existing_secrets = cipher.decrypt(existing.encrypted_secrets) if existing else {}
+        public_values: dict[str, object] = {}
+        secret_values = dict(existing_secrets)
+        for key, value in values.items():
+            property_schema = properties[key]
+            expected_type = type_cast(str, property_schema["type"])
+            valid = {
+                "string": isinstance(value, str),
+                "number": isinstance(value, int | float) and not isinstance(value, bool),
+                "integer": isinstance(value, int) and not isinstance(value, bool),
+                "boolean": isinstance(value, bool),
+            }[expected_type]
+            require(valid, f"Invalid value type for plugin configuration property {key!r}.")
+            if property_schema.get("secret") is True:
+                secret_values[key] = value
+            else:
+                public_values[key] = value
+        if existing:
+            for key, value in existing.public_values.items():
+                if key not in values:
+                    public_values[key] = value
+        missing = sorted(
+            key for key in required if key not in public_values and key not in secret_values
+        )
+        require(not missing, f"Missing required plugin configuration: {', '.join(missing)}")
+
+        encrypted = cipher.encrypt(secret_values)
+        if existing is None:
+            existing = PluginConfiguration(
+                plugin_id=plugin.id,
+                public_values=public_values,
+                encrypted_secrets=encrypted,
+                updated_by_user_id=actor.id,
+            )
+            db.add(existing)
+        else:
+            existing.public_values = public_values
+            existing.encrypted_secrets = encrypted
+            existing.updated_by_user_id = actor.id
+            existing.updated_at = utc_now()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="plugin.configuration.updated",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            details={"configured_properties": sorted(values), "secret_values_redacted": True},
+        )
+        emit_event(
+            db,
+            event_type="plugin.configuration.updated",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            payload={"configured_properties": sorted(values)},
+        )
+        return existing
 
     @staticmethod
     def list_plugins(db: Session, actor: User) -> list[PluginRecord]:
@@ -3470,6 +3595,93 @@ class PluginsModule:
             payload={"lifecycle_state": lifecycle_state},
         )
         return plugin
+
+    @staticmethod
+    def list_due_event_deliveries(
+        db: Session, *, limit: int = 100
+    ) -> list[PluginEventDeliveryView]:
+        deliveries = db.scalars(
+            select(PluginEventDelivery)
+            .where(
+                and_(
+                    PluginEventDelivery.status.in_({"pending", "retry"}),
+                    PluginEventDelivery.next_attempt_at <= utc_now(),
+                    PluginEventDelivery.attempt_count < 3,
+                )
+            )
+            .order_by(PluginEventDelivery.plugin_id, PluginEventDelivery.created_at)
+            .limit(min(max(limit, 1), 100))
+        )
+        return [
+            PluginEventDeliveryView(
+                id=delivery.id,
+                plugin_id=delivery.plugin_id,
+                package_digest=delivery.plugin.package_digest,
+                event_type=delivery.event_type,
+                payload=delivery.payload,
+                attempt_count=delivery.attempt_count,
+            )
+            for delivery in deliveries
+        ]
+
+    @staticmethod
+    def list_event_deliveries(
+        db: Session, *, plugin_id: str, actor: User
+    ) -> list[PluginEventDelivery]:
+        PluginsModule.require_platform_admin(actor)
+        PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=actor)
+        return list(
+            db.scalars(
+                select(PluginEventDelivery)
+                .where(PluginEventDelivery.plugin_id == plugin_id)
+                .order_by(PluginEventDelivery.created_at.desc())
+                .limit(100)
+            )
+        )
+
+    @staticmethod
+    def record_event_delivery_result(
+        db: Session,
+        *,
+        delivery_id: str,
+        success: bool,
+        diagnostic_reason: str | None,
+    ) -> PluginEventDelivery:
+        delivery = db.get(PluginEventDelivery, delivery_id)
+        if delivery is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Plugin event delivery not found."
+            )
+        delivery.attempt_count += 1
+        delivery.updated_at = utc_now()
+        if success:
+            delivery.status = "delivered"
+            delivery.last_error = None
+        else:
+            delivery.last_error = (
+                diagnostic_reason[:1024] if diagnostic_reason else "Delivery failed."
+            )
+            if delivery.attempt_count >= 3:
+                delivery.status = "failed"
+            else:
+                delivery.status = "retry"
+                delivery.next_attempt_at = utc_now() + timedelta(
+                    seconds=2 ** (delivery.attempt_count - 1)
+                )
+        record_audit(
+            db,
+            actor_user_id=None,
+            action=f"plugin.event_delivery.{delivery.status}",
+            resource_type="plugin",
+            resource_id=delivery.plugin_id,
+            details={
+                "delivery_id": delivery.id,
+                "event_type": delivery.event_type,
+                "attempt_count": delivery.attempt_count,
+                "diagnostic_reason": delivery.last_error,
+            },
+        )
+        return delivery
 
 
 @dataclass(slots=True)

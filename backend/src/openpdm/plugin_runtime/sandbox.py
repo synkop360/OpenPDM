@@ -29,7 +29,9 @@ class WasmtimeSandbox:
         config.wasm_component_model = True
         self.engine = wasmtime.Engine(config)
 
-    def invoke(self, component_bytes: bytes, export_name: str) -> None:
+    def invoke(
+        self, component_bytes: bytes, export_name: str, arguments: list[str] | None = None
+    ) -> str | None:
         if not export_name or len(export_name) > 128:
             raise ValueError("Invalid component export name.")
         component = Component(self.engine, component_bytes)
@@ -48,6 +50,9 @@ class WasmtimeSandbox:
         exported = instance.get_func(store, export_name)
         if exported is None:
             raise ValueError(f"Component does not export {export_name!r}.")
-        result = exported(store)
-        if result is not None:
-            raise ValueError(f"Component export {export_name!r} must not return a value.")
+        result = exported(store, *(arguments or []))
+        if result is not None and not isinstance(result, str):
+            raise ValueError(f"Component export {export_name!r} returned an unsupported value.")
+        if isinstance(result, str) and len(result.encode()) > 1024 * 1024:
+            raise ValueError(f"Component export {export_name!r} exceeded the result size limit.")
+        return result
