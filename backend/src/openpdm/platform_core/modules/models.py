@@ -168,9 +168,7 @@ class AssetRelationship(Base):
     """Generic Phase 3 relationship between two Assets."""
 
     __tablename__ = "asset_relationships"
-    __table_args__ = (
-        UniqueConstraint("source_asset_id", "target_asset_id", "relationship_type"),
-    )
+    __table_args__ = (UniqueConstraint("source_asset_id", "target_asset_id", "relationship_type"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     source_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
@@ -192,9 +190,7 @@ class AssetReference(Base):
     """Generic Phase 3 external or unresolved pointer from an Asset."""
 
     __tablename__ = "asset_references"
-    __table_args__ = (
-        UniqueConstraint("source_asset_id", "reference_type", "target_uri"),
-    )
+    __table_args__ = (UniqueConstraint("source_asset_id", "reference_type", "target_uri"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     source_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)

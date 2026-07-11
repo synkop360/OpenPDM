@@ -60,6 +60,14 @@ The backend now exposes a concrete API surface for:
 * blob upload and download (`/blobs/*`)
 * metadata, search and plugin registration (`/metadata`, `/search/assets`, `/plugins`)
 
+## Asset Graph Audit Configuration
+
+Relationship and Reference mutations, failures, and permission denials are always
+audited. Successful graph reads are not audited by default. Set
+`OPENPDM_AUDIT_GRAPH_QUERIES=true` to persist `GraphQueryExecuted` audit records
+and domain events for successful graph queries. Security-sensitive denied reads
+remain audited regardless of this setting.
+
 ## Local Backend-only Development
 
 If you only need the backend during development, run:

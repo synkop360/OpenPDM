@@ -21,7 +21,9 @@ def test_resolve_frontend_runner_reports_unavailable_tool(monkeypatch) -> None:
 
     assert is_available is False
     assert command[-2:] == ["run", "dev"]
-    assert any(part.endswith("pnpm.cmd") or part.endswith("pnpm.cjs") or part == "pnpm" for part in command)
+    assert any(
+        part.endswith("pnpm.cmd") or part.endswith("pnpm.cjs") or part == "pnpm" for part in command
+    )
 
 
 def test_resolve_frontend_runner_uses_developer_helpers(monkeypatch) -> None:
@@ -45,7 +47,9 @@ def test_resolve_frontend_runner_uses_resolved_executable_path(monkeypatch) -> N
 
     monkeypatch.setattr(start_all, "load_dev_module", lambda: StubDevModule())
     monkeypatch.setattr(start_all.os, "name", "nt", raising=False)
-    monkeypatch.setattr(start_all.shutil, "which", lambda name: "C:/tools/pnpm.cmd" if name == "pnpm" else None)
+    monkeypatch.setattr(
+        start_all.shutil, "which", lambda name: "C:/tools/pnpm.cmd" if name == "pnpm" else None
+    )
 
     command, is_available = start_all.resolve_frontend_runner()
 

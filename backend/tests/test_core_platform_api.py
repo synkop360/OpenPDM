@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 from sqlalchemy import select
 
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
@@ -1112,6 +1113,33 @@ def test_asset_graph_relationship_and_reference_crud_flow(tmp_path: Path) -> Non
     assert reference.status_code == 201
     reference_payload = reference.json()
 
+    denied_mutations = (
+        client.put(
+            f"/relationships/{relationship_payload['id']}/metadata",
+            headers=auth_header(outsider_token),
+            json={"metadata": {"forbidden": True}},
+        ),
+        client.delete(
+            f"/relationships/{relationship_payload['id']}",
+            headers=auth_header(outsider_token),
+        ),
+        client.post(
+            f"/assets/{asset_a['id']}/references",
+            headers=auth_header(outsider_token),
+            json={"reference_type": "external_url", "target_uri": "https://example.com/nope"},
+        ),
+        client.delete(
+            f"/references/{reference_payload['id']}",
+            headers=auth_header(outsider_token),
+        ),
+        client.post(
+            f"/references/{reference_payload['id']}/resolve",
+            headers=auth_header(outsider_token),
+            json={"target_asset_id": asset_c["id"], "relationship_type": "references"},
+        ),
+    )
+    assert all(response.status_code == 403 for response in denied_mutations)
+
     listed_references = client.get(
         f"/assets/{asset_a['id']}/references",
         headers=auth_header(member_token),
@@ -1146,8 +1174,56 @@ def test_asset_graph_relationship_and_reference_crud_flow(tmp_path: Path) -> Non
     )
     assert outsider_view.status_code == 403
 
+    denied_creation = client.post(
+        f"/assets/{asset_a['id']}/relationships",
+        headers={**auth_header(outsider_token), "X-Request-Id": "req-graph-denied"},
+        json={
+            "target_asset_id": asset_b["id"],
+            "relationship_type": "related_to",
+            "metadata": {},
+        },
+    )
+    assert denied_creation.status_code == 403
 
-def test_asset_graph_queries_are_bounded_and_can_detect_cycles(tmp_path: Path) -> None:
+    with session_scope() as db:
+        failures = list(
+            db.scalars(
+                select(AuditRecord).where(
+                    AuditRecord.resource_type == "relationship",
+                    AuditRecord.action.in_(("relationship.failed", "relationship.denied")),
+                )
+            )
+        )
+        assert len(failures) >= 4
+        assert all(record.details["result"] in {"failed", "denied"} for record in failures)
+        assert all(record.details["reason"] for record in failures)
+        assert any(
+            record.action == "relationship.denied"
+            and record.details["request_id"] == "req-graph-denied"
+            and record.details["reason"] == "Permission denied."
+            for record in failures
+        )
+        denied_events = {
+            record.details["event_type"]
+            for record in db.scalars(
+                select(AuditRecord).where(
+                    AuditRecord.action.in_(("relationship.denied", "reference.denied"))
+                )
+            )
+        }
+        assert {
+            "RelationshipCreated",
+            "RelationshipMetadataUpdated",
+            "RelationshipDeleted",
+            "ReferenceCreated",
+            "ReferenceDeleted",
+            "ReferenceResolved",
+        } <= denied_events
+
+
+def test_asset_graph_queries_are_bounded_and_can_detect_cycles(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
     client = build_client(tmp_path)
     token = register_and_sign_in(
         client,
@@ -1238,6 +1314,31 @@ def test_asset_graph_queries_are_bounded_and_can_detect_cycles(tmp_path: Path) -
     )
     assert invalid_depth.status_code == 400
 
+    with session_scope() as db:
+        assert not list(
+            db.scalars(select(DomainEvent).where(DomainEvent.event_type == "GraphQueryExecuted"))
+        )
+
+    monkeypatch.setenv("OPENPDM_AUDIT_GRAPH_QUERIES", "true")
+    audited_graph = client.get(
+        f"/assets/{asset_a['id']}/graph",
+        headers={**auth_header(token), "X-Request-Id": "req-graph-query-audited"},
+        params={"max_depth": 3, "target_asset_id": asset_d["id"]},
+    )
+    assert audited_graph.status_code == 200
+    with session_scope() as db:
+        audit = db.scalar(
+            select(AuditRecord).where(
+                AuditRecord.resource_type == "graph", AuditRecord.action == "graph.success"
+            )
+        )
+        assert audit is not None
+        assert audit.details["request_id"] == "req-graph-query-audited"
+        assert audit.details["result"] == "success"
+        event = db.scalar(select(DomainEvent).where(DomainEvent.event_type == "GraphQueryExecuted"))
+        assert event is not None
+        assert event.payload["request_id"] == "req-graph-query-audited"
+
 
 def test_asset_graph_audit_and_events_cover_relationship_and_reference_mutations(
     tmp_path: Path,
@@ -1280,7 +1381,11 @@ def test_asset_graph_audit_and_events_cover_relationship_and_reference_mutations
         client.post(
             f"/assets/{asset_b['id']}/relationships",
             headers=auth_header(token),
-            json={"target_asset_id": asset_c["id"], "relationship_type": "depends_on", "metadata": {}},
+            json={
+                "target_asset_id": asset_c["id"],
+                "relationship_type": "depends_on",
+                "metadata": {},
+            },
         ).status_code
         == 201
     )
@@ -1288,7 +1393,11 @@ def test_asset_graph_audit_and_events_cover_relationship_and_reference_mutations
         client.post(
             f"/assets/{asset_c['id']}/relationships",
             headers=auth_header(token),
-            json={"target_asset_id": asset_a["id"], "relationship_type": "depends_on", "metadata": {}},
+            json={
+                "target_asset_id": asset_a["id"],
+                "relationship_type": "depends_on",
+                "metadata": {},
+            },
         ).status_code
         == 201
     )
@@ -1360,7 +1469,9 @@ def test_asset_graph_audit_and_events_cover_relationship_and_reference_mutations
             and record.details["request_id"] == "req-graph-rel-update"
             for record in relationship_records
         )
-        assert any(record.action == "relationship.cycle_detected" for record in relationship_records)
+        assert any(
+            record.action == "relationship.cycle_detected" for record in relationship_records
+        )
 
         reference_records = list(
             db.scalars(

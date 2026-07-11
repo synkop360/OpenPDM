@@ -6,16 +6,25 @@ import base64
 import hashlib
 import secrets
 from collections import deque
-from contextvars import ContextVar
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import PurePath
+from typing import Literal, TypeVar
+from typing import cast as type_cast
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import String, and_, cast, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from openpdm.infrastructure.blob_storage import BlobStorage
+from openpdm.infrastructure.settings import Settings
+from openpdm.platform_core.modules.audit import (
+    AuditEventsInterface,
+    AuditOutcome,
+    Phase3AuditContext,
+)
 from openpdm.platform_core.modules.models import (
     Asset,
     AssetCollaborationLock,
@@ -36,6 +45,7 @@ from openpdm.platform_core.modules.models import (
     SessionToken,
     User,
 )
+from openpdm.platform_core.request_context import get_request_id
 
 ORG_ROLE_PRIORITY = {"Owner": 4, "Maintainer": 3, "Contributor": 2, "Viewer": 1}
 PROJECT_ROLE_PRIORITY = ORG_ROLE_PRIORITY
@@ -80,7 +90,8 @@ TIMELINE_EVENT_MAP = {
     "asset.checked_in": "CheckInCompleted",
     "collaboration.conflict_detected": "ConflictDetected",
 }
-CURRENT_REQUEST_ID: ContextVar[str | None] = ContextVar("openpdm_request_id", default=None)
+_AUDIT_EVENTS: AuditEventsInterface | None = None
+F = TypeVar("F", bound=Callable[..., object])
 
 
 def utc_now() -> datetime:
@@ -88,19 +99,123 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def set_request_id(value: str | None) -> object:
-    """Set the current request identifier for observability helpers."""
-    return CURRENT_REQUEST_ID.set(value)
+def configure_audit_events(audit_events: AuditEventsInterface) -> None:
+    """Inject the Audit/Events public interface into Platform Module implementations."""
+    global _AUDIT_EVENTS
+    _AUDIT_EVENTS = audit_events
 
 
-def reset_request_id(token: object) -> None:
-    """Restore the previous request identifier after a request completes."""
-    CURRENT_REQUEST_ID.reset(token)
+def audited_phase3_mutation(
+    *,
+    event_type: str,
+    resource_type: Literal["relationship", "reference", "graph"],
+    relationship_id: str | None = None,
+    reference_id: str | None = None,
+    source_asset_id: str | None = None,
+    target_asset_id: str | None = None,
+    target_uri: str | None = None,
+) -> Callable[[F], F]:
+    """Persist failures and denials independently from a Phase 3 mutation."""
+
+    def decorate(function: F) -> F:
+        @wraps(function)
+        def wrapped(*args: object, **kwargs: object) -> object:
+            db = type_cast(Session, args[0] if args else kwargs["db"])
+            actor = kwargs["actor"]
+            try:
+                return function(*args, **kwargs)
+            except Exception as exc:
+                db.rollback()
+                if _AUDIT_EVENTS is not None:
+                    denied = (
+                        isinstance(exc, HTTPException)
+                        and exc.status_code == status.HTTP_403_FORBIDDEN
+                    )
+                    reason = (
+                        "Permission denied."
+                        if denied
+                        else (
+                            str(exc.detail)
+                            if isinstance(exc, HTTPException)
+                            else "Persistence failure."
+                        )
+                    )
+                    context = Phase3AuditContext(
+                        actor_user_id=type_cast(User, actor).id,
+                        event_type=event_type,
+                        resource_type=resource_type,
+                        relationship_id=type_cast(str | None, kwargs.get(relationship_id))
+                        if relationship_id
+                        else None,
+                        reference_id=type_cast(str | None, kwargs.get(reference_id))
+                        if reference_id
+                        else None,
+                        source_asset_id=type_cast(str | None, kwargs.get(source_asset_id))
+                        if source_asset_id
+                        else None,
+                        target_asset_id=type_cast(str | None, kwargs.get(target_asset_id))
+                        if target_asset_id
+                        else None,
+                        target_uri=type_cast(str | None, kwargs.get(target_uri))
+                        if target_uri
+                        else None,
+                    )
+                    _AUDIT_EVENTS.record_phase3_outcome(
+                        db,
+                        context=context,
+                        outcome=AuditOutcome("denied" if denied else "failed", reason),
+                        independent=True,
+                    )
+                raise
+
+        return type_cast(F, wrapped)
+
+    return decorate
 
 
-def get_request_id() -> str | None:
-    """Return the active request identifier if one is available."""
-    return CURRENT_REQUEST_ID.get()
+def audited_phase3_read(
+    *,
+    resource_type: Literal["relationship", "reference", "graph"],
+    source_asset_id: str | None = None,
+    relationship_id: str | None = None,
+    reference_id: str | None = None,
+) -> Callable[[F], F]:
+    """Audit security-sensitive Phase 3 read denials without leaking resource details."""
+
+    def decorate(function: F) -> F:
+        @wraps(function)
+        def wrapped(*args: object, **kwargs: object) -> object:
+            db = type_cast(Session, args[0] if args else kwargs["db"])
+            actor = type_cast(User, kwargs["actor"])
+            try:
+                return function(*args, **kwargs)
+            except HTTPException as exc:
+                if exc.status_code == status.HTTP_403_FORBIDDEN and _AUDIT_EVENTS is not None:
+                    db.rollback()
+                    _AUDIT_EVENTS.record_phase3_outcome(
+                        db,
+                        context=Phase3AuditContext(
+                            actor_user_id=actor.id,
+                            event_type="GraphQueryExecuted",
+                            resource_type=resource_type,
+                            source_asset_id=type_cast(str | None, kwargs.get(source_asset_id))
+                            if source_asset_id
+                            else None,
+                            relationship_id=type_cast(str | None, kwargs.get(relationship_id))
+                            if relationship_id
+                            else None,
+                            reference_id=type_cast(str | None, kwargs.get(reference_id))
+                            if reference_id
+                            else None,
+                        ),
+                        outcome=AuditOutcome("denied", "Permission denied."),
+                        independent=True,
+                    )
+                raise
+
+        return type_cast(F, wrapped)
+
+    return decorate
 
 
 def hash_password(password: str) -> str:
@@ -230,6 +345,22 @@ def record_audit(
     request_id = get_request_id()
     if request_id is not None:
         payload.setdefault("request_id", request_id)
+    if resource_type in {"relationship", "reference"}:
+        event_types = {
+            "relationship.created": "RelationshipCreated",
+            "relationship.deleted": "RelationshipDeleted",
+            "relationship.metadata.updated": "RelationshipMetadataUpdated",
+            "relationship.cycle_detected": "RelationshipCycleDetected",
+            "relationship.create_failed": "RelationshipCreated",
+            "relationship.permission_denied": "RelationshipCreated",
+            "reference.created": "ReferenceCreated",
+            "reference.deleted": "ReferenceDeleted",
+            "reference.resolved": "ReferenceResolved",
+        }
+        payload.setdefault("event_type", event_types.get(action, action))
+        payload.setdefault(f"{resource_type}_id", resource_id)
+        payload.setdefault("result", "success")
+        payload.setdefault("reason", None)
     db.add(
         AuditRecord(
             actor_user_id=actor_user_id,
@@ -353,6 +484,14 @@ class AuthModule:
             status.HTTP_401_UNAUTHORIZED,
         )
         require(session_token.user.is_active, "User is inactive.", status.HTTP_403_FORBIDDEN)
+        return session_token
+
+    @staticmethod
+    def get_session_by_id(db: Session, *, session_id: str) -> SessionToken:
+        """Return a session through the Authentication Platform Module boundary."""
+        session_token = db.get(SessionToken, session_id)
+        if session_token is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
         return session_token
 
     @staticmethod
@@ -1409,9 +1548,9 @@ class RelationshipsModule:
             visited.add(asset_id)
             return False
 
-        asset_ids = {
-            relationship.source_asset_id for relationship in relationships
-        } | {relationship.target_asset_id for relationship in relationships}
+        asset_ids = {relationship.source_asset_id for relationship in relationships} | {
+            relationship.target_asset_id for relationship in relationships
+        }
         return any(visit(asset_id) for asset_id in asset_ids)
 
     @staticmethod
@@ -1448,6 +1587,12 @@ class RelationshipsModule:
         )
 
     @staticmethod
+    @audited_phase3_mutation(
+        event_type="RelationshipCreated",
+        resource_type="relationship",
+        source_asset_id="source_asset_id",
+        target_asset_id="target_asset_id",
+    )
     def create_relationship(
         db: Session,
         *,
@@ -1504,6 +1649,10 @@ class RelationshipsModule:
         payload = {
             **RelationshipsModule._relationship_payload(relationship),
             "metadata": relationship.metadata_json,
+            "event_type": "RelationshipCreated",
+            "relationship_id": relationship.id,
+            "result": "success",
+            "reason": None,
         }
         record_audit(
             db,
@@ -1542,6 +1691,7 @@ class RelationshipsModule:
         return relationship
 
     @staticmethod
+    @audited_phase3_read(resource_type="relationship", source_asset_id="asset_id")
     def list_relationships(
         db: Session,
         *,
@@ -1566,6 +1716,7 @@ class RelationshipsModule:
         return list(db.scalars(statement))
 
     @staticmethod
+    @audited_phase3_read(resource_type="relationship", source_asset_id="asset_id")
     def list_outgoing_relationships(
         db: Session,
         *,
@@ -1586,6 +1737,7 @@ class RelationshipsModule:
         )
 
     @staticmethod
+    @audited_phase3_read(resource_type="relationship", source_asset_id="asset_id")
     def list_incoming_relationships(
         db: Session,
         *,
@@ -1606,6 +1758,11 @@ class RelationshipsModule:
         )
 
     @staticmethod
+    @audited_phase3_mutation(
+        event_type="RelationshipMetadataUpdated",
+        resource_type="relationship",
+        relationship_id="relationship_id",
+    )
     def update_relationship_metadata(
         db: Session,
         *,
@@ -1648,6 +1805,11 @@ class RelationshipsModule:
         return relationship
 
     @staticmethod
+    @audited_phase3_mutation(
+        event_type="RelationshipDeleted",
+        resource_type="relationship",
+        relationship_id="relationship_id",
+    )
     def delete_relationship(
         db: Session,
         *,
@@ -1685,6 +1847,12 @@ class RelationshipsModule:
         db.delete(relationship)
 
     @staticmethod
+    @audited_phase3_mutation(
+        event_type="ReferenceCreated",
+        resource_type="reference",
+        source_asset_id="source_asset_id",
+        target_uri="target_uri",
+    )
     def create_reference(
         db: Session,
         *,
@@ -1752,6 +1920,7 @@ class RelationshipsModule:
         return reference
 
     @staticmethod
+    @audited_phase3_read(resource_type="reference", source_asset_id="asset_id")
     def list_references(
         db: Session,
         *,
@@ -1769,6 +1938,11 @@ class RelationshipsModule:
         )
 
     @staticmethod
+    @audited_phase3_mutation(
+        event_type="ReferenceDeleted",
+        resource_type="reference",
+        reference_id="reference_id",
+    )
     def delete_reference(
         db: Session,
         *,
@@ -1806,6 +1980,12 @@ class RelationshipsModule:
         db.delete(reference)
 
     @staticmethod
+    @audited_phase3_mutation(
+        event_type="ReferenceResolved",
+        resource_type="reference",
+        reference_id="reference_id",
+        target_asset_id="target_asset_id",
+    )
     def resolve_reference(
         db: Session,
         *,
@@ -1859,6 +2039,7 @@ class RelationshipsModule:
         return relationship
 
     @staticmethod
+    @audited_phase3_read(resource_type="graph", source_asset_id="asset_id")
     def get_graph(
         db: Session,
         *,
@@ -1926,13 +2107,15 @@ class RelationshipsModule:
                 queue.append((next_asset_id, depth + 1))
 
         traversed_nodes = [
-            asset for asset_id_value, asset in asset_by_id.items() if asset_id_value in visited_nodes
+            asset
+            for asset_id_value, asset in asset_by_id.items()
+            if asset_id_value in visited_nodes
         ]
         path_exists = None
         if target_asset is not None:
             path_exists = target_asset.id in visited_nodes
         has_cycle = RelationshipsModule._detect_cycle(traversed_relationships)
-        return GraphQueryResult(
+        result = GraphQueryResult(
             root_asset=root_asset,
             direction=direction,
             max_depth=max_depth,
@@ -1942,6 +2125,28 @@ class RelationshipsModule:
             nodes=traversed_nodes,
             relationships=traversed_relationships,
         )
+        if Settings().audit_graph_queries and _AUDIT_EVENTS is not None:
+            audit_context = Phase3AuditContext(
+                actor_user_id=actor.id,
+                event_type="GraphQueryExecuted",
+                resource_type="graph",
+                resource_id=root_asset.id,
+                project_id=root_asset.project_id,
+                organization_id=root_asset.project.organization_id,
+                source_asset_id=root_asset.id,
+                target_asset_id=target_asset.id if target_asset is not None else None,
+            )
+            _AUDIT_EVENTS.record_phase3_outcome(
+                db,
+                context=audit_context,
+                outcome=AuditOutcome("success"),
+            )
+            _AUDIT_EVENTS.emit_domain_event(
+                db,
+                context=audit_context,
+                payload={"direction": direction, "max_depth": max_depth},
+            )
+        return result
 
 
 class CollaborationModule:
