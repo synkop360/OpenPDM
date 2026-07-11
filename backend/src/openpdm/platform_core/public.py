@@ -45,3 +45,13 @@ class GraphQueryResultView:
     has_cycle: bool
     nodes: list[object]
     relationships: list[object]
+
+
+@dataclass(frozen=True, slots=True)
+class PluginEventDeliveryView:
+    id: str
+    plugin_id: str
+    package_digest: str
+    event_type: str
+    payload: dict[str, object]
+    attempt_count: int

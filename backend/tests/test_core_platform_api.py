@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 from sqlalchemy import select
 from wasmtime import wat2wasm
 
-from openpdm.extension_api import Capability, PluginManifest, build_plugin_package
+from openpdm.extension_api import (
+    Capability,
+    ConfigurationProperty,
+    ConfigurationSchema,
+    PluginManifest,
+    build_plugin_package,
+)
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
 from openpdm.infrastructure.database import dispose_engines, session_scope
 from openpdm.platform_core.modules.models import (
@@ -29,6 +36,7 @@ def build_client(tmp_path: Path) -> TestClient:
     os.environ["OPENPDM_S3_ENDPOINT_URL"] = "file://local"
     os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
     os.environ["OPENPDM_PLUGIN_PACKAGE_ROOT"] = str(tmp_path / "plugins")
+    os.environ["OPENPDM_PLUGIN_CONFIGURATION_KEY"] = Fernet.generate_key().decode()
     reset_blob_storage_cache()
     dispose_engines()
     from openpdm.main import create_app
@@ -622,6 +630,13 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
             extension_api_versions=[1],
             component="plugin.wasm",
             capabilities=[Capability.METADATA_PROVIDER],
+            configuration=ConfigurationSchema(
+                properties={
+                    "prefix": ConfigurationProperty(type="string"),
+                    "token": ConfigurationProperty(type="string", secret=True),
+                },
+                required=["prefix", "token"],
+            ),
         ),
         bytes(
             wat2wasm(
@@ -652,6 +667,37 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
     assert installed.json()["enabled"] is False
     assert len(installed.json()["package_digest"]) == 64
 
+    configured = client.put(
+        "/plugins/org.openpdm.lifecycle-test/configuration",
+        headers=auth_header(admin_token),
+        json={"values": {"prefix": "reference", "token": "do-not-return"}},
+    )
+    assert configured.status_code == 200
+    assert configured.json()["values"] == {"prefix": "reference"}
+    assert configured.json()["configured_secret_fields"] == ["token"]
+    assert "do-not-return" not in configured.text
+
+    read_configuration = client.get(
+        "/plugins/org.openpdm.lifecycle-test/configuration",
+        headers=auth_header(admin_token),
+    )
+    assert read_configuration.status_code == 200
+    assert "do-not-return" not in read_configuration.text
+
+    denied_configuration = client.get(
+        "/plugins/org.openpdm.lifecycle-test/configuration",
+        headers=auth_header(member_token),
+    )
+    assert denied_configuration.status_code == 403
+    with session_scope() as db:
+        configuration_audits = list(
+            db.scalars(
+                select(AuditRecord).where(AuditRecord.action == "plugin.configuration.updated")
+            )
+        )
+        assert configuration_audits
+        assert "do-not-return" not in str(configuration_audits[0].details)
+
     enabled = client.post(
         "/plugins/org.openpdm.lifecycle-test/state",
         headers=auth_header(admin_token),
@@ -659,6 +705,17 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
     )
     assert enabled.status_code == 200
     assert enabled.json()["lifecycle_state"] == "running"
+
+    restarted = client.put(
+        "/plugins/org.openpdm.lifecycle-test/configuration",
+        headers=auth_header(admin_token),
+        json={"values": {"prefix": "restarted"}},
+    )
+    assert restarted.status_code == 200
+    plugin_after_restart = client.get(
+        "/plugins/org.openpdm.lifecycle-test", headers=auth_header(admin_token)
+    )
+    assert plugin_after_restart.json()["lifecycle_state"] == "running"
 
     last_admin = client.put(
         f"/platform/administrators/{admin_session['user']['id']}",
