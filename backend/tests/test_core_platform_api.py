@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 from sqlalchemy import select
+from wasmtime import wat2wasm
 
 from openpdm.extension_api import Capability, PluginManifest, build_plugin_package
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
@@ -622,7 +623,15 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
             component="plugin.wasm",
             capabilities=[Capability.METADATA_PROVIDER],
         ),
-        b"\x00asm\x0d\x00\x01\x00",
+        bytes(
+            wat2wasm(
+                """(component
+                  (core module $m (func (export "activate")))
+                  (core instance $i (instantiate $m))
+                  (func (export "activate") (canon lift (core func $i "activate")))
+                )"""
+            )
+        ),
     )
     denied = client.post(
         "/plugins/packages",
@@ -649,7 +658,7 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
         json={"enabled": True},
     )
     assert enabled.status_code == 200
-    assert enabled.json()["lifecycle_state"] == "starting"
+    assert enabled.json()["lifecycle_state"] == "running"
 
     last_admin = client.put(
         f"/platform/administrators/{admin_session['user']['id']}",
