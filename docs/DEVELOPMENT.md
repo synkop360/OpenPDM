@@ -93,8 +93,10 @@ pnpm run dev
 ```
 
 The Vite app is an API consumer and should use the public application API rather
-than any internal module interfaces. If you run the frontend on a different host
-or port, set `VITE_API_BASE_URL=http://localhost:8000` before starting Vite.
+than any internal module interfaces. Its development proxy defaults to
+`http://localhost:8000`, matching the local backend command. To use another API
+endpoint, set `VITE_API_BASE_URL`; to retain same-origin proxying with another
+backend port, set `VITE_API_PROXY_TARGET` before starting Vite.
 
 The Web UI uses React Router for durable Home, Project and Plugin Administration
 URLs, Lucide for interface icons, and repository-owned CSS design tokens for its

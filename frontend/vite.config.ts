@@ -1,29 +1,36 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { defineConfig, loadEnv } from "vite";
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      "/health": "http://localhost:18000",
-      "/foundation": "http://localhost:18000",
-      "/auth": "http://localhost:18000",
-      "/organizations": "http://localhost:18000",
-      "/projects": "http://localhost:18000",
-      "/assets": "http://localhost:18000",
-      "/revisions": "http://localhost:18000",
-      "/blobs": "http://localhost:18000",
-      "/metadata": "http://localhost:18000",
-      "/notifications": "http://localhost:18000",
-      "/search": "http://localhost:18000",
-      "/plugins": "http://localhost:18000",
-      "/platform": "http://localhost:18000"
-    }
-  },
-  test: {
-    environment: "jsdom",
-    globals: true,
-    setupFiles: "./src/test/setup.ts"
-  }
+export default defineConfig(({ mode }) => {
+  const environment = loadEnv(mode, ".", "");
+  const apiProxyTarget = environment.VITE_API_PROXY_TARGET || "http://localhost:8000";
+
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
+      proxy: Object.fromEntries(
+        [
+          "/health",
+          "/foundation",
+          "/auth",
+          "/organizations",
+          "/projects",
+          "/assets",
+          "/revisions",
+          "/blobs",
+          "/metadata",
+          "/notifications",
+          "/search",
+          "/plugins",
+          "/platform",
+        ].map((path) => [path, apiProxyTarget]),
+      ),
+    },
+    test: {
+      environment: "jsdom",
+      globals: true,
+      setupFiles: "./src/test/setup.ts",
+    },
+  };
 });
