@@ -52,6 +52,8 @@ The end-to-end test demonstrates the complete journey:
 uv run pytest backend/tests/test_reference_plugin_e2e.py -v
 ```
 
+For a Community Plugin API example with configurable generic Asset categories, see [`plugins/dummy-categories/`](../plugins/dummy-categories/README.md). It exercises Asset Provider, Metadata Provider and event-hook behavior without adding category semantics to the Platform Core.
+
 ## Administrator Journey
 
 1. Register the first local user; an empty deployment bootstraps it as Platform Administrator.
