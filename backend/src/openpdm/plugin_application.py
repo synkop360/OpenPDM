@@ -89,6 +89,7 @@ def invoke_metadata_provider(
     target_id: str,
     actor: object,
     context: dict[str, object],
+    parameters: dict[str, object] | None,
     services: PluginInvocationServices,
 ) -> list[object]:
     response = invoke_plugin(
@@ -97,7 +98,7 @@ def invoke_metadata_provider(
         capability="metadata_provider",
         operation="metadata",
         context={**context, "actor": actor},
-        payload={"target_type": target_type, "target_id": target_id},
+        payload={"target_type": target_type, "target_id": target_id, **(parameters or {})},
         services=services,
     )
     entries: list[object] = []
@@ -120,6 +121,26 @@ def invoke_metadata_provider(
             )
         )
     return entries
+
+
+def invoke_option_provider(
+    db: Session,
+    *,
+    plugin_id: str,
+    actor: object,
+    context: dict[str, object],
+    services: PluginInvocationServices,
+) -> list[object]:
+    response = invoke_plugin(
+        db,
+        plugin_id=plugin_id,
+        capability="option_provider",
+        operation="options",
+        context={**context, "actor": actor},
+        payload={},
+        services=services,
+    )
+    return list(response.option_sets)
 
 
 def invoke_asset_provider(

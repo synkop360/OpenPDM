@@ -245,6 +245,48 @@ h4 {
   color: var(--text);
 }
 
+.provider-control {
+  align-items: end;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.7fr) auto;
+  padding-top: 14px;
+}
+
+.provider-control > div,
+.provider-control label {
+  display: grid;
+  gap: 5px;
+}
+
+.provider-control small {
+  color: var(--muted);
+}
+
+.metadata-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.metadata-list div {
+  background: var(--soft);
+  border-radius: 9px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 0.7fr) 1fr;
+  padding: 10px 12px;
+}
+
+.metadata-list dt {
+  color: var(--muted);
+}
+
+.metadata-list dd {
+  margin: 0;
+}
+
 .home-summary-grid,
 .plugin-grid {
   display: grid;

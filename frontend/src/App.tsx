@@ -29,6 +29,7 @@ import {
   changeOrganizationMemberRole,
   changeProjectMemberRole,
   downloadBlob,
+  discoverProviders,
   fetchFoundationStatus,
   getAsset,
   getAssetGraph,
@@ -37,11 +38,13 @@ import {
   getCollaborationState,
   getCurrentSession,
   getPluginConfiguration,
+  getProviderOptions,
   installPluginPackage,
   listAssetReferences,
   listAssetRelationships,
   listAssets,
   listIncomingAssetRelationships,
+  listMetadata,
   listNotifications,
   listOrganizationProjects,
   listOrganizationMembers,
@@ -51,6 +54,7 @@ import {
   listProjectsForUser,
   listProjectMembers,
   markNotificationRead,
+  invokeMetadataProvider,
   registerUser,
   removeOrganizationMember,
   removeProjectMember,
@@ -70,6 +74,9 @@ import {
   type Project,
   type ProjectMembership,
   type PluginRecord,
+  type ProviderDescriptor,
+  type ProviderOptionSet,
+  type MetadataEntry,
   type Revision,
   type SessionInfo,
   type TimelineEntry,
@@ -290,6 +297,14 @@ function OpenPdmApp() {
     createLoadable<NotificationRecord[]>([]),
   );
   const [plugins, setPlugins] = useState<Loadable<PluginRecord[]>>(createLoadable<PluginRecord[]>([]));
+  const [providers, setProviders] = useState<Loadable<ProviderDescriptor[]>>(
+    createLoadable<ProviderDescriptor[]>([]),
+  );
+  const [providerOptions, setProviderOptions] = useState<Record<string, ProviderOptionSet[]>>({});
+  const [providerSelections, setProviderSelections] = useState<Record<string, string>>({});
+  const [assetMetadata, setAssetMetadata] = useState<Loadable<MetadataEntry[]>>(
+    createLoadable<MetadataEntry[]>([]),
+  );
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [pluginPackage, setPluginPackage] = useState<File | null>(null);
   const [pluginConfiguration, setPluginConfiguration] = useState<Record<string, string>>({});
@@ -502,6 +517,41 @@ function OpenPdmApp() {
   }, [session.data?.token, session.data?.user.is_platform_admin, view]);
 
   useEffect(() => {
+    const token = session.data?.token;
+    if (!token) {
+      setProviders(createLoadable([]));
+      return;
+    }
+    discoverProviders(token)
+      .then(async (result) => {
+        setProviders({ status: "ready", data: result, error: null });
+        if (!selectedProjectId || !selectedOrganizationId) return;
+        const optionProviders = result.filter((provider) =>
+          provider.capabilities.includes("option_provider"),
+        );
+        const entries = await Promise.all(
+          optionProviders.map(async (provider) => [
+            provider.id,
+            await getProviderOptions(
+              token,
+              provider.id,
+              selectedProjectId,
+              selectedOrganizationId,
+            ),
+          ] as const),
+        );
+        setProviderOptions(Object.fromEntries(entries));
+      })
+      .catch((error: unknown) =>
+        setProviders({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Providers could not be discovered.",
+        }),
+      );
+  }, [selectedOrganizationId, selectedProjectId, session.data?.token]);
+
+  useEffect(() => {
     writeStoredValue(ORG_KEY, selectedOrganizationId);
   }, [selectedOrganizationId]);
 
@@ -694,6 +744,15 @@ function OpenPdmApp() {
           error: error instanceof Error ? error.message : "Collaboration timeline could not be loaded.",
         });
       });
+    listMetadata(token, "asset", selectedAssetId)
+      .then((result) => setAssetMetadata({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setAssetMetadata({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Asset metadata could not be loaded.",
+        }),
+      );
   }, [selectedAssetId, session.data?.token, view]);
 
   const isAuthenticated = Boolean(session.data?.token);
@@ -1202,6 +1261,34 @@ function OpenPdmApp() {
     if (!session.data?.token || !session.data.user.is_platform_admin) return;
     const result = await listPlugins(session.data.token);
     setPlugins({ status: "ready", data: result, error: null });
+  }
+
+  async function handleApplyMetadataProvider(provider: ProviderDescriptor): Promise<void> {
+    if (
+      !session.data?.token ||
+      !selectedAssetId ||
+      !selectedProjectId ||
+      !selectedOrganizationId
+    ) return;
+    setBusyAction(`provider-metadata-${provider.id}`);
+    setBanner(null);
+    try {
+      const category = providerSelections[provider.id];
+      await invokeMetadataProvider(session.data.token, provider.id, {
+        target_type: "asset",
+        target_id: selectedAssetId,
+        project_id: selectedProjectId,
+        organization_id: selectedOrganizationId,
+        parameters: category ? { category } : {},
+      });
+      const metadata = await listMetadata(session.data.token, "asset", selectedAssetId);
+      setAssetMetadata({ status: "ready", data: metadata, error: null });
+      setBanner(`${provider.name} metadata applied.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Metadata Provider invocation failed.");
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function handleInstallPlugin(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -2286,6 +2373,73 @@ function OpenPdmApp() {
                       Created {formatTimestamp(assetDetail.data.created_at)} and updated{" "}
                       {formatTimestamp(assetDetail.data.updated_at)}.
                     </p>
+                  </article>
+
+                  <article className="detail-card provider-card">
+                    <div className="detail-row">
+                      <div>
+                        <h3>Plugin-provided metadata</h3>
+                        <p>Apply capabilities discovered through the public provider API.</p>
+                      </div>
+                      <span className="status-pill">{assetMetadata.data.length} entries</span>
+                    </div>
+
+                    {providers.data.filter((provider) =>
+                      provider.capabilities.includes("metadata_provider"),
+                    ).map((provider) => {
+                      const optionSet = providerOptions[provider.id]?.find(
+                        (item) => item.key === "category",
+                      );
+                      return (
+                        <div className="provider-control" key={provider.id}>
+                          <div>
+                            <strong>{provider.name}</strong>
+                            <small>{provider.id}</small>
+                          </div>
+                          {optionSet ? (
+                            <label>
+                              {optionSet.label}
+                              <select
+                                value={providerSelections[provider.id] ?? optionSet.options[0]?.value ?? ""}
+                                onChange={(event) =>
+                                  setProviderSelections((current) => ({
+                                    ...current,
+                                    [provider.id]: event.target.value,
+                                  }))
+                                }
+                              >
+                                {optionSet.options.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+                          <button
+                            className="secondary-button"
+                            disabled={busyAction === `provider-metadata-${provider.id}`}
+                            onClick={() => void handleApplyMetadataProvider(provider)}
+                            type="button"
+                          >
+                            {busyAction === `provider-metadata-${provider.id}` ? "Applying..." : "Apply metadata"}
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {providers.data.every((provider) =>
+                      !provider.capabilities.includes("metadata_provider"),
+                    ) ? <p className="empty-state">No running Metadata Provider is available.</p> : null}
+
+                    {assetMetadata.data.length > 0 ? (
+                      <dl className="metadata-list">
+                        {assetMetadata.data.map((entry) => (
+                          <div key={entry.id}>
+                            <dt>{entry.key}</dt>
+                            <dd>{typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
                   </article>
 
                   <article className="detail-card relationship-card">

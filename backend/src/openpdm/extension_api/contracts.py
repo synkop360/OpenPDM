@@ -17,6 +17,7 @@ class Capability(StrEnum):
 
     ASSET_PROVIDER = "asset_provider"
     METADATA_PROVIDER = "metadata_provider"
+    OPTION_PROVIDER = "option_provider"
     EVENT_HANDLER = "event_handler"
 
 
@@ -61,6 +62,25 @@ class AssetProviderCommand(BaseModel):
     payload: dict[str, object]
 
 
+class ProviderOption(BaseModel):
+    """One safe, declarative option supplied by an Option Provider."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    value: str = Field(min_length=1, max_length=255)
+    label: str = Field(min_length=1, max_length=255)
+
+
+class ProviderOptionSet(BaseModel):
+    """A bounded set of plugin-owned choices with no executable presentation content."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    key: str = Field(min_length=1, max_length=255)
+    label: str = Field(min_length=1, max_length=255)
+    options: list[ProviderOption] = Field(min_length=1, max_length=100)
+
+
 class EventEnvelope(BaseModel):
     """Post-commit event delivered to an event-handler capability."""
 
@@ -87,4 +107,5 @@ class InvocationResponse(BaseModel):
     success: bool
     metadata: list[MetadataContribution] = Field(default_factory=list, max_length=1000)
     commands: list[AssetProviderCommand] = Field(default_factory=list, max_length=100)
+    option_sets: list[ProviderOptionSet] = Field(default_factory=list, max_length=20)
     error: ExtensionError | None = None

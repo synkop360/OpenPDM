@@ -86,6 +86,31 @@ def test_dummy_categories_plugin_exercises_public_extension_api(tmp_path: Path) 
     assert enabled.status_code == 200, enabled.text
     assert enabled.json()["lifecycle_state"] == "running"
 
+    discovered = client.get("/providers", headers=headers)
+    assert discovered.status_code == 200
+    assert discovered.json() == [
+        {
+            "id": PLUGIN_ID,
+            "name": "Asset Categories API Test Plugin",
+            "capabilities": ["asset_provider", "metadata_provider", "option_provider"],
+        }
+    ]
+    options = client.post(
+        f"/plugins/{PLUGIN_ID}/providers/options",
+        headers=headers,
+        json={
+            "organization_id": organization["id"],
+            "payload": {"project_id": project["id"]},
+        },
+    )
+    assert options.status_code == 200, options.text
+    assert {item["value"] for item in options.json()[0]["options"]} == {
+        "document",
+        "drawing",
+        "model",
+        "assembly",
+    }
+
     created = client.post(
         f"/plugins/{PLUGIN_ID}/providers/assets/{project['id']}",
         headers=headers,
@@ -108,11 +133,12 @@ def test_dummy_categories_plugin_exercises_public_extension_api(tmp_path: Path) 
             "target_id": asset_id,
             "project_id": project["id"],
             "organization_id": organization["id"],
+            "parameters": {"category": "assembly"},
         },
     )
     assert metadata.status_code == 200, metadata.text
     entries = {entry["key"]: entry for entry in metadata.json()}
-    assert entries["classification.category"]["value"] == "drawing"
+    assert entries["classification.category"]["value"] == "assembly"
     assert entries["classification.category"]["source"] == f"plugin:{PLUGIN_ID}"
     assert entries["classification.managed_by"]["value"] == PLUGIN_ID
 

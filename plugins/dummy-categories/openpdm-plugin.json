@@ -1,10 +1,10 @@
 {
   "id": "org.openpdm.examples.asset-categories",
   "name": "Asset Categories API Test Plugin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "extension_api_versions": [1],
   "component": "asset-categories.wasm",
-  "capabilities": ["asset_provider", "metadata_provider", "event_handler"],
+  "capabilities": ["asset_provider", "metadata_provider", "option_provider", "event_handler"],
   "event_subscriptions": ["asset.created"],
   "configuration": {
     "type": "object",

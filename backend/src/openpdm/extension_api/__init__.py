@@ -11,6 +11,8 @@ from .contracts import (
     InvocationResponse,
     MetadataContribution,
     MetadataValueType,
+    ProviderOption,
+    ProviderOptionSet,
 )
 from .manifest import ConfigurationProperty, ConfigurationSchema, PluginManifest
 from .package import ValidatedPluginPackage, validate_plugin_package
@@ -34,6 +36,8 @@ __all__ = [
     "InvocationResponse",
     "MetadataContribution",
     "MetadataValueType",
+    "ProviderOption",
+    "ProviderOptionSet",
     "PluginManifest",
     "ValidatedPluginPackage",
     "build_plugin_package",
