@@ -4,4 +4,4 @@ from typing import Protocol
 
 
 class PluginsInterface(Protocol):
-    """Expose the read-only plugin registry contract."""
+    """Expose the governed plugin lifecycle contract."""

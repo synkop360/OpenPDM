@@ -1610,13 +1610,14 @@ def register_plugin(
 async def install_plugin_package(
     package: UploadFile = File(...),
     plugin_type: str = "community",
+    discover_only: bool = False,
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> PluginResponse:
     PluginsModule.require_platform_admin(context.user)
     archive = await package.read(32 * 1024 * 1024 + 1)
     try:
-        validated = validate_plugin_package(archive)
+        validated = validate_plugin_package(archive, require_compatible=False)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     plugin = PluginsModule.install_package(
@@ -1625,9 +1626,58 @@ async def install_plugin_package(
         package_storage=build_plugin_package_storage(),
         plugin_type=plugin_type,
         actor=context.user,
+        discovered_only=discover_only,
     )
     db.commit()
     return serialize_plugin(plugin)
+
+
+@router.post("/plugins/{plugin_id}/install", response_model=PluginResponse)
+def install_discovered_plugin(
+    plugin_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginResponse:
+    plugin = PluginsModule.promote_discovered_plugin(db, plugin_id=plugin_id, actor=context.user)
+    db.commit()
+    return serialize_plugin(plugin)
+
+
+@router.put("/plugins/{plugin_id}/package", response_model=PluginResponse)
+async def upgrade_plugin_package(
+    plugin_id: str,
+    package: UploadFile = File(...),
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginResponse:
+    PluginsModule.require_platform_admin(context.user)
+    archive = await package.read(32 * 1024 * 1024 + 1)
+    try:
+        validated = validate_plugin_package(archive, require_compatible=False)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    current = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=context.user)
+    plugin = PluginsModule.install_package(
+        db,
+        package=validated,
+        package_storage=build_plugin_package_storage(),
+        plugin_type=current.plugin_type,
+        actor=context.user,
+        expected_plugin_id=plugin_id,
+    )
+    db.commit()
+    return serialize_plugin(plugin)
+
+
+@router.delete("/plugins/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_plugin(
+    plugin_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    PluginsModule.remove_plugin(db, plugin_id=plugin_id, actor=context.user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/plugins", response_model=list[PluginResponse])

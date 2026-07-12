@@ -30,7 +30,11 @@ def validate_local_links() -> list[str]:
 def validate_phase4_invariants() -> list[str]:
     errors: list[str] = []
     required = {
-        "docs/PLUGIN_DEVELOPMENT.md": ["Extension API v1", "WebAssembly Component"],
+        "docs/PLUGIN_DEVELOPMENT.md": [
+            "Extension API v1",
+            "WebAssembly Component",
+            "scaffold_plugin.py",
+        ],
         "docs/PLUGIN_SECURITY.md": ["no WASI", "Platform Administrators"],
         "docs/API_REFERENCE.md": ["/plugins/packages", "/providers/metadata"],
     }
@@ -43,6 +47,11 @@ def validate_phase4_invariants() -> list[str]:
         contents = (ROOT / relative).read_text(encoding="utf-8").lower()
         if "read-only plugin registry" in contents:
             errors.append(f"{relative}: stale Phase 1 plugin-registry description")
+    plugin_contract = (
+        ROOT / "backend/src/openpdm/platform_core/modules/plugins/__init__.py"
+    ).read_text(encoding="utf-8")
+    if "governed plugin lifecycle contract" not in plugin_contract:
+        errors.append("Plugins Platform Module contract does not describe the governed lifecycle")
     return errors
 
 

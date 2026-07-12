@@ -98,6 +98,9 @@ Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See 
 | `GET` | `/plugins` | List installed plugin lifecycle records |
 | `GET` | `/plugins/{plugin_id}` | Inspect one plugin and its diagnostic state |
 | `POST` | `/plugins/packages` | Install a validated plugin package; Platform Administrator only |
+| `POST` | `/plugins/{plugin_id}/install` | Promote a compatible discovered package to installed state |
+| `PUT` | `/plugins/{plugin_id}/package` | Upgrade a plugin with a same-identity validated package |
+| `DELETE` | `/plugins/{plugin_id}` | Remove a disabled plugin lifecycle record and configuration |
 | `POST` | `/plugins/{plugin_id}/state` | Enable or disable a plugin; Platform Administrator only |
 | `GET` | `/plugins/{plugin_id}/configuration` | Read public configuration and configured secret names |
 | `PUT` | `/plugins/{plugin_id}/configuration` | Validate and update deployment configuration; Platform Administrator only |
@@ -105,7 +108,7 @@ Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See 
 | `POST` | `/plugins/{plugin_id}/providers/metadata` | Invoke a Metadata Provider for one authorized target |
 | `POST` | `/plugins/{plugin_id}/providers/assets/{project_id}` | Invoke an Asset Provider within one authorized Project |
 
-`POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file and `plugin_type` query parameter. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
+`POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file plus `plugin_type` and `discover_only` query parameters. Structurally valid incompatible packages receive an inspectable `incompatible` state but cannot be enabled. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
 
 ## Errors And Observability
 

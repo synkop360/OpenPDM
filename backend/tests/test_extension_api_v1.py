@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
@@ -15,6 +18,7 @@ from openpdm.extension_api import (
     PluginManifest,
     build_plugin_package,
     extension_api_wit_path,
+    scaffold_plugin,
     validate_plugin_package,
 )
 
@@ -137,3 +141,14 @@ def test_sdk_exposes_the_versioned_wit_contract() -> None:
         contents = contract.read_text(encoding="utf-8")
     assert "package openpdm:extension@1.0.0" in contents
     assert "export invoke" in contents
+
+
+def test_sdk_scaffolds_buildable_minimal_plugin(tmp_path: Path) -> None:
+    project = scaffold_plugin(
+        tmp_path / "sample-plugin",
+        plugin_id="org.example.sample",
+        name="Sample Plugin",
+    )
+    subprocess.run([sys.executable, str(project / "build.py")], check=True)
+    package = validate_plugin_package((project / "plugin.openpdm-plugin").read_bytes())
+    assert package.manifest.id == "org.example.sample"
