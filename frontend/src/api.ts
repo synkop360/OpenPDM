@@ -239,6 +239,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (response.status === 204) {
     return undefined as T;
   }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new ApiError(
+      `OpenPDM API routing error: expected JSON but received ${contentType || "an unknown content type"}`,
+      response.status,
+      "invalid_api_response",
+    );
+  }
   return response.json() as Promise<T>;
 }
 

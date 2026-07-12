@@ -5,6 +5,7 @@ import { App } from "./App";
 type JsonResponse = {
   ok: boolean;
   status: number;
+  headers: Headers;
   json: () => Promise<unknown>;
 };
 
@@ -12,6 +13,7 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: new Headers({ "content-type": "application/json" }),
     json: async () => payload,
   };
 }
