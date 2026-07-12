@@ -617,6 +617,20 @@ export async function setPluginState(
   });
 }
 
+export async function upgradePluginPackage(
+  token: string,
+  pluginId: string,
+  packageFile: File,
+): Promise<PluginRecord> {
+  const formData = new FormData();
+  formData.append("package", packageFile);
+  return request<PluginRecord>(`/plugins/${pluginId}/package`, {
+    method: "PUT",
+    token,
+    body: formData,
+  });
+}
+
 export async function getPluginConfiguration(
   token: string,
   pluginId: string,

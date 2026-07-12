@@ -2,9 +2,11 @@
 
 ## Primary Navigation
 
-After sign-in, the Home view greets the user and shows notifications plus available Organizations and Projects. It does not display Engineering Assets. Selecting a Project in the sidebar opens the Project view and its existing Asset, collaboration, relationship and Revision workflows.
+After sign-in, the dark-first responsive Home view greets the user and shows notifications plus available Organizations and Projects. It does not fetch or display Engineering Asset details. Selecting a Project opens `/projects/{project_id}/overview`; routed tabs expose Overview, Assets, Relationships, Collaboration and Members using delivered public APIs.
 
-The sidebar footer exposes Plugin administration. Platform Administrators can install Community Plugin packages, inspect lifecycle state and diagnostics, load or update deployment-scoped configuration, enable or disable compatible plugins, and remove disabled plugins. Ordinary users see the entry as unavailable because Organization and Project roles do not grant platform-wide plugin authority.
+The sidebar footer opens `/administration/plugins`. Platform Administrators can install or upgrade plugin packages, inspect lifecycle state and diagnostics, load or update deployment-scoped configuration, enable or disable compatible plugins, and remove disabled plugins. Ordinary users receive an explicit access-denied view because Organization and Project roles do not grant platform-wide plugin authority.
+
+At desktop widths, verify the persistent sidebar, compact top bar, Project list and two-column content area. Below the tablet breakpoint, verify that the menu button opens a keyboard-accessible drawer, the scrim and close button dismiss it, and Project tabs remain horizontally usable.
 
 This guide describes how to manually test the current Web UI prototype across
 the delivered Platform Core workflow, membership administration, Phase 2 collaboration slice and Phase 3 Asset Graph surface.

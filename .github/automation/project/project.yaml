@@ -5814,6 +5814,116 @@ roadmap:
               Complexity: L
               ADR: ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039
 
+      - title: "Phase 4 Epic: Web UI Demonstration Redesign"
+        closed: true
+        body: |
+          ## Objective
+          Deliver a dark-first responsive OpenPDM application shell with durable client-side routing.
+
+          ## Description
+          Replace the prototype layout with the approved reference-inspired navigation, route protection, project context and responsive shell while displaying only capabilities backed by public APIs.
+
+          ## Acceptance Criteria
+          - Home, Project and Plugin Administration views have durable URLs.
+          - Desktop sidebar and mobile navigation preserve authenticated Project context.
+          - Unsupported reference-only capabilities are not fabricated.
+          - Unauthenticated and unauthorized routes fail safely.
+
+          ## Suggested Labels
+          frontend, feature, P1
+        milestone: Reference Official Plugin and Phase Demonstration
+        labels: [frontend, feature, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Demonstration Redesign
+          Platform Area: Frontend
+          Complexity: XL
+          ADR: ADR-0007, ADR-0035
+        sub_issues:
+          - title: "Phase 4 UI Task: Redesign Home and Project workspaces"
+            closed: true
+            body: |
+              ## Objective
+              Present delivered OpenPDM capabilities through focused Home and Project workspaces.
+
+              ## Description
+              Implement the greeting dashboard and routed Project tabs for Overview, Assets, Relationships, Collaboration and Members using existing public APIs.
+
+              ## Acceptance Criteria
+              - Home shows notifications, Organizations and Projects but no Asset content.
+              - Selecting a sidebar Project opens its routed workspace.
+              - Existing Asset, Revision, Blob, relationship, collaboration and membership workflows remain usable.
+
+              ## Dependencies
+              - Phase 4 Epic: Web UI Demonstration Redesign
+
+              ## Suggested Labels
+              frontend, feature, test, P1
+            labels: [frontend, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: XL
+              ADR: ADR-0007
+
+          - title: "Phase 4 UI Task: Redesign Plugin Administration"
+            closed: true
+            body: |
+              ## Objective
+              Provide a demonstrable Platform Administrator interface for governed plugins.
+
+              ## Description
+              Implement routed plugin installation, upgrade, configuration, lifecycle inspection, enable/disable and removal controls through the public application API.
+
+              ## Acceptance Criteria
+              - Ordinary users cannot access administrative controls.
+              - Plugin secrets are never rendered.
+              - Lifecycle diagnostics and mutation failures are actionable.
+              - Official Plugins and Community Plugins are presented without privileged shortcuts.
+
+              ## Dependencies
+              - Phase 4 Epic: Web UI Demonstration Redesign
+
+              ## Suggested Labels
+              frontend, plugin, feature, test, P1
+            labels: [frontend, plugin, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0035, ADR-0037, ADR-0038
+
+          - title: "Phase 4 UI Task: Complete responsive QA, accessibility and documentation"
+            closed: true
+            body: |
+              ## Objective
+              Verify the redesigned demonstration interface across supported layouts and workflows.
+
+              ## Description
+              Add route, authorization, responsive and regression coverage; perform browser visual QA; and reconcile Web UI documentation.
+
+              ## Acceptance Criteria
+              - Frontend type checking, tests and production build pass.
+              - Keyboard navigation, focus, landmarks and mobile navigation are verified.
+              - Backend and repository regressions remain green.
+              - Manual test and development documentation match the delivered UI.
+
+              ## Dependencies
+              - Phase 4 UI Task: Redesign Home and Project workspaces
+              - Phase 4 UI Task: Redesign Plugin Administration
+
+              ## Suggested Labels
+              frontend, documentation, test, P1
+            labels: [frontend, documentation, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0007
+
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
