@@ -1,5 +1,11 @@
 # OpenPDM Web UI Manual Test Guide
 
+## Primary Navigation
+
+After sign-in, the Home view greets the user and shows notifications plus available Organizations and Projects. It does not display Engineering Assets. Selecting a Project in the sidebar opens the Project view and its existing Asset, collaboration, relationship and Revision workflows.
+
+The sidebar footer exposes Plugin administration. Platform Administrators can install Community Plugin packages, inspect lifecycle state and diagnostics, load or update deployment-scoped configuration, enable or disable compatible plugins, and remove disabled plugins. Ordinary users see the entry as unavailable because Organization and Project roles do not grant platform-wide plugin authority.
+
 This guide describes how to manually test the current Web UI prototype across
 the delivered Platform Core workflow, membership administration, Phase 2 collaboration slice and Phase 3 Asset Graph surface.
 

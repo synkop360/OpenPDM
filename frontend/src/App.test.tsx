@@ -305,7 +305,8 @@ describe("App", () => {
 
     expect(await screen.findByText("Owner")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Acme/i })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Rocket/i })).toBeInTheDocument();
+    const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
+    fireEvent.click(projectButtons[0]);
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
@@ -563,6 +564,8 @@ describe("App", () => {
 
     render(<App />);
 
+    const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
+    fireEvent.click(projectButtons[0]);
     expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
     const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
     fireEvent.click(openButtons[0]);
@@ -739,6 +742,8 @@ describe("App", () => {
 
     render(<App />);
 
+    const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
+    fireEvent.click(projectButtons[0]);
     const checkoutButton = await screen.findByRole("button", { name: "Check out" });
     fireEvent.click(checkoutButton);
 
@@ -931,6 +936,85 @@ describe("App", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/organizations/org-1/members",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ user_email: "member@example.com", role: "Viewer" }) }),
+    );
+  });
+
+  it("opens plugin administration for a Platform Administrator", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === "/foundation") {
+        return jsonResponse({
+          name: "OpenPDM",
+          version: "0.0.0",
+          phase: "Engineering Platform",
+          architecture: "Modular Monolith",
+        });
+      }
+      if (path === "/auth/session") {
+        return jsonResponse({
+          id: "session-1",
+          token: "token-123",
+          user: {
+            id: "user-1",
+            email: "admin@example.com",
+            display_name: "Admin",
+            is_active: true,
+            is_platform_admin: true,
+            created_at: "2026-01-01T00:00:00",
+          },
+        });
+      }
+      if (path === "/organizations" || path === "/notifications") return jsonResponse([]);
+      if (path === "/plugins" && method === "GET") {
+        return jsonResponse([
+          {
+            id: "org.example.categories",
+            name: "Categories",
+            version: "1.0.0",
+            plugin_type: "community",
+            capabilities: ["metadata_provider"],
+            extension_api_versions: [1],
+            lifecycle_state: "disabled",
+            diagnostic_reason: null,
+            enabled: false,
+            package_digest: "a".repeat(64),
+            created_at: "2026-01-01T00:00:00",
+            updated_at: "2026-01-01T00:00:00",
+          },
+        ]);
+      }
+      if (path === "/plugins/org.example.categories/state" && method === "POST") {
+        return jsonResponse({
+          id: "org.example.categories",
+          name: "Categories",
+          version: "1.0.0",
+          plugin_type: "community",
+          capabilities: ["metadata_provider"],
+          extension_api_versions: [1],
+          lifecycle_state: "running",
+          diagnostic_reason: null,
+          enabled: true,
+          package_digest: "a".repeat(64),
+          created_at: "2026-01-01T00:00:00",
+          updated_at: "2026-01-01T00:00:00",
+        });
+      }
+      throw new Error(`Unexpected request: ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Plugin administration" }));
+    expect(await screen.findByRole("heading", { name: "Plugin administration" })).toBeInTheDocument();
+    expect(await screen.findByText("Categories")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/plugins/org.example.categories/state",
+        expect.objectContaining({ method: "POST" }),
+      ),
     );
   });
 });

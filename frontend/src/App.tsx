@@ -21,6 +21,8 @@ import {
   getAssetTimeline,
   getCollaborationState,
   getCurrentSession,
+  getPluginConfiguration,
+  installPluginPackage,
   listAssetReferences,
   listAssetRelationships,
   listAssets,
@@ -29,6 +31,7 @@ import {
   listOrganizationProjects,
   listOrganizationMembers,
   listOutgoingAssetRelationships,
+  listPlugins,
   listOrganizations,
   listProjectsForUser,
   listProjectMembers,
@@ -36,6 +39,8 @@ import {
   registerUser,
   removeOrganizationMember,
   removeProjectMember,
+  removePlugin,
+  setPluginState,
   signIn,
   signOut,
   type ReferenceRecord,
@@ -49,9 +54,11 @@ import {
   type OrganizationMembership,
   type Project,
   type ProjectMembership,
+  type PluginRecord,
   type Revision,
   type SessionInfo,
   type TimelineEntry,
+  updatePluginConfiguration,
 } from "./api";
 import "./styles.css";
 
@@ -61,6 +68,7 @@ const PROJECT_KEY = "openpdm.projectId";
 const ASSET_KEY = "openpdm.assetId";
 
 type AuthMode = "sign-in" | "register";
+type AppView = "home" | "project" | "plugin-administration";
 
 type Loadable<T> = {
   status: "idle" | "loading" | "ready" | "error";
@@ -243,6 +251,10 @@ export function App() {
   const [notifications, setNotifications] = useState<Loadable<NotificationRecord[]>>(
     createLoadable<NotificationRecord[]>([]),
   );
+  const [plugins, setPlugins] = useState<Loadable<PluginRecord[]>>(createLoadable<PluginRecord[]>([]));
+  const [view, setView] = useState<AppView>("home");
+  const [pluginPackage, setPluginPackage] = useState<File | null>(null);
+  const [pluginConfiguration, setPluginConfiguration] = useState<Record<string, string>>({});
   const [collaborationError, setCollaborationError] = useState<ApiError | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [authError, setAuthError] = useState<string | null>(null);
@@ -414,6 +426,24 @@ export function App() {
         });
       });
   }, [session.data?.token]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || view !== "plugin-administration" || !session.data?.user.is_platform_admin) {
+      setPlugins(createLoadable([]));
+      return;
+    }
+    setPlugins((current) => ({ ...current, status: "loading", error: null }));
+    listPlugins(token)
+      .then((result) => setPlugins({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setPlugins({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Plugins could not be loaded.",
+        }),
+      );
+  }, [session.data?.token, session.data?.user.is_platform_admin, view]);
 
   useEffect(() => {
     writeStoredValue(ORG_KEY, selectedOrganizationId);
@@ -1113,6 +1143,91 @@ export function App() {
     }
   }
 
+  async function refreshPlugins(): Promise<void> {
+    if (!session.data?.token || !session.data.user.is_platform_admin) return;
+    const result = await listPlugins(session.data.token);
+    setPlugins({ status: "ready", data: result, error: null });
+  }
+
+  async function handleInstallPlugin(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !pluginPackage) return;
+    setBusyAction("install-plugin");
+    setBanner(null);
+    try {
+      await installPluginPackage(session.data.token, pluginPackage);
+      await refreshPlugins();
+      setPluginPackage(null);
+      setBanner("Community Plugin installed.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Plugin installation failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handlePluginState(plugin: PluginRecord): Promise<void> {
+    if (!session.data?.token) return;
+    setBusyAction(`plugin-state-${plugin.id}`);
+    setBanner(null);
+    try {
+      await setPluginState(session.data.token, plugin.id, !plugin.enabled);
+      await refreshPlugins();
+      setBanner(`${plugin.name} ${plugin.enabled ? "disabled" : "enabled"}.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Plugin state could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleLoadPluginConfiguration(pluginId: string): Promise<void> {
+    if (!session.data?.token) return;
+    setBusyAction(`plugin-config-load-${pluginId}`);
+    try {
+      const configuration = await getPluginConfiguration(session.data.token, pluginId);
+      setPluginConfiguration((current) => ({
+        ...current,
+        [pluginId]: JSON.stringify(configuration.values, null, 2),
+      }));
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Plugin configuration could not be loaded.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSavePluginConfiguration(pluginId: string): Promise<void> {
+    if (!session.data?.token) return;
+    setBusyAction(`plugin-config-save-${pluginId}`);
+    setBanner(null);
+    try {
+      const values = JSON.parse(pluginConfiguration[pluginId] ?? "{}") as Record<string, unknown>;
+      await updatePluginConfiguration(session.data.token, pluginId, values);
+      await refreshPlugins();
+      setBanner("Plugin configuration saved.");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Plugin configuration is not valid JSON.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRemovePlugin(plugin: PluginRecord): Promise<void> {
+    if (!session.data?.token) return;
+    setBusyAction(`plugin-remove-${plugin.id}`);
+    setBanner(null);
+    try {
+      await removePlugin(session.data.token, plugin.id);
+      await refreshPlugins();
+      setBanner(`${plugin.name} removed.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Plugin could not be removed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="hero-panel">
@@ -1255,6 +1370,14 @@ export function App() {
                 </div>
               </header>
 
+              <button
+                className={view === "home" ? "sidebar-link is-active" : "sidebar-link"}
+                onClick={() => setView("home")}
+                type="button"
+              >
+                Home
+              </button>
+
               {organizations.status === "error" ? (
                 <p className="error-message" role="alert">
                   {organizations.error}
@@ -1374,7 +1497,10 @@ export function App() {
                           className={
                             selectedProjectId === project.id ? "resource-card is-selected" : "resource-card"
                           }
-                          onClick={() => setSelectedProjectId(project.id)}
+                          onClick={() => {
+                            setSelectedProjectId(project.id);
+                            setView("project");
+                          }}
                           type="button"
                         >
                           <strong>{project.name}</strong>
@@ -1547,8 +1673,237 @@ export function App() {
                   ) : null}
                 </>
               )}
+
+              <div className="sidebar-footer">
+                <button
+                  className={
+                    view === "plugin-administration"
+                      ? "sidebar-link is-active"
+                      : "sidebar-link"
+                  }
+                  disabled={!session.data?.user.is_platform_admin}
+                  onClick={() => setView("plugin-administration")}
+                  title={
+                    session.data?.user.is_platform_admin
+                      ? "Manage installed plugins"
+                      : "Platform Administrator authority is required"
+                  }
+                  type="button"
+                >
+                  Plugin administration
+                </button>
+              </div>
             </section>
 
+            {view === "home" ? (
+              <section className="panel home-panel content-span">
+                <header className="panel-header">
+                  <div>
+                    <p className="eyebrow">Home</p>
+                    <h2>Welcome, {session.data?.user.display_name}</h2>
+                    <p className="muted-text">
+                      Choose a Project from the sidebar when you are ready to work with Engineering
+                      Assets.
+                    </p>
+                  </div>
+                  <span className="status-pill">
+                    {unreadNotifications} unread
+                  </span>
+                </header>
+
+                <div className="home-summary-grid">
+                  <article className="detail-card">
+                    <h3>Available Organizations</h3>
+                    <p>{organizations.data.length} available to your account</p>
+                    <ul className="home-list">
+                      {organizations.data.map((membership) => (
+                        <li key={membership.id}>
+                          <strong>{membership.organization?.name}</strong>
+                          <span>{membership.role}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                  <article className="detail-card">
+                    <h3>Available Projects</h3>
+                    <p>{projects.data.length} in the selected Organization</p>
+                    <ul className="home-list">
+                      {projects.data.map((project) => (
+                        <li key={project.id}>
+                          <button
+                            className="text-button"
+                            onClick={() => {
+                              setSelectedProjectId(project.id);
+                              setView("project");
+                            }}
+                            type="button"
+                          >
+                            {project.name}
+                          </button>
+                          <span>{project.description || "No description"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                </div>
+
+                <article className="detail-card notification-card">
+                  <div className="detail-row">
+                    <div>
+                      <h3>Notifications</h3>
+                      <p>Recent collaboration activity for your account.</p>
+                    </div>
+                    <button
+                      className="secondary-button"
+                      disabled={busyAction === "refresh-notifications"}
+                      onClick={() => void handleRefreshNotifications()}
+                      type="button"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {notifications.data.length ? (
+                    <div className="timeline">
+                      {notifications.data.slice(0, 8).map((notification) => (
+                        <article key={notification.id} className="timeline-card notification-item">
+                          <div className="timeline-header">
+                            <div>
+                              <h3>{formatNotificationEvent(notification.event_type)}</h3>
+                              <p>{notificationSummary(notification)}</p>
+                            </div>
+                            <small>{formatTimestamp(notification.created_at)}</small>
+                          </div>
+                          <span
+                            className={
+                              notification.is_read
+                                ? "status-pill notification-pill notification-read"
+                                : "status-pill notification-pill notification-unread"
+                            }
+                          >
+                            {notification.is_read ? "read" : "unread"}
+                          </span>
+                          {!notification.is_read ? (
+                            <button
+                              className="secondary-button"
+                              onClick={() => void handleMarkNotificationRead(notification.id)}
+                              type="button"
+                            >
+                              Mark as read
+                            </button>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">No notifications yet.</p>
+                  )}
+                </article>
+              </section>
+            ) : null}
+
+            {view === "plugin-administration" ? (
+              <section className="panel admin-panel content-span">
+                <header className="panel-header">
+                  <div>
+                    <p className="eyebrow">Platform Administration</p>
+                    <h2>Plugin administration</h2>
+                    <p className="muted-text">
+                      Install, inspect, configure, enable and disable plugins through the public API.
+                    </p>
+                  </div>
+                </header>
+                <form className="form-grid compact-form" onSubmit={handleInstallPlugin}>
+                  <h3>Install Community Plugin</h3>
+                  <label>
+                    OpenPDM plugin package
+                    <input
+                      accept=".openpdm-plugin,application/zip"
+                      required
+                      type="file"
+                      onChange={(event) => setPluginPackage(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <button
+                    className="primary-button"
+                    disabled={!pluginPackage || busyAction === "install-plugin"}
+                    type="submit"
+                  >
+                    {busyAction === "install-plugin" ? "Installing..." : "Install package"}
+                  </button>
+                </form>
+                {plugins.status === "error" ? (
+                  <p className="error-message" role="alert">{plugins.error}</p>
+                ) : null}
+                <div className="plugin-grid">
+                  {plugins.data.map((plugin) => (
+                    <article className="detail-card plugin-card" key={plugin.id}>
+                      <div className="detail-row">
+                        <div>
+                          <h3>{plugin.name}</h3>
+                          <p>{plugin.id} · v{plugin.version}</p>
+                        </div>
+                        <span className="status-pill">{plugin.lifecycle_state}</span>
+                      </div>
+                      <p className="muted-text">{plugin.capabilities.join(", ")}</p>
+                      {plugin.diagnostic_reason ? (
+                        <p className="error-message">{plugin.diagnostic_reason}</p>
+                      ) : null}
+                      <div className="collaboration-actions">
+                        <button
+                          className="secondary-button"
+                          disabled={busyAction === `plugin-state-${plugin.id}`}
+                          onClick={() => void handlePluginState(plugin)}
+                          type="button"
+                        >
+                          {plugin.enabled ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => void handleLoadPluginConfiguration(plugin.id)}
+                          type="button"
+                        >
+                          Load configuration
+                        </button>
+                        <button
+                          className="secondary-button warning-button"
+                          disabled={plugin.enabled || busyAction === `plugin-remove-${plugin.id}`}
+                          onClick={() => void handleRemovePlugin(plugin)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {pluginConfiguration[plugin.id] !== undefined ? (
+                        <div className="form-grid plugin-configuration">
+                          <label>
+                            Configuration values (JSON)
+                            <textarea
+                              value={pluginConfiguration[plugin.id]}
+                              onChange={(event) =>
+                                setPluginConfiguration((current) => ({
+                                  ...current,
+                                  [plugin.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <button
+                            className="primary-button"
+                            onClick={() => void handleSavePluginConfiguration(plugin.id)}
+                            type="button"
+                          >
+                            Save configuration
+                          </button>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {view === "project" ? (
+              <>
             <section className="panel asset-panel">
               <header className="panel-header">
                 <div>
@@ -2156,6 +2511,8 @@ export function App() {
                 </p>
               )}
             </section>
+              </>
+            ) : null}
           </section>
         </>
       )}

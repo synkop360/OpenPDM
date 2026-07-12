@@ -19,7 +19,30 @@ export type User = {
   email: string;
   display_name: string;
   is_active: boolean;
+  is_platform_admin: boolean;
   created_at: string;
+};
+
+export type PluginRecord = {
+  id: string;
+  name: string;
+  version: string;
+  plugin_type: "official" | "community";
+  capabilities: string[];
+  extension_api_versions: number[];
+  lifecycle_state: string;
+  diagnostic_reason: string | null;
+  enabled: boolean;
+  package_digest: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PluginConfiguration = {
+  plugin_id: string;
+  values: Record<string, unknown>;
+  configured_secret_fields: string[];
+  updated_at: string | null;
 };
 
 export type SessionInfo = {
@@ -561,6 +584,61 @@ export async function markNotificationRead(
     method: "POST",
     token,
   });
+}
+
+export async function listPlugins(token: string): Promise<PluginRecord[]> {
+  return request<PluginRecord[]>("/plugins", { token });
+}
+
+export async function installPluginPackage(
+  token: string,
+  packageFile: File,
+  pluginType: "official" | "community" = "community",
+): Promise<PluginRecord> {
+  const formData = new FormData();
+  formData.append("package", packageFile);
+  return request<PluginRecord>(`/plugins/packages?plugin_type=${pluginType}`, {
+    method: "POST",
+    token,
+    body: formData,
+  });
+}
+
+export async function setPluginState(
+  token: string,
+  pluginId: string,
+  enabled: boolean,
+): Promise<PluginRecord> {
+  return request<PluginRecord>(`/plugins/${pluginId}/state`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ enabled }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function getPluginConfiguration(
+  token: string,
+  pluginId: string,
+): Promise<PluginConfiguration> {
+  return request<PluginConfiguration>(`/plugins/${pluginId}/configuration`, { token });
+}
+
+export async function updatePluginConfiguration(
+  token: string,
+  pluginId: string,
+  values: Record<string, unknown>,
+): Promise<PluginConfiguration> {
+  return request<PluginConfiguration>(`/plugins/${pluginId}/configuration`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ values }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function removePlugin(token: string, pluginId: string): Promise<void> {
+  await request<void>(`/plugins/${pluginId}`, { method: "DELETE", token });
 }
 
 export async function uploadBlob(token: string, file: File): Promise<BlobRecord> {
