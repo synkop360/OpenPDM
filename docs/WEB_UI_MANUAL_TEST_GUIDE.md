@@ -139,9 +139,9 @@ VITE_API_BASE_URL=http://localhost:8000
 before starting the frontend.
 
 Without `VITE_API_BASE_URL`, the Vite development proxy forwards public API
-requests to `http://localhost:8000`. This matches the local backend command. To
-proxy to the Docker Compose host port instead, start Vite with
-`VITE_API_PROXY_TARGET=http://localhost:18000`.
+requests to `http://localhost:18000`, matching the Docker Compose host port. If
+the backend is started directly through the local command, start Vite with
+`VITE_API_PROXY_TARGET=http://localhost:8000` instead.
 
 ## Test Data Recommendation
 

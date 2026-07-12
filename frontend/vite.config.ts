@@ -3,7 +3,7 @@ import { defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, ".", "");
-  const apiProxyTarget = environment.VITE_API_PROXY_TARGET || "http://localhost:8000";
+  const apiProxyTarget = environment.VITE_API_PROXY_TARGET || "http://localhost:18000";
 
   return {
     plugins: [react()],
