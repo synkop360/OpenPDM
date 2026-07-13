@@ -15,7 +15,7 @@ from typing import Literal, TypeVar
 from typing import cast as type_cast
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import String, and_, cast, func, literal, or_, select
+from sqlalchemy import String, and_, cast, delete, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from openpdm.extension_api import ValidatedPluginPackage
@@ -68,6 +68,7 @@ ALLOWED_STATUSES = {"draft", "active", "archived"}
 ALLOWED_METADATA_TYPES = {"string", "number", "boolean", "date", "json"}
 ALLOWED_PLUGIN_TYPES = {"official", "community"}
 PLUGIN_LIFECYCLE_STATES = {
+    "discovered",
     "installed",
     "disabled",
     "starting",
@@ -3382,46 +3383,112 @@ class PluginsModule:
         package_storage: PluginPackageStorage,
         plugin_type: str,
         actor: User,
+        discovered_only: bool = False,
+        expected_plugin_id: str | None = None,
     ) -> PluginRecord:
         PluginsModule.require_platform_admin(actor)
         require(plugin_type in ALLOWED_PLUGIN_TYPES, "Invalid plugin type.")
         manifest = package.manifest
         existing = db.get(PluginRecord, manifest.id)
-        require(existing is None, "Plugin is already installed.", status.HTTP_409_CONFLICT)
+        if expected_plugin_id is not None:
+            require(
+                manifest.id == expected_plugin_id,
+                "Upgrade package identity does not match the installed plugin.",
+            )
+            require(existing is not None, "Plugin not found.", status.HTTP_404_NOT_FOUND)
+            require(
+                not existing.enabled,
+                "Disable the plugin before upgrade.",
+                status.HTTP_409_CONFLICT,
+            )
+        else:
+            require(existing is None, "Plugin is already installed.", status.HTTP_409_CONFLICT)
         package_storage.put(package.digest, package.archive)
-        plugin = PluginRecord(
-            id=manifest.id,
-            name=manifest.name,
-            version=manifest.version,
-            plugin_type=plugin_type,
-            capabilities=[capability.value for capability in manifest.capabilities],
-            event_subscriptions=manifest.event_subscriptions,
-            configuration_schema=(
-                manifest.configuration.model_dump(mode="json")
-                if manifest.configuration is not None
-                else None
-            ),
-            extension_api_versions=manifest.extension_api_versions,
-            component=manifest.component,
-            package_digest=package.digest,
-            lifecycle_state="installed",
-            diagnostic_reason=None,
-            installed_by_user_id=actor.id,
-            enabled=False,
+        lifecycle_state = (
+            "incompatible"
+            if not manifest.is_compatible
+            else "discovered"
+            if discovered_only
+            else "installed"
         )
-        db.add(plugin)
+        diagnostic_reason = (
+            "Plugin does not support Extension API v1."
+            if lifecycle_state == "incompatible"
+            else None
+        )
+        action = (
+            "plugin.upgraded"
+            if existing is not None
+            else "plugin.discovered"
+            if discovered_only
+            else "plugin.installed"
+        )
+        plugin = existing or PluginRecord(id=manifest.id)
+        plugin.name = manifest.name
+        plugin.version = manifest.version
+        plugin.plugin_type = plugin_type
+        plugin.capabilities = [capability.value for capability in manifest.capabilities]
+        plugin.event_subscriptions = manifest.event_subscriptions
+        plugin.configuration_schema = (
+            manifest.configuration.model_dump(mode="json")
+            if manifest.configuration is not None
+            else None
+        )
+        plugin.extension_api_versions = manifest.extension_api_versions
+        plugin.component = manifest.component
+        plugin.package_digest = package.digest
+        plugin.lifecycle_state = lifecycle_state
+        plugin.diagnostic_reason = diagnostic_reason
+        plugin.installed_by_user_id = actor.id
+        plugin.enabled = False
+        plugin.updated_at = utc_now()
+        if existing is None:
+            db.add(plugin)
+        else:
+            configuration = db.get(PluginConfiguration, plugin.id)
+            if configuration is not None:
+                db.delete(configuration)
         db.flush()
         record_audit(
             db,
             actor_user_id=actor.id,
-            action="plugin.installed",
+            action=action,
             resource_type="plugin",
             resource_id=plugin.id,
             details={
                 "version": plugin.version,
                 "package_digest": plugin.package_digest,
                 "plugin_type": plugin.plugin_type,
+                "lifecycle_state": plugin.lifecycle_state,
             },
+        )
+        emit_event(
+            db,
+            event_type=action,
+            resource_type="plugin",
+            resource_id=plugin.id,
+            payload={"version": plugin.version, "package_digest": plugin.package_digest},
+        )
+        return plugin
+
+    @staticmethod
+    def promote_discovered_plugin(db: Session, *, plugin_id: str, actor: User) -> PluginRecord:
+        PluginsModule.require_platform_admin(actor)
+        plugin = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=actor)
+        require(
+            plugin.lifecycle_state == "discovered",
+            "Only a compatible discovered plugin can be installed.",
+            status.HTTP_409_CONFLICT,
+        )
+        plugin.lifecycle_state = "installed"
+        plugin.updated_at = utc_now()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="plugin.installed",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            details={"version": plugin.version, "package_digest": plugin.package_digest},
         )
         emit_event(
             db,
@@ -3431,6 +3498,33 @@ class PluginsModule:
             payload={"version": plugin.version, "package_digest": plugin.package_digest},
         )
         return plugin
+
+    @staticmethod
+    def remove_plugin(db: Session, *, plugin_id: str, actor: User) -> None:
+        PluginsModule.require_platform_admin(actor)
+        plugin = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=actor)
+        require(not plugin.enabled, "Disable the plugin before removal.", status.HTTP_409_CONFLICT)
+        details = {"version": plugin.version, "package_digest": plugin.package_digest}
+        db.execute(delete(PluginEventDelivery).where(PluginEventDelivery.plugin_id == plugin.id))
+        configuration = db.get(PluginConfiguration, plugin.id)
+        if configuration is not None:
+            db.delete(configuration)
+        db.delete(plugin)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="plugin.removed",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            details=details,
+        )
+        emit_event(
+            db,
+            event_type="plugin.removed",
+            resource_type="plugin",
+            resource_id=plugin.id,
+            payload=details,
+        )
 
     @staticmethod
     def get_configuration(
@@ -3551,8 +3645,17 @@ class PluginsModule:
         plugin = db.get(PluginRecord, plugin_id)
         if plugin is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found.")
+        if enabled:
+            require(
+                plugin.lifecycle_state in {"installed", "disabled", "failed", "running"},
+                "Plugin must be installed and compatible before it can be enabled.",
+                status.HTTP_409_CONFLICT,
+            )
         plugin.enabled = enabled
-        plugin.lifecycle_state = "starting" if enabled else "disabled"
+        if enabled:
+            plugin.lifecycle_state = "starting"
+        elif plugin.lifecycle_state not in {"discovered", "incompatible"}:
+            plugin.lifecycle_state = "disabled"
         plugin.diagnostic_reason = None
         plugin.updated_at = utc_now()
         record_audit(

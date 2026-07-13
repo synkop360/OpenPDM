@@ -40,7 +40,9 @@ def _validate_member_name(name: str) -> None:
         raise ValueError(f"Unsafe plugin package entry: {name!r}.")
 
 
-def validate_plugin_package(archive: bytes) -> ValidatedPluginPackage:
+def validate_plugin_package(
+    archive: bytes, *, require_compatible: bool = True
+) -> ValidatedPluginPackage:
     """Validate an entire package before any content is persisted or executed."""
 
     if not archive or len(archive) > MAX_ARCHIVE_BYTES:
@@ -74,7 +76,7 @@ def validate_plugin_package(archive: bytes) -> ValidatedPluginPackage:
         if MANIFEST_NAME not in names:
             raise ValueError(f"Plugin package must contain {MANIFEST_NAME}.")
         manifest = PluginManifest.from_json(package.read(MANIFEST_NAME))
-        if not manifest.is_compatible:
+        if require_compatible and not manifest.is_compatible:
             raise ValueError("Plugin does not support Extension API v1.")
         allowed = {MANIFEST_NAME, manifest.component}
         unexpected = sorted(set(names) - allowed)

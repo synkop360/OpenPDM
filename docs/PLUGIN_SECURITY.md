@@ -39,4 +39,4 @@ Inspect `GET /plugins/{plugin_id}/event-deliveries` for attempt counts and sanit
 
 ## Incident Response
 
-Disable a suspicious plugin immediately, preserve its package digest and audit records, rotate any configuration secret it could access, and update Wasmtime if the incident involves a sandbox vulnerability. Do not replace the package file in place; install a reviewed version as a new explicit lifecycle action.
+Disable a suspicious plugin immediately, preserve its package digest and audit records, rotate any configuration secret it could access, and update Wasmtime if the incident involves a sandbox vulnerability. Do not replace the package file in place; use the authenticated upgrade route for a reviewed same-identity package. Upgrades disable the plugin and clear configuration so it must be explicitly reconfigured and enabled. Removal requires a disabled plugin and retains immutable package evidence.

@@ -15,7 +15,15 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _has_table(table: str) -> bool:
+    if op.get_context().as_sql:
+        return False
+    return sa.inspect(op.get_bind()).has_table(table)
+
+
 def upgrade() -> None:
+    if _has_table("plugin_event_deliveries"):
+        return
     op.create_table(
         "plugin_event_deliveries",
         sa.Column("id", sa.String(length=36), nullable=False),

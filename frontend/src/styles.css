@@ -185,7 +185,107 @@ h4 {
 .workspace-grid {
   display: grid;
   gap: 20px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(260px, 0.72fr) repeat(2, minmax(0, 1fr));
+}
+
+.nav-panel {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 260px);
+}
+
+.content-span {
+  grid-column: span 2;
+}
+
+.sidebar-link {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 12px;
+  min-height: 46px;
+  padding: 0 14px;
+  text-align: left;
+}
+
+.sidebar-link:hover,
+.sidebar-link.is-active {
+  background: var(--accent-soft);
+  border-color: rgba(14, 107, 88, 0.2);
+  color: var(--accent);
+}
+
+.sidebar-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.sidebar-footer {
+  border-top: 1px solid var(--line);
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.sidebar-footer .sidebar-link {
+  margin: 0;
+  width: 100%;
+}
+
+.home-panel,
+.admin-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.home-summary-grid,
+.plugin-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.home-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.home-list li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-top: 10px;
+}
+
+.home-list span,
+.plugin-card p {
+  color: var(--muted);
+}
+
+.text-button {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+
+.plugin-card {
+  display: grid;
+  gap: 14px;
+}
+
+.plugin-configuration {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
 }
 
 .form-grid {
@@ -513,6 +613,14 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .content-span {
+    grid-column: auto;
+  }
+
+  .nav-panel {
+    min-height: auto;
+  }
+
   .hero-panel {
     grid-template-columns: 1fr;
   }
@@ -538,7 +646,9 @@ textarea {
   }
 
   .relationship-grid,
-  .graph-summary-grid {
+  .graph-summary-grid,
+  .home-summary-grid,
+  .plugin-grid {
     grid-template-columns: 1fr;
   }
 }

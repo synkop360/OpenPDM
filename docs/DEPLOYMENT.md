@@ -105,7 +105,9 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 Protect and back up this key outside the database. Losing it makes encrypted plugin configuration unreadable. Set `OPENPDM_PLUGIN_PACKAGE_ROOT` to persistent storage owned only by the backend process. Sandbox fuel, memory and timeout settings are bounded by application validation and should be reduced only after testing installed plugins.
 
-Upgrade existing databases before starting the new application version:
+The Compose backend runs Alembic migrations before starting the API. Existing local-development databases created before Alembic tracking are reconciled idempotently and stamped through the current migration head.
+
+For a backend started outside Compose, upgrade the database before starting the new application version:
 
 ```bash
 uv run alembic upgrade head

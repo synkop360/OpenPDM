@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+from io import BytesIO
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
@@ -738,6 +741,89 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
         json={"enabled": False},
     )
     assert revoked.status_code == 200
+
+
+def test_plugin_discovery_upgrade_incompatibility_and_removal(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="admin@example.com",
+        display_name="Admin",
+        password="secret123",
+    )
+    headers = auth_header(token)
+    component = bytes(
+        wat2wasm(
+            """(component
+              (core module $m (func (export "activate")))
+              (core instance $i (instantiate $m))
+              (func (export "activate") (canon lift (core func $i "activate")))
+            )"""
+        )
+    )
+
+    def package(version: str, api_versions: list[int]) -> bytes:
+        manifest = PluginManifest(
+            id="org.openpdm.closure-test",
+            name="Closure Test",
+            version=version,
+            extension_api_versions=api_versions,
+            component="plugin.wasm",
+            capabilities=[Capability.EVENT_HANDLER],
+        )
+        if 1 in api_versions:
+            return build_plugin_package(manifest, component)
+        buffer = BytesIO()
+        with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+            archive.writestr(
+                "openpdm-plugin.json",
+                json.dumps(manifest.model_dump(mode="json")),
+            )
+            archive.writestr("plugin.wasm", component)
+        return buffer.getvalue()
+
+    discovered = client.post(
+        "/plugins/packages",
+        params={"discover_only": True},
+        headers=headers,
+        files={"package": ("plugin.openpdm-plugin", package("1.0.0", [1]))},
+    )
+    assert discovered.status_code == 201
+    assert discovered.json()["lifecycle_state"] == "discovered"
+    assert (
+        client.post(
+            "/plugins/org.openpdm.closure-test/state",
+            headers=headers,
+            json={"enabled": True},
+        ).status_code
+        == 409
+    )
+
+    installed = client.post("/plugins/org.openpdm.closure-test/install", headers=headers)
+    assert installed.status_code == 200
+    assert installed.json()["lifecycle_state"] == "installed"
+
+    upgraded = client.put(
+        "/plugins/org.openpdm.closure-test/package",
+        headers=headers,
+        files={"package": ("plugin.openpdm-plugin", package("1.1.0", [1]))},
+    )
+    assert upgraded.status_code == 200
+    assert upgraded.json()["version"] == "1.1.0"
+    assert upgraded.json()["lifecycle_state"] == "installed"
+
+    incompatible = client.put(
+        "/plugins/org.openpdm.closure-test/package",
+        headers=headers,
+        files={"package": ("plugin.openpdm-plugin", package("2.0.0", [2]))},
+    )
+    assert incompatible.status_code == 200
+    assert incompatible.json()["lifecycle_state"] == "incompatible"
+    assert "Extension API v1" in incompatible.json()["diagnostic_reason"]
+
+    removed = client.delete("/plugins/org.openpdm.closure-test", headers=headers)
+    assert removed.status_code == 204
+    assert client.get("/plugins/org.openpdm.closure-test", headers=headers).status_code == 404
 
 
 def test_sign_out_revokes_session(tmp_path: Path) -> None:
