@@ -69,6 +69,28 @@ export type MetadataEntry = {
   created_at: string;
 };
 
+export type PluginRecord = {
+  id: string;
+  name: string;
+  version: string;
+  plugin_type: "official" | "community";
+  capabilities: string[];
+  extension_api_versions: number[];
+  lifecycle_state: string;
+  diagnostic_reason: string | null;
+  enabled: boolean;
+  package_digest: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PluginConfiguration = {
+  plugin_id: string;
+  values: Record<string, unknown>;
+  configured_secret_fields: string[];
+  updated_at: string | null;
+};
+
 export type SessionInfo = {
   id: string;
   token: string;
