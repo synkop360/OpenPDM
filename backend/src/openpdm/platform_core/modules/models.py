@@ -5,7 +5,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openpdm.infrastructure.database import Base
@@ -152,7 +162,7 @@ class Blob(Base):
     storage_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     filename: Mapped[str] = mapped_column(String(255))
     media_type: Mapped[str] = mapped_column(String(255))
-    size_bytes: Mapped[int] = mapped_column(Integer)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
     checksum_sha256: Mapped[str] = mapped_column(String(64), index=True)
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -172,7 +182,7 @@ class BlobUploadSession(Base):
     owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     filename: Mapped[str] = mapped_column(String(255))
     media_type: Mapped[str] = mapped_column(String(255))
-    total_size_bytes: Mapped[int] = mapped_column(Integer)
+    total_size_bytes: Mapped[int] = mapped_column(BigInteger)
     checksum_sha256: Mapped[str | None] = mapped_column(String(64))
     chunk_size_bytes: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16), default="active", index=True)
@@ -201,7 +211,7 @@ class BlobUploadChunk(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     session_id: Mapped[str] = mapped_column(ForeignKey("blob_upload_sessions.id"), index=True)
     chunk_number: Mapped[int] = mapped_column(Integer)
-    size_bytes: Mapped[int] = mapped_column(Integer)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
     checksum_sha256: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False

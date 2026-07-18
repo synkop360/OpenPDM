@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import wraps
 from pathlib import PurePath
-from typing import Literal, TypeVar
+from typing import BinaryIO, Literal, TypeVar
 from typing import cast as type_cast
 
 from fastapi import HTTPException, UploadFile, status
@@ -2034,9 +2034,12 @@ class BlobModule:
 
     @staticmethod
     def _upload_session_or_error(
-        db: Session, *, session_id: str, actor: User, storage: BlobStorage
+        db: Session, *, session_id: str, actor: User, storage: BlobStorage, lock: bool = False
     ) -> BlobUploadSession:
-        upload_session = db.get(BlobUploadSession, session_id)
+        statement = select(BlobUploadSession).where(BlobUploadSession.id == session_id)
+        if lock:
+            statement = statement.with_for_update()
+        upload_session = db.scalar(statement)
         if upload_session is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Upload session not found."
@@ -2084,7 +2087,7 @@ class BlobModule:
         storage: BlobStorage,
         settings: Settings,
     ) -> BlobUploadSession:
-        safe_filename = PurePath(filename).name
+        safe_filename = filename.replace("\\", "/").rsplit("/", maxsplit=1)[-1]
         require(bool(safe_filename), "Filename is required.")
         require(bool(media_type.strip()), "Media type is required.")
         require(total_size_bytes > 0, "Total size must be greater than zero.")
@@ -2142,12 +2145,14 @@ class BlobModule:
         *,
         session_id: str,
         chunk_number: int,
-        content: bytes,
+        content: BinaryIO,
+        size_bytes: int,
+        checksum_sha256: str,
         actor: User,
         storage: BlobStorage,
     ) -> BlobUploadSession:
         upload_session = BlobModule._upload_session_or_error(
-            db, session_id=session_id, actor=actor, storage=storage
+            db, session_id=session_id, actor=actor, storage=storage, lock=True
         )
         require(
             upload_session.status == "active",
@@ -2158,15 +2163,14 @@ class BlobModule:
             upload_session.total_size_bytes + upload_session.chunk_size_bytes - 1
         ) // upload_session.chunk_size_bytes
         require(0 <= chunk_number < chunk_count, "Chunk number is outside the upload range.")
-        require(bool(content), "Upload chunks must not be empty.")
+        require(size_bytes > 0, "Upload chunks must not be empty.")
         expected_size = (
             upload_session.chunk_size_bytes
             if chunk_number < chunk_count - 1
             else upload_session.total_size_bytes
             - upload_session.chunk_size_bytes * (chunk_count - 1)
         )
-        require(len(content) == expected_size, "Chunk size does not match the session contract.")
-        checksum = hashlib.sha256(content).hexdigest()
+        require(size_bytes == expected_size, "Chunk size does not match the session contract.")
         existing = db.scalar(
             select(BlobUploadChunk).where(
                 and_(
@@ -2177,14 +2181,14 @@ class BlobModule:
         )
         if existing is not None:
             require(
-                existing.checksum_sha256 == checksum and existing.size_bytes == len(content),
+                existing.checksum_sha256 == checksum_sha256 and existing.size_bytes == size_bytes,
                 "Chunk retry differs from the accepted chunk.",
                 status.HTTP_409_CONFLICT,
             )
             return upload_session
         try:
             storage.initialize_upload_session(upload_session.id)
-            storage.put_upload_chunk(upload_session.id, chunk_number, content, checksum)
+            storage.put_upload_chunk(upload_session.id, chunk_number, content, checksum_sha256)
         except (OSError, ValueError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Upload storage is unavailable."
@@ -2193,8 +2197,8 @@ class BlobModule:
             BlobUploadChunk(
                 session_id=upload_session.id,
                 chunk_number=chunk_number,
-                size_bytes=len(content),
-                checksum_sha256=checksum,
+                size_bytes=size_bytes,
+                checksum_sha256=checksum_sha256,
             )
         )
         upload_session.updated_at = utc_now()
@@ -2206,7 +2210,7 @@ class BlobModule:
         db: Session, *, session_id: str, actor: User, storage: BlobStorage
     ) -> BlobUploadSession:
         upload_session = BlobModule._upload_session_or_error(
-            db, session_id=session_id, actor=actor, storage=storage
+            db, session_id=session_id, actor=actor, storage=storage, lock=True
         )
         if upload_session.status == "completed":
             return upload_session
@@ -2288,7 +2292,7 @@ class BlobModule:
         db: Session, *, session_id: str, actor: User, storage: BlobStorage
     ) -> None:
         upload_session = BlobModule._upload_session_or_error(
-            db, session_id=session_id, actor=actor, storage=storage
+            db, session_id=session_id, actor=actor, storage=storage, lock=True
         )
         if upload_session.status == "cancelled":
             return

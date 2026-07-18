@@ -9,16 +9,17 @@ from alembic import command
 from alembic.config import Config
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import BigInteger, create_engine, inspect, select
 
 from openpdm.infrastructure.blob_storage import (
     BlobStorage,
     LocalFileBlobStorage,
+    S3CompatibleBlobStorage,
     reset_blob_storage_cache,
 )
 from openpdm.infrastructure.database import dispose_engines, initialize_database, session_scope
 from openpdm.infrastructure.settings import Settings
-from openpdm.platform_core.modules.models import Blob
+from openpdm.platform_core.modules.models import Blob, BlobUploadChunk, BlobUploadSession
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -223,8 +224,6 @@ def test_upload_session_migration_is_upgradeable(tmp_path: Path) -> None:
     dispose_engines()
     initialize_database(Settings(database_url=database_url))
     engine = create_engine(database_url)
-    from openpdm.platform_core.modules.models import BlobUploadChunk, BlobUploadSession
-
     BlobUploadChunk.__table__.drop(engine)
     BlobUploadSession.__table__.drop(engine)
     config = Config("alembic.ini")
@@ -232,6 +231,44 @@ def test_upload_session_migration_is_upgradeable(tmp_path: Path) -> None:
     command.upgrade(config, "head")
     tables = set(inspect(engine).get_table_names())
     assert {"blob_upload_sessions", "blob_upload_chunks"} <= tables
+
+
+def test_blob_byte_counts_support_the_configured_five_gib_limit() -> None:
+    assert isinstance(Blob.__table__.c.size_bytes.type, BigInteger)
+    assert isinstance(BlobUploadSession.__table__.c.total_size_bytes.type, BigInteger)
+    assert isinstance(BlobUploadChunk.__table__.c.size_bytes.type, BigInteger)
+
+
+class PaginatedS3Client:
+    def __init__(self) -> None:
+        self.deleted: list[str] = []
+        self.calls: list[dict[str, object]] = []
+
+    def list_objects_v2(self, **kwargs: object) -> dict[str, object]:
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            return {
+                "Contents": [
+                    {"Key": f"upload-sessions/session/chunks/{number}"} for number in range(1000)
+                ],
+                "IsTruncated": True,
+                "NextContinuationToken": "next-page",
+            }
+        return {"Contents": [{"Key": "upload-sessions/session/chunks/1000"}], "IsTruncated": False}
+
+    def delete_objects(self, *, Bucket: str, Delete: dict[str, list[dict[str, str]]]) -> None:
+        self.deleted.extend(item["Key"] for item in Delete["Objects"])
+
+
+def test_s3_cleanup_paginates_all_upload_session_objects() -> None:
+    storage = object.__new__(S3CompatibleBlobStorage)
+    storage._bucket = "bucket"
+    storage._client = PaginatedS3Client()
+
+    storage.cleanup_upload_session("session")
+
+    assert len(storage._client.calls) == 2
+    assert len(storage._client.deleted) == 1001
 
 
 class FailingUploadStorage(BlobStorage):

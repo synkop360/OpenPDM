@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import tempfile
 from collections.abc import Generator
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
@@ -1563,14 +1565,45 @@ async def put_blob_upload_session_chunk(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chunk content type must be application/octet-stream.",
         )
-    upload_session = BlobModule.put_upload_chunk(
-        db,
-        session_id=session_id,
-        chunk_number=chunk_number,
-        content=await request.body(),
-        actor=context.user,
-        storage=storage,
+    inspected = BlobModule.get_upload_session(
+        db, session_id=session_id, actor=context.user, storage=storage
     )
+    chunk_count = (
+        inspected.total_size_bytes + inspected.chunk_size_bytes - 1
+    ) // inspected.chunk_size_bytes
+    if not 0 <= chunk_number < chunk_count:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chunk number is outside the upload range.",
+        )
+    expected_size = (
+        inspected.chunk_size_bytes
+        if chunk_number < chunk_count - 1
+        else inspected.total_size_bytes - inspected.chunk_size_bytes * (chunk_count - 1)
+    )
+    with tempfile.SpooledTemporaryFile(max_size=1024 * 1024, mode="w+b") as content:
+        digest = hashlib.sha256()
+        size_bytes = 0
+        async for block in request.stream():
+            size_bytes += len(block)
+            if size_bytes > expected_size:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Chunk size does not match the session contract.",
+                )
+            content.write(block)
+            digest.update(block)
+        content.seek(0)
+        upload_session = BlobModule.put_upload_chunk(
+            db,
+            session_id=session_id,
+            chunk_number=chunk_number,
+            content=content,
+            size_bytes=size_bytes,
+            checksum_sha256=digest.hexdigest(),
+            actor=context.user,
+            storage=storage,
+        )
     db.commit()
     return serialize_blob_upload_session(upload_session)
 

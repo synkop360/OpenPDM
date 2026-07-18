@@ -17,13 +17,15 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    with op.batch_alter_table("blobs") as batch_op:
+        batch_op.alter_column("size_bytes", existing_type=sa.Integer(), type_=sa.BigInteger())
     op.create_table(
         "blob_upload_sessions",
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("owner_user_id", sa.String(length=36), nullable=False),
         sa.Column("filename", sa.String(length=255), nullable=False),
         sa.Column("media_type", sa.String(length=255), nullable=False),
-        sa.Column("total_size_bytes", sa.Integer(), nullable=False),
+        sa.Column("total_size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("checksum_sha256", sa.String(length=64), nullable=True),
         sa.Column("chunk_size_bytes", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
@@ -48,7 +50,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("session_id", sa.String(length=36), nullable=False),
         sa.Column("chunk_number", sa.Integer(), nullable=False),
-        sa.Column("size_bytes", sa.Integer(), nullable=False),
+        sa.Column("size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("checksum_sha256", sa.String(length=64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["session_id"], ["blob_upload_sessions.id"]),
@@ -64,3 +66,5 @@ def downgrade() -> None:
     for name in ("expires_at", "blob_id", "status", "owner_user_id"):
         op.drop_index(op.f(f"ix_blob_upload_sessions_{name}"), table_name="blob_upload_sessions")
     op.drop_table("blob_upload_sessions")
+    with op.batch_alter_table("blobs") as batch_op:
+        batch_op.alter_column("size_bytes", existing_type=sa.BigInteger(), type_=sa.Integer())

@@ -7,7 +7,7 @@ import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, BinaryIO
 
 from openpdm.infrastructure.settings import Settings
 
@@ -48,7 +48,7 @@ class BlobStorage(ABC):
 
     @abstractmethod
     def put_upload_chunk(
-        self, session_id: str, chunk_number: int, content: bytes, checksum_sha256: str
+        self, session_id: str, chunk_number: int, content: BinaryIO, checksum_sha256: str
     ) -> None:
         """Persist an idempotent verified chunk without exposing provider details."""
 
@@ -96,25 +96,41 @@ class LocalFileBlobStorage(BlobStorage):
         (self._session_path(session_id) / "chunks").mkdir(parents=True, exist_ok=True)
 
     def put_upload_chunk(
-        self, session_id: str, chunk_number: int, content: bytes, checksum_sha256: str
+        self, session_id: str, chunk_number: int, content: BinaryIO, checksum_sha256: str
     ) -> None:
         chunk_path = self._session_path(session_id) / "chunks" / str(chunk_number)
         chunk_path.parent.mkdir(parents=True, exist_ok=True)
         if chunk_path.exists():
-            if hashlib.sha256(chunk_path.read_bytes()).hexdigest() != checksum_sha256:
+            if self._file_checksum(chunk_path) != checksum_sha256:
                 raise ValueError("Stored upload chunk differs from retry.")
             return
-        chunk_path.write_bytes(content)
+        with chunk_path.open("wb") as target:
+            shutil.copyfileobj(content, target, length=1024 * 1024)
+
+    @staticmethod
+    def _file_checksum(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     def assemble_upload_session(
         self, session_id: str, storage_key: str, chunk_numbers: list[int]
     ) -> UploadAssemblyResult:
         session_path = self._session_path(session_id)
-        content = b"".join(
-            (session_path / "chunks" / str(number)).read_bytes() for number in chunk_numbers
-        )
-        self.put_bytes(storage_key, content)
-        return UploadAssemblyResult(len(content), hashlib.sha256(content).hexdigest())
+        target = self._resolve_target(storage_key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256()
+        size_bytes = 0
+        with target.open("wb") as destination:
+            for number in chunk_numbers:
+                with (session_path / "chunks" / str(number)).open("rb") as source:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        destination.write(chunk)
+                        digest.update(chunk)
+                        size_bytes += len(chunk)
+        return UploadAssemblyResult(size_bytes, digest.hexdigest())
 
     def cleanup_upload_session(self, session_id: str) -> None:
         session_path = self._session_path(session_id)
@@ -170,33 +186,81 @@ class S3CompatibleBlobStorage(BlobStorage):
         self._session_prefix(session_id)
 
     def put_upload_chunk(
-        self, session_id: str, chunk_number: int, content: bytes, checksum_sha256: str
+        self, session_id: str, chunk_number: int, content: BinaryIO, checksum_sha256: str
     ) -> None:
         key = f"{self._session_prefix(session_id)}chunks/{chunk_number}"
         try:
-            existing = self.get_bytes(key)
+            existing_checksum = self._object_checksum(key)
         except Exception:  # Provider absence is represented by a new object.
-            existing = None
-        if existing is not None:
-            if hashlib.sha256(existing).hexdigest() != checksum_sha256:
+            existing_checksum = None
+        if existing_checksum is not None:
+            if existing_checksum != checksum_sha256:
                 raise ValueError("Stored upload chunk differs from retry.")
             return
-        self._client.put_object(Bucket=self._bucket, Key=key, Body=content)
+        self._client.upload_fileobj(content, self._bucket, key)
+
+    def _object_checksum(self, storage_key: str) -> str:
+        digest = hashlib.sha256()
+        body = self._client.get_object(Bucket=self._bucket, Key=storage_key)["Body"]
+        for chunk in iter(lambda: body.read(1024 * 1024), b""):
+            digest.update(chunk)
+        return digest.hexdigest()
 
     def assemble_upload_session(
         self, session_id: str, storage_key: str, chunk_numbers: list[int]
     ) -> UploadAssemblyResult:
         prefix = self._session_prefix(session_id)
-        content = b"".join(self.get_bytes(f"{prefix}chunks/{number}") for number in chunk_numbers)
-        self.put_bytes(storage_key, content)
-        return UploadAssemblyResult(len(content), hashlib.sha256(content).hexdigest())
+        multipart = self._client.create_multipart_upload(Bucket=self._bucket, Key=storage_key)
+        upload_id = multipart["UploadId"]
+        parts: list[dict[str, object]] = []
+        digest = hashlib.sha256()
+        size_bytes = 0
+        try:
+            for part_number, number in enumerate(chunk_numbers, start=1):
+                source_key = f"{prefix}chunks/{number}"
+                body = self._client.get_object(Bucket=self._bucket, Key=source_key)["Body"]
+                while chunk := body.read(1024 * 1024):
+                    digest.update(chunk)
+                    size_bytes += len(chunk)
+                copied = self._client.upload_part_copy(
+                    Bucket=self._bucket,
+                    Key=storage_key,
+                    PartNumber=part_number,
+                    UploadId=upload_id,
+                    CopySource={"Bucket": self._bucket, "Key": source_key},
+                )
+                parts.append({"ETag": copied["CopyPartResult"]["ETag"], "PartNumber": part_number})
+            self._client.complete_multipart_upload(
+                Bucket=self._bucket,
+                Key=storage_key,
+                UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        except Exception:
+            self._client.abort_multipart_upload(
+                Bucket=self._bucket, Key=storage_key, UploadId=upload_id
+            )
+            raise
+        return UploadAssemblyResult(size_bytes, digest.hexdigest())
 
     def cleanup_upload_session(self, session_id: str) -> None:
         prefix = self._session_prefix(session_id)
-        response = self._client.list_objects_v2(Bucket=self._bucket, Prefix=prefix)
-        objects = [{"Key": item["Key"]} for item in response.get("Contents", [])]
-        if objects:
-            self._client.delete_objects(Bucket=self._bucket, Delete={"Objects": objects})
+        continuation_token: str | None = None
+        while True:
+            request: dict[str, str] = {"Bucket": self._bucket, "Prefix": prefix}
+            if continuation_token is not None:
+                request["ContinuationToken"] = continuation_token
+            response = self._client.list_objects_v2(**request)
+            objects = [{"Key": item["Key"]} for item in response.get("Contents", [])]
+            if objects:
+                self._client.delete_objects(Bucket=self._bucket, Delete={"Objects": objects})
+            if not response.get("IsTruncated"):
+                return
+            continuation_token = response.get("NextContinuationToken")
+            if not continuation_token:
+                raise RuntimeError(
+                    "S3 cleanup pagination response is missing a continuation token."
+                )
 
 
 _STORAGE_CACHE: dict[str, BlobStorage] = {}
