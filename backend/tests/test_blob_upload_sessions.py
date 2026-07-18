@@ -636,13 +636,14 @@ def test_competing_sessions_keep_identical_chunk_and_completion_idempotent(tmp_p
 POSTGRES_TEST_URL = os.environ.get("OPENPDM_TEST_POSTGRES_URL", "")
 
 
-@pytest.mark.skipif(
-    not POSTGRES_TEST_URL.startswith("postgresql"),
-    reason="set OPENPDM_TEST_POSTGRES_URL to an isolated PostgreSQL test database",
-)
-def test_postgres_simultaneous_identical_chunk_and_completion_are_idempotent(
+def test_postgresql_simultaneous_upload_and_completion_is_idempotent(
     tmp_path: Path,
 ) -> None:
+    if not POSTGRES_TEST_URL.startswith("postgresql"):
+        if os.environ.get("OPENPDM_REQUIRE_POSTGRES_TRANSFER_TEST") == "1":
+            pytest.fail("required PostgreSQL transfer test has no PostgreSQL database URL")
+        pytest.skip("set OPENPDM_TEST_POSTGRES_URL to an isolated PostgreSQL test database")
+
     os.environ["OPENPDM_DATABASE_URL"] = POSTGRES_TEST_URL
     os.environ["OPENPDM_S3_ENDPOINT_URL"] = "file://local"
     os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
@@ -655,29 +656,38 @@ def test_postgres_simultaneous_identical_chunk_and_completion_are_idempotent(
     from openpdm.main import create_app
 
     client = TestClient(create_app())
-    token = register(client, email=f"transfer-{uuid.uuid4()}@example.com")
+    with session_scope() as db:
+        baseline_blob_ids = set(db.scalars(select(Blob.id)))
+    email = f"transfer-{uuid.uuid4()}@example.com"
+    token = register(client, email=email)
     session_id = str(create_session(client, token)["id"])
 
     def run_together(operation):
         barrier = threading.Barrier(2)
 
         def invoke():
-            barrier.wait()
-            return operation()
+            with TestClient(create_app()) as concurrent_client:
+                barrier.wait()
+                return operation(concurrent_client)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [executor.submit(invoke), executor.submit(invoke)]
             return [future.result() for future in futures]
 
-    chunk_results = run_together(lambda: upload_chunk(client, token, session_id, 0, b"ABCD"))
+    chunk_results = run_together(
+        lambda concurrent_client: upload_chunk(concurrent_client, token, session_id, 0, b"ABCD")
+    )
     assert [response.status_code for response in chunk_results] == [200, 200]
     assert upload_chunk(client, token, session_id, 1, b"EFGH").status_code == 200
 
     completion_results = run_together(
-        lambda: client.post(f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token))
+        lambda concurrent_client: concurrent_client.post(
+            f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token)
+        )
     )
     assert [response.status_code for response in completion_results] == [200, 200]
     assert completion_results[0].json()["blob"] == completion_results[1].json()["blob"]
+    blob_id = completion_results[0].json()["blob"]["id"]
     with session_scope() as db:
         assert (
             db.scalar(
@@ -687,8 +697,33 @@ def test_postgres_simultaneous_identical_chunk_and_completion_are_idempotent(
             )
             == 2
         )
-        blob_id = completion_results[0].json()["blob"]["id"]
-        assert db.scalar(select(func.count()).select_from(Blob).where(Blob.id == blob_id)) == 1
+        all_blob_ids = set(db.scalars(select(Blob.id)))
+        assert all_blob_ids - baseline_blob_ids == {blob_id}
+        assert len(all_blob_ids) == len(baseline_blob_ids) + 1
+        actor = db.scalar(select(User).where(User.email == email))
+        assert actor is not None
+        assert (
+            db.scalar(
+                select(func.count()).select_from(Blob).where(Blob.created_by_user_id == actor.id)
+            )
+            == 1
+        )
+
+    bucket_root = tmp_path / "blobs" / "openpdm-blobs"
+    final_files = [
+        path
+        for path in bucket_root.rglob("*")
+        if path.is_file() and "upload-sessions" not in path.parts
+    ]
+    assert len(final_files) == 1
+    assert final_files[0].read_bytes() == b"ABCDEFGH"
+    session_path = bucket_root / "upload-sessions" / session_id
+    assert sorted(path.name for path in (session_path / "chunks").iterdir()) == ["0", "1"]
+    LocalFileBlobStorage(str(tmp_path / "blobs"), "openpdm-blobs").cleanup_upload_session(
+        session_id
+    )
+    assert not session_path.exists()
+    assert final_files[0].read_bytes() == b"ABCDEFGH"
 
 
 class PaginatedS3Client:
