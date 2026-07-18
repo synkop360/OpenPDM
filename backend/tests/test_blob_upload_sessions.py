@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from cryptography.fernet import Fernet
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import BigInteger, create_engine, inspect, select
 
@@ -15,11 +18,18 @@ from openpdm.infrastructure.blob_storage import (
     BlobStorage,
     LocalFileBlobStorage,
     S3CompatibleBlobStorage,
+    UploadAssemblyResult,
     reset_blob_storage_cache,
 )
-from openpdm.infrastructure.database import dispose_engines, initialize_database, session_scope
+from openpdm.infrastructure.database import (
+    dispose_engines,
+    get_session_factory,
+    initialize_database,
+    session_scope,
+)
 from openpdm.infrastructure.settings import Settings
-from openpdm.platform_core.modules.models import Blob, BlobUploadChunk, BlobUploadSession
+from openpdm.platform_core.modules.models import Blob, BlobUploadChunk, BlobUploadSession, User
+from openpdm.platform_core.modules.services import BlobModule
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -123,6 +133,8 @@ def test_cancellation_is_idempotent_and_prevents_blob_creation(tmp_path: Path) -
     token = register(client, email="owner@example.com")
     session_id = str(create_session(client, token)["id"])
     assert upload_chunk(client, token, session_id, 0, b"ABCD").status_code == 200
+    session_path = tmp_path / "blobs" / "openpdm-blobs" / "upload-sessions" / session_id
+    assert (session_path / "chunks" / "0").read_bytes() == b"ABCD"
     assert (
         client.delete(f"/blobs/upload-sessions/{session_id}", headers=headers(token)).status_code
         == 204
@@ -143,6 +155,11 @@ def test_cancellation_is_idempotent_and_prevents_blob_creation(tmp_path: Path) -
     )
     with session_scope() as db:
         assert db.scalar(select(Blob).where(Blob.created_by_user_id.is_not(None))) is None
+        assert (
+            db.scalar(select(BlobUploadChunk).where(BlobUploadChunk.session_id == session_id))
+            is None
+        )
+    assert not session_path.exists()
 
 
 def test_invalid_upload_session_limits_and_chunks_are_rejected(tmp_path: Path) -> None:
@@ -168,7 +185,7 @@ def test_invalid_upload_session_limits_and_chunks_are_rejected(tmp_path: Path) -
     assert upload_chunk(client, token, session_id, 2, b"ABCD").status_code == 400
 
 
-def test_digest_and_total_size_mismatches_never_create_a_blob_and_can_recover(
+def test_digest_mismatch_never_creates_a_blob_and_can_recover(
     tmp_path: Path,
 ) -> None:
     client = build_client(tmp_path)
@@ -188,12 +205,17 @@ def test_digest_and_total_size_mismatches_never_create_a_blob_and_can_recover(
         client.get(f"/blobs/upload-sessions/{session_id}", headers=headers(token)).json()["status"]
         == "active"
     )
+    with session_scope() as db:
+        assert db.scalar(select(Blob)) is None
 
 
 def test_expired_session_cleans_up_and_returns_gone(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     token = register(client, email="owner@example.com")
     session_id = str(create_session(client, token)["id"])
+    assert upload_chunk(client, token, session_id, 0, b"ABCD").status_code == 200
+    session_path = tmp_path / "blobs" / "openpdm-blobs" / "upload-sessions" / session_id
+    assert session_path.exists()
     with session_scope() as db:
         from openpdm.platform_core.modules.models import BlobUploadSession
 
@@ -206,6 +228,11 @@ def test_expired_session_cleans_up_and_returns_gone(tmp_path: Path) -> None:
     )
     with session_scope() as db:
         assert db.get(BlobUploadSession, session_id).status == "expired"
+        assert (
+            db.scalar(select(BlobUploadChunk).where(BlobUploadChunk.session_id == session_id))
+            is None
+        )
+    assert not session_path.exists()
 
 
 def test_local_storage_contains_upload_session_paths(tmp_path: Path) -> None:
@@ -229,14 +256,233 @@ def test_upload_session_migration_is_upgradeable(tmp_path: Path) -> None:
     config = Config("alembic.ini")
     command.stamp(config, "20260718_0005")
     command.upgrade(config, "head")
-    tables = set(inspect(engine).get_table_names())
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
     assert {"blob_upload_sessions", "blob_upload_chunks"} <= tables
+    session_types = {
+        column["name"]: column["type"] for column in inspector.get_columns("blob_upload_sessions")
+    }
+    chunk_types = {
+        column["name"]: column["type"] for column in inspector.get_columns("blob_upload_chunks")
+    }
+    blob_types = {column["name"]: column["type"] for column in inspector.get_columns("blobs")}
+    assert isinstance(session_types["total_size_bytes"], BigInteger)
+    assert isinstance(session_types["chunk_size_bytes"], BigInteger)
+    assert isinstance(chunk_types["size_bytes"], BigInteger)
+    assert isinstance(blob_types["size_bytes"], BigInteger)
 
 
 def test_blob_byte_counts_support_the_configured_five_gib_limit() -> None:
     assert isinstance(Blob.__table__.c.size_bytes.type, BigInteger)
     assert isinstance(BlobUploadSession.__table__.c.total_size_bytes.type, BigInteger)
+    assert isinstance(BlobUploadSession.__table__.c.chunk_size_bytes.type, BigInteger)
     assert isinstance(BlobUploadChunk.__table__.c.size_bytes.type, BigInteger)
+
+
+class MultipartS3Client:
+    def __init__(self, chunks: dict[int, bytes], *, fail_part: int | None = None) -> None:
+        self.chunks = chunks
+        self.fail_part = fail_part
+        self.uploaded_parts: list[bytes] = []
+        self.source_bodies: list[io.BytesIO] = []
+        self.completed: dict[str, object] | None = None
+        self.aborted = False
+
+    def create_multipart_upload(self, **kwargs: object) -> dict[str, str]:
+        return {"UploadId": "upload-id"}
+
+    def get_object(self, *, Bucket: str, Key: str) -> dict[str, io.BytesIO]:
+        body = io.BytesIO(self.chunks[int(Key.rsplit("/", 1)[-1])])
+        self.source_bodies.append(body)
+        return {"Body": body}
+
+    def upload_part(self, *, Body: io.BufferedIOBase, **kwargs: object) -> dict[str, str]:
+        part_number = int(kwargs["PartNumber"])
+        if part_number == self.fail_part:
+            raise OSError("provider rejected part")
+        self.uploaded_parts.append(Body.read())
+        return {"ETag": f"etag-{part_number}"}
+
+    def complete_multipart_upload(self, **kwargs: object) -> None:
+        self.completed = kwargs
+
+    def abort_multipart_upload(self, **kwargs: object) -> None:
+        self.aborted = True
+
+
+def build_fake_s3_storage(client: MultipartS3Client) -> S3CompatibleBlobStorage:
+    storage = object.__new__(S3CompatibleBlobStorage)
+    storage._bucket = "bucket"
+    storage._client = client
+    return storage
+
+
+def test_s3_assembly_coalesces_small_client_chunks_into_provider_valid_parts() -> None:
+    mebibyte = 1024 * 1024
+    chunks = {0: b"A" * (3 * mebibyte), 1: b"B" * (3 * mebibyte), 2: b"C" * mebibyte}
+    expected = b"".join(chunks.values())
+    client = MultipartS3Client(chunks)
+
+    result = build_fake_s3_storage(client).assemble_upload_session(
+        "session", "completed/blob", [0, 1, 2]
+    )
+
+    assert b"".join(client.uploaded_parts) == expected
+    assert [len(part) for part in client.uploaded_parts] == [5 * mebibyte, 2 * mebibyte]
+    assert all(len(part) >= 5 * mebibyte for part in client.uploaded_parts[:-1])
+    assert result == UploadAssemblyResult(len(expected), hashlib.sha256(expected).hexdigest())
+    assert client.completed is not None
+    assert not client.aborted
+    assert all(body.closed for body in client.source_bodies)
+
+
+def test_s3_assembly_aborts_multipart_upload_when_a_part_fails() -> None:
+    mebibyte = 1024 * 1024
+    client = MultipartS3Client(
+        {0: b"A" * (5 * mebibyte), 1: b"B"},
+        fail_part=2,
+    )
+
+    try:
+        build_fake_s3_storage(client).assemble_upload_session("session", "completed/blob", [0, 1])
+    except OSError:
+        pass
+    else:
+        raise AssertionError("provider part failure must escape assembly")
+
+    assert client.aborted
+    assert client.completed is None
+    assert all(body.closed for body in client.source_bodies)
+
+
+class ControlledAssemblyStorage(BlobStorage):
+    def __init__(self, result: UploadAssemblyResult | None = None, *, fail: bool = False) -> None:
+        self.result = result
+        self.fail = fail
+
+    def put_bytes(self, storage_key: str, content: bytes, media_type: str | None = None) -> None:
+        raise AssertionError("legacy method not expected")
+
+    def get_bytes(self, storage_key: str) -> bytes:
+        raise AssertionError("not expected")
+
+    def initialize_upload_session(self, session_id: str) -> None:
+        return None
+
+    def put_upload_chunk(
+        self, session_id: str, chunk_number: int, content: io.BufferedIOBase, checksum_sha256: str
+    ) -> None:
+        content.read()
+
+    def assemble_upload_session(
+        self, session_id: str, storage_key: str, chunk_numbers: list[int]
+    ) -> UploadAssemblyResult:
+        if self.fail:
+            raise OSError("assembly failed")
+        assert self.result is not None
+        return self.result
+
+    def cleanup_upload_session(self, session_id: str) -> None:
+        return None
+
+
+@pytest.mark.parametrize(
+    ("storage", "expected_detail"),
+    [
+        (
+            ControlledAssemblyStorage(
+                UploadAssemblyResult(7, hashlib.sha256(b"ABCDEFG").hexdigest())
+            ),
+            "Assembled content size does not match the upload session.",
+        ),
+        (ControlledAssemblyStorage(fail=True), "Upload storage assembly failed."),
+    ],
+)
+def test_assembly_size_or_storage_failure_keeps_session_recoverable_without_blob(
+    tmp_path: Path,
+    storage: ControlledAssemblyStorage,
+    expected_detail: str,
+) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    from openpdm.api.core import get_storage
+
+    client.app.dependency_overrides[get_storage] = lambda: storage
+    session_id = str(create_session(client, token)["id"])
+    assert upload_chunk(client, token, session_id, 0, b"ABCD").status_code == 200
+    assert upload_chunk(client, token, session_id, 1, b"EFGH").status_code == 200
+
+    response = client.post(f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token))
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == expected_detail
+    assert (
+        client.get(f"/blobs/upload-sessions/{session_id}", headers=headers(token)).json()["status"]
+        == "active"
+    )
+    with session_scope() as db:
+        assert db.scalar(select(Blob)) is None
+
+
+def test_chunk_stream_rechecks_locked_session_after_concurrent_cancellation(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    session_id = str(create_session(client, token)["id"])
+    storage = LocalFileBlobStorage(str(tmp_path / "blobs"), "openpdm-blobs")
+    session_factory = get_session_factory()
+    streaming_db = session_factory()
+    cancelling_db = session_factory()
+    try:
+        streaming_actor = streaming_db.scalar(select(User).where(User.email == "owner@example.com"))
+        cancelling_actor = cancelling_db.scalar(
+            select(User).where(User.email == "owner@example.com")
+        )
+        assert streaming_actor is not None
+        assert cancelling_actor is not None
+
+        contract = BlobModule.get_upload_chunk_contract(
+            streaming_db,
+            session_id=session_id,
+            actor=streaming_actor,
+            storage=storage,
+        )
+        assert contract == (8, 4)
+
+        BlobModule.cancel_upload_session(
+            cancelling_db,
+            session_id=session_id,
+            actor=cancelling_actor,
+            storage=storage,
+        )
+        cancelling_db.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            BlobModule.put_upload_chunk(
+                streaming_db,
+                session_id=session_id,
+                chunk_number=0,
+                content=io.BytesIO(b"ABCD"),
+                size_bytes=4,
+                checksum_sha256=hashlib.sha256(b"ABCD").hexdigest(),
+                actor=streaming_actor,
+                storage=storage,
+            )
+        assert exc_info.value.status_code == 409
+        streaming_db.rollback()
+    finally:
+        streaming_db.close()
+        cancelling_db.close()
+
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        assert upload_session.status == "cancelled"
+        assert (
+            db.scalar(select(BlobUploadChunk).where(BlobUploadChunk.session_id == session_id))
+            is None
+        )
+        assert db.scalar(select(Blob)) is None
+    assert not (tmp_path / "blobs" / "openpdm-blobs" / "upload-sessions" / session_id).exists()
 
 
 class PaginatedS3Client:

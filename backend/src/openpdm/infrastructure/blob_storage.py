@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import tempfile
 from abc import ABC, abstractmethod
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, BinaryIO
@@ -215,21 +217,48 @@ class S3CompatibleBlobStorage(BlobStorage):
         parts: list[dict[str, object]] = []
         digest = hashlib.sha256()
         size_bytes = 0
+        minimum_part_size = 5 * 1024 * 1024
+        part_number = 1
         try:
-            for part_number, number in enumerate(chunk_numbers, start=1):
-                source_key = f"{prefix}chunks/{number}"
-                body = self._client.get_object(Bucket=self._bucket, Key=source_key)["Body"]
-                while chunk := body.read(1024 * 1024):
-                    digest.update(chunk)
-                    size_bytes += len(chunk)
-                copied = self._client.upload_part_copy(
-                    Bucket=self._bucket,
-                    Key=storage_key,
-                    PartNumber=part_number,
-                    UploadId=upload_id,
-                    CopySource={"Bucket": self._bucket, "Key": source_key},
-                )
-                parts.append({"ETag": copied["CopyPartResult"]["ETag"], "PartNumber": part_number})
+            with tempfile.SpooledTemporaryFile(
+                max_size=minimum_part_size + 1024 * 1024, mode="w+b"
+            ) as buffer:
+                buffered_size = 0
+                for number in chunk_numbers:
+                    with closing(
+                        self._client.get_object(
+                            Bucket=self._bucket, Key=f"{prefix}chunks/{number}"
+                        )["Body"]
+                    ) as body:
+                        while chunk := body.read(1024 * 1024):
+                            buffer.write(chunk)
+                            buffered_size += len(chunk)
+                            size_bytes += len(chunk)
+                            digest.update(chunk)
+                            if buffered_size >= minimum_part_size:
+                                buffer.seek(0)
+                                uploaded = self._client.upload_part(
+                                    Bucket=self._bucket,
+                                    Key=storage_key,
+                                    PartNumber=part_number,
+                                    UploadId=upload_id,
+                                    Body=buffer,
+                                )
+                                parts.append({"ETag": uploaded["ETag"], "PartNumber": part_number})
+                                part_number += 1
+                                buffer.seek(0)
+                                buffer.truncate(0)
+                                buffered_size = 0
+                if buffered_size:
+                    buffer.seek(0)
+                    uploaded = self._client.upload_part(
+                        Bucket=self._bucket,
+                        Key=storage_key,
+                        PartNumber=part_number,
+                        UploadId=upload_id,
+                        Body=buffer,
+                    )
+                    parts.append({"ETag": uploaded["ETag"], "PartNumber": part_number})
             self._client.complete_multipart_upload(
                 Bucket=self._bucket,
                 Key=storage_key,

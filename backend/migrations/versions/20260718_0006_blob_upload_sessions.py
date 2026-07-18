@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("media_type", sa.String(length=255), nullable=False),
         sa.Column("total_size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("checksum_sha256", sa.String(length=64), nullable=True),
-        sa.Column("chunk_size_bytes", sa.Integer(), nullable=False),
+        sa.Column("chunk_size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("blob_id", sa.String(length=36), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),

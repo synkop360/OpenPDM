@@ -2038,7 +2038,7 @@ class BlobModule:
     ) -> BlobUploadSession:
         statement = select(BlobUploadSession).where(BlobUploadSession.id == session_id)
         if lock:
-            statement = statement.with_for_update()
+            statement = statement.with_for_update().execution_options(populate_existing=True)
         upload_session = db.scalar(statement)
         if upload_session is None:
             raise HTTPException(
@@ -2053,6 +2053,9 @@ class BlobModule:
             expires_at = expires_at.replace(tzinfo=UTC)
         if upload_session.status == "active" and expires_at <= utc_now():
             storage.cleanup_upload_session(upload_session.id)
+            db.execute(
+                delete(BlobUploadChunk).where(BlobUploadChunk.session_id == upload_session.id)
+            )
             upload_session.status = "expired"
             upload_session.updated_at = utc_now()
             record_audit(
@@ -2138,6 +2141,42 @@ class BlobModule:
         return BlobModule._upload_session_or_error(
             db, session_id=session_id, actor=actor, storage=storage
         )
+
+    @staticmethod
+    def get_upload_chunk_contract(
+        db: Session, *, session_id: str, actor: User, storage: BlobStorage
+    ) -> tuple[int, int]:
+        """Inspect immutable chunk bounds without retaining mutable session state."""
+        row = db.execute(
+            select(
+                BlobUploadSession.owner_user_id,
+                BlobUploadSession.status,
+                BlobUploadSession.expires_at,
+                BlobUploadSession.total_size_bytes,
+                BlobUploadSession.chunk_size_bytes,
+            ).where(BlobUploadSession.id == session_id)
+        ).one_or_none()
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Upload session not found."
+            )
+        owner_user_id, session_status, expires_at, total_size_bytes, chunk_size_bytes = row
+        if owner_user_id != actor.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Upload session access denied."
+            )
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if session_status == "active" and expires_at <= utc_now():
+            BlobModule._upload_session_or_error(
+                db, session_id=session_id, actor=actor, storage=storage, lock=True
+            )
+        require(
+            session_status == "active",
+            "Upload session is not active.",
+            status.HTTP_409_CONFLICT,
+        )
+        return total_size_bytes, chunk_size_bytes
 
     @staticmethod
     def put_upload_chunk(
@@ -2302,6 +2341,7 @@ class BlobModule:
             status.HTTP_409_CONFLICT,
         )
         storage.cleanup_upload_session(upload_session.id)
+        db.execute(delete(BlobUploadChunk).where(BlobUploadChunk.session_id == upload_session.id))
         upload_session.status = "cancelled"
         upload_session.updated_at = utc_now()
         record_audit(
@@ -2332,6 +2372,9 @@ class BlobModule:
         )
         for upload_session in sessions:
             storage.cleanup_upload_session(upload_session.id)
+            db.execute(
+                delete(BlobUploadChunk).where(BlobUploadChunk.session_id == upload_session.id)
+            )
             upload_session.status = "expired"
             upload_session.updated_at = utc_now()
             record_audit(

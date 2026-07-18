@@ -184,7 +184,7 @@ class BlobUploadSession(Base):
     media_type: Mapped[str] = mapped_column(String(255))
     total_size_bytes: Mapped[int] = mapped_column(BigInteger)
     checksum_sha256: Mapped[str | None] = mapped_column(String(64))
-    chunk_size_bytes: Mapped[int] = mapped_column(Integer)
+    chunk_size_bytes: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), default="active", index=True)
     blob_id: Mapped[str | None] = mapped_column(ForeignKey("blobs.id"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

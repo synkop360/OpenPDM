@@ -1565,21 +1565,19 @@ async def put_blob_upload_session_chunk(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chunk content type must be application/octet-stream.",
         )
-    inspected = BlobModule.get_upload_session(
+    total_size_bytes, chunk_size_bytes = BlobModule.get_upload_chunk_contract(
         db, session_id=session_id, actor=context.user, storage=storage
     )
-    chunk_count = (
-        inspected.total_size_bytes + inspected.chunk_size_bytes - 1
-    ) // inspected.chunk_size_bytes
+    chunk_count = (total_size_bytes + chunk_size_bytes - 1) // chunk_size_bytes
     if not 0 <= chunk_number < chunk_count:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chunk number is outside the upload range.",
         )
     expected_size = (
-        inspected.chunk_size_bytes
+        chunk_size_bytes
         if chunk_number < chunk_count - 1
-        else inspected.total_size_bytes - inspected.chunk_size_bytes * (chunk_count - 1)
+        else total_size_bytes - chunk_size_bytes * (chunk_count - 1)
     )
     with tempfile.SpooledTemporaryFile(max_size=1024 * 1024, mode="w+b") as content:
         digest = hashlib.sha256()

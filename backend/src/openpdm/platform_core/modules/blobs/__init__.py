@@ -1,12 +1,9 @@
 """Public Blobs Platform Module contract."""
 
-from typing import BinaryIO, Protocol
-
-from sqlalchemy.orm import Session
+from typing import Any, BinaryIO, Protocol
 
 from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.infrastructure.settings import Settings
-from openpdm.platform_core.modules.models import BlobUploadSession, User
 
 
 class BlobsInterface(Protocol):
@@ -14,40 +11,44 @@ class BlobsInterface(Protocol):
 
     def create_upload_session(
         self,
-        db: Session,
+        db: Any,
         *,
-        actor: User,
+        actor: Any,
         filename: str,
         media_type: str,
         total_size_bytes: int,
         checksum_sha256: str | None,
         storage: BlobStorage,
         settings: Settings,
-    ) -> BlobUploadSession: ...
+    ) -> Any: ...
 
     def get_upload_session(
-        self, db: Session, *, session_id: str, actor: User, storage: BlobStorage
-    ) -> BlobUploadSession: ...
+        self, db: Any, *, session_id: str, actor: Any, storage: BlobStorage
+    ) -> Any: ...
+
+    def get_upload_chunk_contract(
+        self, db: Any, *, session_id: str, actor: Any, storage: BlobStorage
+    ) -> tuple[int, int]: ...
 
     def put_upload_chunk(
         self,
-        db: Session,
+        db: Any,
         *,
         session_id: str,
         chunk_number: int,
         content: BinaryIO,
         size_bytes: int,
         checksum_sha256: str,
-        actor: User,
+        actor: Any,
         storage: BlobStorage,
-    ) -> BlobUploadSession: ...
+    ) -> Any: ...
 
     def complete_upload_session(
-        self, db: Session, *, session_id: str, actor: User, storage: BlobStorage
-    ) -> BlobUploadSession: ...
+        self, db: Any, *, session_id: str, actor: Any, storage: BlobStorage
+    ) -> Any: ...
 
     def cancel_upload_session(
-        self, db: Session, *, session_id: str, actor: User, storage: BlobStorage
+        self, db: Any, *, session_id: str, actor: Any, storage: BlobStorage
     ) -> None: ...
 
-    def cleanup_expired_upload_sessions(self, db: Session, *, storage: BlobStorage) -> int: ...
+    def cleanup_expired_upload_sessions(self, db: Any, *, storage: BlobStorage) -> int: ...
