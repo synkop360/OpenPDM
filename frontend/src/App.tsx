@@ -30,7 +30,6 @@ import {
   changeProjectMemberRole,
   downloadBlob,
   discoverProviders,
-  fetchFoundationStatus,
   getAsset,
   getAssetGraph,
   getAssetHistory,
@@ -68,7 +67,6 @@ import {
   uploadBlob,
   type Asset,
   type CollaborationState,
-  type FoundationStatus,
   type NotificationRecord,
   type OrganizationMembership,
   type Project,
@@ -83,26 +81,25 @@ import {
   updatePluginConfiguration,
   upgradePluginPackage,
 } from "./api";
+import { createLoadable, type Loadable } from "./app/loadable";
+import { parseAppRoute, type ProjectTab } from "./app/routes";
+import {
+  ASSET_KEY,
+  ORG_KEY,
+  PROJECT_KEY,
+  SESSION_TOKEN_KEY,
+  readStoredValue,
+  writeStoredValue,
+} from "./app/storage";
+import { useRouteFocus } from "./app/useRouteFocus";
+import { ProjectTabs } from "./components/navigation/ProjectTabs";
+import { AppShell } from "./components/shell/AppShell";
+import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
+import { GuestHeader } from "./components/shell/GuestHeader";
+import { useFoundationStatus } from "./hooks/useFoundationStatus";
 import "./styles.css";
 
-const SESSION_TOKEN_KEY = "openpdm.sessionToken";
-const ORG_KEY = "openpdm.organizationId";
-const PROJECT_KEY = "openpdm.projectId";
-const ASSET_KEY = "openpdm.assetId";
-
 type AuthMode = "sign-in" | "register";
-type AppView = "home" | "projects" | "project" | "plugin-administration";
-type ProjectTab = "overview" | "assets" | "relationships" | "collaboration" | "members";
-
-type Loadable<T> = {
-  status: "idle" | "loading" | "ready" | "error";
-  data: T;
-  error: string | null;
-};
-
-function createLoadable<T>(data: T): Loadable<T> {
-  return { status: "idle", data, error: null };
-}
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString();
@@ -114,18 +111,6 @@ function slugify(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-function readStoredValue(key: string): string | null {
-  return window.localStorage.getItem(key);
-}
-
-function writeStoredValue(key: string, value: string | null): void {
-  if (value) {
-    window.localStorage.setItem(key, value);
-    return;
-  }
-  window.localStorage.removeItem(key);
 }
 
 async function triggerBrowserDownload(
@@ -230,28 +215,9 @@ function formatMetadataSummary(metadata: Record<string, unknown>): string | null
 function OpenPdmApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const routeParts = location.pathname.split("/").filter(Boolean);
-  const view: AppView =
-    routeParts[0] === "administration" && routeParts[1] === "plugins"
-      ? "plugin-administration"
-      : routeParts[0] === "projects"
-        ? routeParts.length >= 2
-          ? "project"
-          : "projects"
-        : "home";
-  const projectTab: ProjectTab = ([
-    "overview",
-    "assets",
-    "relationships",
-    "collaboration",
-    "members",
-  ] as ProjectTab[]).includes(routeParts[2] as ProjectTab)
-    ? (routeParts[2] as ProjectTab)
-    : "overview";
-  const routeProjectId = view === "project" ? routeParts[1] : null;
-  const [foundation, setFoundation] = useState<Loadable<FoundationStatus | null>>(
-    createLoadable<FoundationStatus | null>(null),
-  );
+  const { projectId: routeProjectId, projectTab, view } = parseAppRoute(location.pathname);
+  useRouteFocus();
+  const foundation = useFoundationStatus();
   const [session, setSession] = useState<Loadable<SessionInfo | null>>(
     createLoadable<SessionInfo | null>(null),
   );
@@ -354,21 +320,6 @@ function OpenPdmApp() {
       navigate("/projects", { replace: true });
     }
   }, [navigate, projects.data, projects.status, routeProjectId, view]);
-
-  useEffect(() => {
-    setFoundation((current) => ({ ...current, status: "loading", error: null }));
-    fetchFoundationStatus()
-      .then((result) => {
-        setFoundation({ status: "ready", data: result, error: null });
-      })
-      .catch((error: unknown) => {
-        setFoundation({
-          status: "error",
-          data: null,
-          error: error instanceof Error ? error.message : "Unknown API error",
-        });
-      });
-  }, []);
 
   useEffect(() => {
     const token = readStoredValue(SESSION_TOKEN_KEY);
@@ -1389,57 +1340,27 @@ function OpenPdmApp() {
   }
 
   return (
-    <main className="app-shell">
-      {isAuthenticated ? (
-        <header className="app-topbar">
-          <button
-            aria-label="Open navigation"
-            className="icon-button mobile-menu-button"
-            onClick={() => setMobileNavigationOpen(true)}
-            type="button"
-          >
-            <Menu />
-          </button>
-          <button className="brand" onClick={() => navigate("/")} type="button">
-            <span className="brand-mark"><Boxes /></span>
-            <span><strong>OpenPDM</strong><small>Engineering collaboration</small></span>
-          </button>
-          <div className="topbar-status">
-            <span className="health-dot" />
-            {foundation.data?.phase ?? "Connecting to API"}
-          </div>
-          <button className="icon-button" aria-label="Notifications" onClick={() => navigate("/")} type="button">
-            <Bell />
-            {unreadNotifications ? <span className="notification-count">{unreadNotifications}</span> : null}
-          </button>
-          <div className="user-avatar" title={session.data?.user.email}>
-            {session.data?.user.display_name.slice(0, 2).toUpperCase()}
-          </div>
-          <button className="icon-button" aria-label="Sign out" onClick={() => void handleSignOut()} type="button">
-            <LogOut />
-          </button>
-        </header>
-      ) : (
-        <section className="hero-panel auth-hero">
-          <div>
-            <p className="eyebrow">Engineering Collaboration Platform</p>
-            <h1>OpenPDM</h1>
-            <p className="intro">Organize, version, relate and secure engineering assets through one open platform.</p>
-          </div>
-          <dl className="foundation-grid">
-            <div><dt>API Status</dt><dd>{foundation.data ? foundation.data.phase : foundation.error ?? "Loading..."}</dd></div>
-            <div><dt>Architecture</dt><dd>{foundation.data?.architecture ?? "Connecting..."}</dd></div>
-            <div><dt>Version</dt><dd>{foundation.data?.version ?? "Unknown"}</dd></div>
-          </dl>
-        </section>
-      )}
-
-      {banner ? (
-        <p className="banner" role="status">
-          {banner}
-        </p>
-      ) : null}
-
+    <AppShell
+      announcement={banner}
+      header={
+        isAuthenticated && session.data ? (
+          <AuthenticatedHeader
+            apiError={foundation.error}
+            apiLabel={foundation.data?.phase ?? "Connecting to API"}
+            apiStatus={foundation.status}
+            displayName={session.data.user.display_name}
+            email={session.data.user.email}
+            onHome={() => navigate("/")}
+            onNotifications={() => navigate("/")}
+            onOpenNavigation={() => setMobileNavigationOpen(true)}
+            onSignOut={() => void handleSignOut()}
+            unreadNotifications={unreadNotifications}
+          />
+        ) : (
+          <GuestHeader foundation={foundation} />
+        )
+      }
+    >
       {!isAuthenticated ? (
         <section className="panel auth-panel">
           <header className="panel-header">
@@ -1680,167 +1601,6 @@ function OpenPdmApp() {
                     </div>
                   ) : null}
 
-                  {view === "project" && projectTab === "members" && selectedOrganizationId ? (
-                    <section className="membership-panel" aria-labelledby="organization-members-heading">
-                      <h3 id="organization-members-heading">Organization members</h3>
-                      <p className="muted-text">
-                        Owners control Owner roles. Every Organization must retain an Owner.
-                      </p>
-                      {organizationMembers.status === "error" ? (
-                        <p className="error-message" role="alert">{organizationMembers.error}</p>
-                      ) : null}
-                      <div className="member-list">
-                        {organizationMembers.data.map((membership) => {
-                          const canManageTarget =
-                            canManageOrganizationMembers &&
-                            (membership.role !== "Owner" || currentOrganizationRole === "Owner");
-                          return (
-                            <div className="member-row" key={membership.id}>
-                              <span>
-                                <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
-                                <small>{membership.user?.email}</small>
-                              </span>
-                              <select
-                                aria-label={`Organization role for ${membership.user?.display_name ?? "member"}`}
-                                disabled={!canManageTarget || busyAction === `organization-role-${membership.id}`}
-                                value={membership.role}
-                                onChange={(event) => void handleOrganizationRoleChange(membership.id, event.target.value)}
-                              >
-                                {currentOrganizationRole === "Owner" || membership.role === "Owner" ? <option>Owner</option> : null}
-                                <option>Maintainer</option>
-                                <option>Contributor</option>
-                                <option>Viewer</option>
-                              </select>
-                              {canManageTarget ? (
-                                <button
-                                  className="secondary-button"
-                                  disabled={busyAction === `remove-organization-${membership.id}`}
-                                  onClick={() => void handleRemoveOrganizationMember(membership)}
-                                  type="button"
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {canManageOrganizationMembers ? (
-                        <form className="form-grid compact-form" onSubmit={handleAddOrganizationMember}>
-                          <h4>Add registered user</h4>
-                          <label>
-                            Email
-                            <input
-                              required
-                              type="email"
-                              value={organizationMemberForm.email}
-                              onChange={(event) => setOrganizationMemberForm((current) => ({ ...current, email: event.target.value }))}
-                            />
-                          </label>
-                          <label>
-                            Organization role
-                            <select
-                              value={organizationMemberForm.role}
-                              onChange={(event) => setOrganizationMemberForm((current) => ({ ...current, role: event.target.value }))}
-                            >
-                              {currentOrganizationRole === "Owner" ? <option>Owner</option> : null}
-                              <option>Maintainer</option>
-                              <option>Contributor</option>
-                              <option>Viewer</option>
-                            </select>
-                          </label>
-                          <button className="primary-button" disabled={busyAction === "add-organization-member"} type="submit">
-                            {busyAction === "add-organization-member" ? "Adding..." : "Add member"}
-                          </button>
-                        </form>
-                      ) : null}
-                    </section>
-                  ) : null}
-
-                  {view === "project" && projectTab === "members" && selectedProjectId ? (
-                    <section className="membership-panel" aria-labelledby="project-members-heading">
-                      <h3 id="project-members-heading">Project members</h3>
-                      <p className="muted-text">
-                        Project members must already belong to the Organization.
-                      </p>
-                      {projectMembers.status === "error" ? (
-                        <p className="error-message" role="alert">{projectMembers.error}</p>
-                      ) : null}
-                      <div className="member-list">
-                        {projectMembers.data.map((membership) => {
-                          const canManageTarget =
-                            canManageProjectMembers &&
-                            (membership.role !== "Owner" || currentProjectRole === "Owner");
-                          return (
-                            <div className="member-row" key={membership.id}>
-                              <span>
-                                <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
-                                <small>{membership.user?.email}</small>
-                              </span>
-                              <select
-                                aria-label={`Project role for ${membership.user?.display_name ?? "member"}`}
-                                disabled={!canManageTarget || busyAction === `project-role-${membership.id}`}
-                                value={membership.role}
-                                onChange={(event) => void handleProjectRoleChange(membership.id, event.target.value)}
-                              >
-                                {currentProjectRole === "Owner" || membership.role === "Owner" ? <option>Owner</option> : null}
-                                <option>Maintainer</option>
-                                <option>Contributor</option>
-                                <option>Viewer</option>
-                              </select>
-                              {canManageTarget ? (
-                                <button
-                                  className="secondary-button"
-                                  disabled={busyAction === `remove-project-${membership.id}`}
-                                  onClick={() => void handleRemoveProjectMember(membership)}
-                                  type="button"
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {canManageProjectMembers ? (
-                        <form className="form-grid compact-form" onSubmit={handleAddProjectMember}>
-                          <h4>Add Organization member</h4>
-                          <label>
-                            User
-                            <select
-                              required
-                              value={projectMemberForm.userId}
-                              onChange={(event) => setProjectMemberForm((current) => ({ ...current, userId: event.target.value }))}
-                            >
-                              <option value="">Select a user</option>
-                              {organizationMembers.data
-                                .filter((candidate) => candidate.user && !projectMembers.data.some((member) => member.user?.id === candidate.user?.id))
-                                .map((candidate) => (
-                                  <option key={candidate.id} value={candidate.user?.id}>
-                                    {candidate.user?.display_name} ({candidate.user?.email})
-                                  </option>
-                                ))}
-                            </select>
-                          </label>
-                          <label>
-                            Project role
-                            <select
-                              value={projectMemberForm.role}
-                              onChange={(event) => setProjectMemberForm((current) => ({ ...current, role: event.target.value }))}
-                            >
-                              {currentProjectRole === "Owner" ? <option>Owner</option> : null}
-                              <option>Maintainer</option>
-                              <option>Contributor</option>
-                              <option>Viewer</option>
-                            </select>
-                          </label>
-                          <button className="primary-button" disabled={busyAction === "add-project-member"} type="submit">
-                            {busyAction === "add-project-member" ? "Adding..." : "Add to Project"}
-                          </button>
-                        </form>
-                      ) : null}
-                    </section>
-                  ) : null}
                 </>
               )}
 
@@ -2124,24 +1884,12 @@ function OpenPdmApp() {
                     </div>
                     <span className="status-pill">{currentProjectRole ?? "Member"}</span>
                   </div>
-                  <nav className="project-tabs" aria-label="Project sections">
-                    {([
-                      ["overview", "Overview"],
-                      ["assets", "Assets"],
-                      ["relationships", "Relationships"],
-                      ["collaboration", "Collaboration"],
-                      ["members", "Members"],
-                    ] as Array<[ProjectTab, string]>).map(([tab, label]) => (
-                      <button
-                        className={projectTab === tab ? "project-tab is-active" : "project-tab"}
-                        key={tab}
-                        onClick={() => navigate(`/projects/${selectedProjectId}/${tab}`)}
-                        type="button"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </nav>
+                  <ProjectTabs
+                    onValueChange={(tab: ProjectTab) =>
+                      navigate(`/projects/${selectedProjectId}/${tab}`)
+                    }
+                    value={projectTab}
+                  />
                 </header>
 
                 {projectTab === "overview" ? (
@@ -2200,8 +1948,172 @@ function OpenPdmApp() {
 
                 {projectTab === "members" ? (
                   <section className="panel content-span focused-panel">
-                    <header className="panel-header"><div><p className="eyebrow">Access</p><h2>Project members</h2></div><Users /></header>
-                    <p className="muted-text">Membership controls are available in the sidebar for the selected Organization and Project.</p>
+                    <header className="panel-header"><div><p className="eyebrow">Access</p><h2>Members</h2></div><Users /></header>
+                    <p className="muted-text">Review Organization and Project access in the routed workspace.</p>
+                    <div className="members-workspace">
+                  {view === "project" && projectTab === "members" && selectedOrganizationId ? (
+                    <section className="membership-panel" aria-labelledby="organization-members-heading">
+                      <h3 id="organization-members-heading">Organization members</h3>
+                      <p className="muted-text">
+                        Owners control Owner roles. Every Organization must retain an Owner.
+                      </p>
+                      {organizationMembers.status === "error" ? (
+                        <p className="error-message" role="alert">{organizationMembers.error}</p>
+                      ) : null}
+                      <div className="member-list">
+                        {organizationMembers.data.map((membership) => {
+                          const canManageTarget =
+                            canManageOrganizationMembers &&
+                            (membership.role !== "Owner" || currentOrganizationRole === "Owner");
+                          return (
+                            <div className="member-row" key={membership.id}>
+                              <span>
+                                <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
+                                <small>{membership.user?.email}</small>
+                              </span>
+                              <select
+                                aria-label={`Organization role for ${membership.user?.display_name ?? "member"}`}
+                                disabled={!canManageTarget || busyAction === `organization-role-${membership.id}`}
+                                value={membership.role}
+                                onChange={(event) => void handleOrganizationRoleChange(membership.id, event.target.value)}
+                              >
+                                {currentOrganizationRole === "Owner" || membership.role === "Owner" ? <option>Owner</option> : null}
+                                <option>Maintainer</option>
+                                <option>Contributor</option>
+                                <option>Viewer</option>
+                              </select>
+                              {canManageTarget ? (
+                                <button
+                                  className="secondary-button"
+                                  disabled={busyAction === `remove-organization-${membership.id}`}
+                                  onClick={() => void handleRemoveOrganizationMember(membership)}
+                                  type="button"
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {canManageOrganizationMembers ? (
+                        <form className="form-grid compact-form" onSubmit={handleAddOrganizationMember}>
+                          <h4>Add registered user</h4>
+                          <label>
+                            Email
+                            <input
+                              required
+                              type="email"
+                              value={organizationMemberForm.email}
+                              onChange={(event) => setOrganizationMemberForm((current) => ({ ...current, email: event.target.value }))}
+                            />
+                          </label>
+                          <label>
+                            Organization role
+                            <select
+                              value={organizationMemberForm.role}
+                              onChange={(event) => setOrganizationMemberForm((current) => ({ ...current, role: event.target.value }))}
+                            >
+                              {currentOrganizationRole === "Owner" ? <option>Owner</option> : null}
+                              <option>Maintainer</option>
+                              <option>Contributor</option>
+                              <option>Viewer</option>
+                            </select>
+                          </label>
+                          <button className="primary-button" disabled={busyAction === "add-organization-member"} type="submit">
+                            {busyAction === "add-organization-member" ? "Adding..." : "Add member"}
+                          </button>
+                        </form>
+                      ) : null}
+                    </section>
+                  ) : null}
+
+                  {view === "project" && projectTab === "members" && selectedProjectId ? (
+                    <section className="membership-panel" aria-labelledby="project-members-heading">
+                      <h3 id="project-members-heading">Project members</h3>
+                      <p className="muted-text">
+                        Project members must already belong to the Organization.
+                      </p>
+                      {projectMembers.status === "error" ? (
+                        <p className="error-message" role="alert">{projectMembers.error}</p>
+                      ) : null}
+                      <div className="member-list">
+                        {projectMembers.data.map((membership) => {
+                          const canManageTarget =
+                            canManageProjectMembers &&
+                            (membership.role !== "Owner" || currentProjectRole === "Owner");
+                          return (
+                            <div className="member-row" key={membership.id}>
+                              <span>
+                                <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
+                                <small>{membership.user?.email}</small>
+                              </span>
+                              <select
+                                aria-label={`Project role for ${membership.user?.display_name ?? "member"}`}
+                                disabled={!canManageTarget || busyAction === `project-role-${membership.id}`}
+                                value={membership.role}
+                                onChange={(event) => void handleProjectRoleChange(membership.id, event.target.value)}
+                              >
+                                {currentProjectRole === "Owner" || membership.role === "Owner" ? <option>Owner</option> : null}
+                                <option>Maintainer</option>
+                                <option>Contributor</option>
+                                <option>Viewer</option>
+                              </select>
+                              {canManageTarget ? (
+                                <button
+                                  className="secondary-button"
+                                  disabled={busyAction === `remove-project-${membership.id}`}
+                                  onClick={() => void handleRemoveProjectMember(membership)}
+                                  type="button"
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {canManageProjectMembers ? (
+                        <form className="form-grid compact-form" onSubmit={handleAddProjectMember}>
+                          <h4>Add Organization member</h4>
+                          <label>
+                            User
+                            <select
+                              required
+                              value={projectMemberForm.userId}
+                              onChange={(event) => setProjectMemberForm((current) => ({ ...current, userId: event.target.value }))}
+                            >
+                              <option value="">Select a user</option>
+                              {organizationMembers.data
+                                .filter((candidate) => candidate.user && !projectMembers.data.some((member) => member.user?.id === candidate.user?.id))
+                                .map((candidate) => (
+                                  <option key={candidate.id} value={candidate.user?.id}>
+                                    {candidate.user?.display_name} ({candidate.user?.email})
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <label>
+                            Project role
+                            <select
+                              value={projectMemberForm.role}
+                              onChange={(event) => setProjectMemberForm((current) => ({ ...current, role: event.target.value }))}
+                            >
+                              {currentProjectRole === "Owner" ? <option>Owner</option> : null}
+                              <option>Maintainer</option>
+                              <option>Contributor</option>
+                              <option>Viewer</option>
+                            </select>
+                          </label>
+                          <button className="primary-button" disabled={busyAction === "add-project-member"} type="submit">
+                            {busyAction === "add-project-member" ? "Adding..." : "Add to Project"}
+                          </button>
+                        </form>
+                      ) : null}
+                    </section>
+                  ) : null}
+
+                    </div>
                   </section>
                 ) : null}
 
@@ -2894,7 +2806,7 @@ function OpenPdmApp() {
           </section>
         </>
       )}
-    </main>
+    </AppShell>
   );
 }
 
