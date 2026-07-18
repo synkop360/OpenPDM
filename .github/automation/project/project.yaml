@@ -206,6 +206,9 @@ milestones:
   - title: Reference Official Plugin and Phase Demonstration
     description: Validate the public plugin ecosystem with a domain-neutral Official Plugin and reproducible demonstration.
 
+  - title: Web UI Operational Experience
+    description: Replace the demonstration-style Web UI with an accessible, responsive operational workspace backed only by public APIs.
+
   - title: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
 
@@ -218,7 +221,177 @@ milestones:
   - title: Digital Thread
     description: Connect engineering assets across the complete product lifecycle.
 
-issues: []
+issues:
+  - title: "Web UI Epic: Deliver the operational experience revamp"
+    body: |
+      ## Objective
+      Replace the demonstration-style Web UI with a systematic industrial operational workspace for daily engineering collaboration.
+
+      ## Expected Deliverable
+      An accessible, responsive Web UI with operational collection APIs, private saved Project views, governed administration, resumable Blob transfers and reconciled documentation. New contracts remain blocked until ADR-0041, ADR-0042 and ADR-0043 are explicitly accepted.
+
+      ## Acceptance Criteria
+      - Routed workspaces use project-owned tokens and accessible primitives.
+      - New public APIs preserve existing endpoints, authorization ownership and Platform Module boundaries.
+      - Blob transfers are resumable through storage-independent interfaces.
+      - WCAG 2.2 AA, keyboard, reduced-motion and responsive checks pass.
+      - Public API, deployment and Web UI documentation match the delivered behavior.
+
+      ## Dependencies
+      - ADR-0001, ADR-0002, ADR-0007, ADR-0025, ADR-0029, ADR-0038 and ADR-0040
+      - Explicit acceptance of ADR-0041, ADR-0042 and ADR-0043 before dependent implementation
+
+      ## Exit Criteria
+      - Every linked task is closed through a focused pull request.
+      - Frontend, backend, browser, accessibility and repository CI are green.
+      - High and medium findings are closed or explicitly deferred to approved issues.
+    milestone: Web UI Operational Experience
+    labels: [frontend, feature, P1]
+    fields:
+      Phase: Plugin Platform
+      Epic: Web UI Operational Experience
+      Platform Area: Frontend
+      Complexity: XL
+      ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0038, ADR-0040
+    sub_issues:
+      - title: "Web UI Task: Propose operational collection, upload-session and saved-view ADRs"
+        body: |
+          ## Objective
+          Draft ADR-0041 for bounded collection queries and batch commands, ADR-0042 for storage-independent resumable Blob upload sessions and ADR-0043 for private per-user Project views.
+
+          ## Acceptance Criteria
+          - Each ADR defines ownership, authorization, compatibility, boundaries and alternatives.
+          - Existing list endpoints remain supported.
+          - Bulk relationship mutation and executable plugin UI remain excluded.
+          - Dependent implementation remains blocked until explicit acceptance.
+        milestone: Web UI Operational Experience
+        labels: [architecture, decision, documentation, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Documentation
+          Complexity: M
+          ADR: ADR-0041, ADR-0042, ADR-0043
+
+      - title: "Web UI Task: Build the operational UI foundation and application shell"
+        body: |
+          ## Objective
+          Split the monolithic application into routed feature modules, an authenticated shell, typed loadable states, isolated API hooks and project-owned accessible components.
+
+          ## Acceptance Criteria
+          - Semantic tokens cover surfaces, text, borders, focus, density, motion and status.
+          - Navigation, breadcrumbs, drawers, tabs, dialogs, menus, tooltips and toasts have complete keyboard and screen-reader behavior.
+          - Skip navigation, focus restoration, 44px touch targets and reduced motion are verified.
+          - The mobile drawer is navigation-only and frontend checks pass.
+        milestone: Web UI Operational Experience
+        labels: [frontend, refactor, test, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Frontend
+          Complexity: XL
+          ADR: ADR-0007, ADR-0040
+
+      - title: "Web UI Task: Add operational collection APIs and private saved views"
+        body: |
+          ## Objective
+          Add backward-compatible cursor-paged collections, atomic notification acknowledgment and owner-private per-user Project Asset view CRUD.
+
+          ## Acceptance Criteria
+          - Existing list endpoints remain compatible.
+          - Opaque stable cursors use default limit 50, maximum 100 and allowlisted resource filters and sort keys.
+          - Owning Platform Modules enforce authorization.
+          - Notification acknowledgment preserves ADR-0025 and is atomic.
+          - Saved views store Project, name, filters, sort, density and selected columns privately.
+          - Migrations and API tests cover invalid cursors, stability, authorization and ownership.
+        milestone: Web UI Operational Experience
+        labels: [feature, core, module, test, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Platform Module
+          Complexity: XL
+          ADR: ADR-0025, ADR-0041, ADR-0043
+
+      - title: "Web UI Task: Deliver Home, Asset, Notification and Relationship workspaces"
+        body: |
+          ## Objective
+          Build the priority Home surface and resilient Engineering Asset, Notification and Relationship workspaces.
+
+          ## Acceptance Criteria
+          - Home shows unread events, recent Projects, recent Engineering Assets and recovery states.
+          - Engineering Assets support URL-backed filters, cursor paging, stable selection, saved views and responsive detail sheets.
+          - Empty, loading, partial, stale, permission, error, retry and success states are explicit.
+          - Notifications support selected and all-matching acknowledgment.
+          - Relationships distinguish incoming, outgoing and reference data without bulk mutation.
+          - 390px, 768px and desktop workflows have no page-level horizontal overflow.
+        milestone: Web UI Operational Experience
+        labels: [frontend, feature, test, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Frontend
+          Complexity: XL
+          ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0041, ADR-0043
+
+      - title: "Web UI Task: Deliver governed Members, Collaboration and Plugin Administration"
+        body: |
+          ## Objective
+          Make membership, collaboration recovery and plugin lifecycle administration safe and understandable.
+
+          ## Acceptance Criteria
+          - Members explain permissions, role impact, last-Owner safeguards and removal confirmation.
+          - Collaboration shows human actor identity, lock ownership, stale state, recovery and guarded force-unlock.
+          - Plugin Administration supports lifecycle filters, manifest/capability review and guarded state changes.
+          - Configuration uses the bounded schema, never reads secrets back and validates advanced JSON fallback.
+          - Official Plugins and Community Plugins use identical paths with no executable UI injection.
+        milestone: Web UI Operational Experience
+        labels: [frontend, plugin, feature, test, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Frontend
+          Complexity: XL
+          ADR: ADR-0018, ADR-0033, ADR-0035, ADR-0038, ADR-0040, ADR-0041
+
+      - title: "Web UI Task: Implement resumable Blob transfer sessions"
+        body: |
+          ## Objective
+          Add authorized create, bounded idempotent chunk upload, progress, verified completion, cancellation, expiry and cleanup contracts, then integrate progress and recovery into check-in.
+
+          ## Acceptance Criteria
+          - Storage adapters persist chunks without exposing S3 or MinIO details to Platform Core logic.
+          - Completion verifies size and optional digest and is idempotent.
+          - Tests cover duplicate and out-of-order chunks, retry, cancellation, expiry, mismatch, unauthorized access and storage failure.
+          - Check-in validates files and presents truthful progress, cancel, retry and recovery states.
+        milestone: Web UI Operational Experience
+        labels: [feature, core, module, frontend, test, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Platform Module
+          Complexity: XL
+          ADR: ADR-0003, ADR-0006, ADR-0042
+
+      - title: "Web UI Task: Complete operational QA, accessibility and documentation"
+        body: |
+          ## Objective
+          Verify browsers, viewports, permissions and failure modes and reconcile public documentation.
+
+          ## Acceptance Criteria
+          - Chromium, Firefox and WebKit pass at 390px, 768px and desktop without page-level horizontal overflow.
+          - Axe has no serious or critical violations; keyboard-only and reduced-motion checks pass.
+          - Owner, Platform Administrator, secret-redaction and plugin-parity regressions pass.
+          - Project, Python, frontend, Playwright, production build and design audits are green.
+          - Public API, flows, deployment limits and Web UI guidance match the final behavior.
+        milestone: Web UI Operational Experience
+        labels: [frontend, test, documentation, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Operational Experience
+          Platform Area: Frontend
+          Complexity: L
+          ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0038, ADR-0040, ADR-0041, ADR-0042, ADR-0043
 
 roadmap:
   - phase: Foundation
