@@ -53,15 +53,19 @@ describe("App", () => {
   it("loads the authenticated workspace and revision history from the public API", async () => {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");
     window.localStorage.setItem("openpdm.assetId", "asset-1");
-    window.sessionStorage.setItem("openpdm.transfer.asset-1", JSON.stringify({
-      assetId: "asset-1", sessionId: "session-1", blobId: null,
+    window.sessionStorage.setItem("openpdm.transfer.user-1.asset-1", JSON.stringify({
+      userId: "user-1", assetId: "asset-1", sessionId: "session-1", blobId: "blob-recovered",
       fileName: "native.fcstd", fileSize: 1234, fileType: "application/octet-stream",
       fileLastModified: 42,
+    }));
+    window.sessionStorage.setItem("openpdm.transfer.user-2.asset-1", JSON.stringify({
+      userId: "user-2", assetId: "asset-1", sessionId: "other-session", blobId: null,
+      fileName: "other.step", fileSize: 5, fileType: "application/step", fileLastModified: 1,
     }));
 
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input);
         if (path === "/foundation") {
           return jsonResponse({
@@ -268,11 +272,11 @@ describe("App", () => {
         if (path === "/assets/asset-1/collaboration-state") {
           return jsonResponse({
             asset_id: "asset-1",
-            state: "available",
-            can_checkin: false,
+            state: "locked",
+            can_checkin: true,
             can_unlock: false,
             can_force_unlock: false,
-            lock: null,
+            lock: { owner_user_id: "user-1" },
           });
         }
         if (path === "/assets/asset-1/timeline") {
@@ -310,6 +314,23 @@ describe("App", () => {
         }
         if (path === "/metadata/asset/asset-1") {
           return jsonResponse([]);
+        }
+        if (path === "/blobs/upload-sessions/session-1") {
+          return jsonResponse({
+            id: "session-1", filename: "native.fcstd", media_type: "application/octet-stream",
+            total_size_bytes: 1234, checksum_sha256: null, chunk_size_bytes: 512,
+            status: "completed", received_bytes: 1234, received_chunk_numbers: [0, 1, 2],
+            expires_at: "2026-07-19T00:00:00Z", created_at: "2026-07-18T00:00:00Z",
+            updated_at: "2026-07-18T00:00:00Z",
+            blob: { id: "blob-recovered", storage_key: "blob-recovered", filename: "native.fcstd",
+              media_type: "application/octet-stream", size_bytes: 1234, checksum_sha256: "abc",
+              created_at: "2026-07-18T00:00:00Z" },
+          });
+        }
+        if (path === "/assets/asset-1/checkin" && init?.method === "POST") {
+          return jsonResponse({ id: "revision-2", asset_id: "asset-1", number: 2,
+            comment: "Recovered transfer", created_by_user_id: "user-1",
+            created_at: "2026-07-18T00:00:00Z", representations: [] }, 201);
         }
         if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
           return jsonResponse([
@@ -361,9 +382,20 @@ describe("App", () => {
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
     expect(await screen.findByText("Resume transfer")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
-    await waitFor(() => expect(screen.queryByText("Resume transfer")).not.toBeInTheDocument());
-    expect(window.sessionStorage.getItem("openpdm.transfer.asset-1")).toBeNull();
+    const recoveredFile = new File([new Uint8Array(1234)], "native.fcstd", {
+      type: "application/octet-stream", lastModified: 42,
+    });
+    fireEvent.change(screen.getByLabelText("Revision comment"), { target: { value: "Recovered transfer" } });
+    fireEvent.change(screen.getByLabelText("File"), { target: { files: [recoveredFile] } });
+    fireEvent.submit(screen.getByRole("heading", { name: "Check in a new Revision" }).closest("form")!);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) =>
+      String(input) === "/assets/asset-1/checkin")).toBe(true));
+    expect(await screen.findByText("Check-in complete")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("openpdm.transfer.user-1.asset-1")).toBeNull();
+    expect(window.sessionStorage.getItem("openpdm.transfer.user-2.asset-1")).not.toBeNull();
+    const calls = vi.mocked(fetch).mock.calls.map(([input, init]) => [String(input), init?.method ?? "GET"]);
+    expect(calls).toContainEqual(["/blobs/upload-sessions/session-1", "GET"]);
+    expect(calls.some(([path]) => path.includes("/chunks/"))).toBe(false);
   });
 
   it("navigates to a related asset through the relationship exploration surface", async () => {

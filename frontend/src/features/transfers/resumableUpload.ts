@@ -10,6 +10,7 @@ import {
 } from "../../api";
 
 export type TransferRecovery = {
+  userId: string;
   assetId: string;
   sessionId: string;
   fileName: string;
@@ -35,35 +36,35 @@ const defaultApi: ResumableUploadApi = {
   cancelSession: cancelBlobUploadSession,
 };
 
-const recoveryKey = (assetId: string) => `openpdm.transfer.${assetId}`;
+const recoveryKey = (userId: string, assetId: string) => `openpdm.transfer.${userId}.${assetId}`;
 
 export function transferFileIdentity(file: File) {
   return { fileName: file.name, fileSize: file.size, fileType: file.type, fileLastModified: file.lastModified };
 }
 
-export function saveTransferRecovery(assetId: string, sessionId: string, file: File): TransferRecovery {
-  const recovery = { assetId, sessionId, ...transferFileIdentity(file), blobId: null };
-  window.sessionStorage.setItem(recoveryKey(assetId), JSON.stringify(recovery));
+export function saveTransferRecovery(userId: string, assetId: string, sessionId: string, file: File): TransferRecovery {
+  const recovery = { userId, assetId, sessionId, ...transferFileIdentity(file), blobId: null };
+  window.sessionStorage.setItem(recoveryKey(userId, assetId), JSON.stringify(recovery));
   return recovery;
 }
 
-function saveCompletedRecovery(assetId: string, sessionId: string, file: File, blobId: string): void {
-  window.sessionStorage.setItem(recoveryKey(assetId), JSON.stringify({
-    assetId, sessionId, ...transferFileIdentity(file), blobId,
+function saveCompletedRecovery(userId: string, assetId: string, sessionId: string, file: File, blobId: string): void {
+  window.sessionStorage.setItem(recoveryKey(userId, assetId), JSON.stringify({
+    userId, assetId, sessionId, ...transferFileIdentity(file), blobId,
   } satisfies TransferRecovery));
 }
 
-export function loadTransferRecovery(assetId: string, file?: File): TransferRecovery | null {
-  const raw = window.sessionStorage.getItem(recoveryKey(assetId));
+export function loadTransferRecovery(userId: string, assetId: string, file?: File): TransferRecovery | null {
+  const raw = window.sessionStorage.getItem(recoveryKey(userId, assetId));
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as TransferRecovery;
-    if (value.assetId !== assetId || !/^[A-Za-z0-9_-]{1,128}$/.test(value.sessionId) ||
+    if (value.userId !== userId || value.assetId !== assetId || !/^[A-Za-z0-9_-]{1,128}$/.test(value.sessionId) ||
         typeof value.fileName !== "string" ||
         !value.fileName || typeof value.fileType !== "string" || !Number.isFinite(value.fileSize) ||
         value.fileSize < 0 || !Number.isFinite(value.fileLastModified) ||
         !(value.blobId === null || (typeof value.blobId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value.blobId)))) {
-      clearTransferRecovery(assetId);
+      clearTransferRecovery(userId, assetId);
       return null;
     }
     if (file) {
@@ -73,7 +74,7 @@ export function loadTransferRecovery(assetId: string, file?: File): TransferReco
     }
     return value;
   } catch {
-    clearTransferRecovery(assetId);
+    clearTransferRecovery(userId, assetId);
     return null;
   }
 }
@@ -85,14 +86,14 @@ export function fileMatchesRecovery(file: File, recovery: TransferRecovery): boo
 }
 
 export function canReuseCompletedBlob(
-  assetId: string, file: File, blobId: string, recovery: TransferRecovery | null,
+  userId: string, assetId: string, file: File, blobId: string, recovery: TransferRecovery | null,
 ): boolean {
-  return Boolean(recovery && recovery.assetId === assetId && recovery.blobId === blobId &&
+  return Boolean(recovery && recovery.userId === userId && recovery.assetId === assetId && recovery.blobId === blobId &&
     fileMatchesRecovery(file, recovery));
 }
 
-export function clearTransferRecovery(assetId: string): void {
-  window.sessionStorage.removeItem(recoveryKey(assetId));
+export function clearTransferRecovery(userId: string, assetId: string): void {
+  window.sessionStorage.removeItem(recoveryKey(userId, assetId));
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -156,6 +157,7 @@ async function putChunkWithRetry(
 
 export async function resumableUpload(options: {
   token: string;
+  userId: string;
   assetId: string;
   file: File;
   recovery?: TransferRecovery | null;
@@ -184,23 +186,23 @@ export async function resumableUpload(options: {
     const terminal = error instanceof NonResumableTransferError ||
       (error instanceof ApiError && [404, 409, 410].includes(error.status));
     if (options.recovery && terminal) {
-      clearTransferRecovery(options.assetId);
+      clearTransferRecovery(options.userId, options.assetId);
       throw new NonResumableTransferError(
         error instanceof NonResumableTransferError ? error.message : "The saved transfer cannot be resumed. Discard it and start again.",
       );
     }
     throw error;
   }
-  saveTransferRecovery(options.assetId, current.id, options.file);
+  saveTransferRecovery(options.userId, options.assetId, current.id, options.file);
   options.onProgress?.(current.received_bytes, current.total_size_bytes);
 
   if (current.status === "completed") {
     throwIfAborted(options.signal);
-    saveCompletedRecovery(options.assetId, current.id, options.file, current.blob!.id);
+    saveCompletedRecovery(options.userId, options.assetId, current.id, options.file, current.blob!.id);
     return current;
   }
   if (current.status !== "active") {
-    clearTransferRecovery(options.assetId);
+    clearTransferRecovery(options.userId, options.assetId);
     throw new NonResumableTransferError("The saved transfer is no longer active. Discard it and start again.");
   }
 
@@ -224,6 +226,6 @@ export async function resumableUpload(options: {
   throwIfAborted(options.signal);
   current = validateSession(current, options.file, sessionContract);
   if (!current.blob) throw new Error("The transfer completed without a Blob result.");
-  saveCompletedRecovery(options.assetId, current.id, options.file, current.blob.id);
+  saveCompletedRecovery(options.userId, options.assetId, current.id, options.file, current.blob.id);
   return current;
 }
