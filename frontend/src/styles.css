@@ -1510,3 +1510,153 @@ select {
   gap: var(--space-3);
   align-items: end;
 }
+
+/* Governed administration workspaces */
+.governance-filter-bar {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3, 12px);
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  margin: 18px 0 8px;
+}
+
+.governance-result-count {
+  margin-bottom: 16px;
+}
+
+.role-impact-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 16px 0;
+}
+
+.role-impact-grid article {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.role-impact-grid span,
+.owner-safeguard,
+.secret-status {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.owner-safeguard,
+.secret-status {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.member-search {
+  margin: 0 0 18px;
+  max-width: 480px;
+}
+
+.capability-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.capability-list span {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  padding: 6px 9px;
+}
+
+.manifest-review {
+  border-block: 1px solid var(--line);
+  padding: 12px 0;
+}
+
+.manifest-review summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.manifest-review dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.manifest-review dl div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.manifest-review dt {
+  color: var(--muted);
+}
+
+.manifest-review dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lock-context {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
+.lock-context.is-stale {
+  border-left-color: var(--warning);
+}
+
+.lock-context p,
+.lock-context span {
+  color: var(--muted);
+  margin: 0;
+}
+
+.plugin-configuration input[type="checkbox"] {
+  justify-self: start;
+  min-height: 24px;
+  width: 24px;
+}
+
+@media (max-width: 980px) {
+  .role-impact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .governance-filter-bar,
+  .role-impact-grid,
+  .plugin-upgrade-row {
+    grid-template-columns: 1fr;
+  }
+
+  .member-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .member-row select,
+  .member-row button {
+    width: 100%;
+  }
+
+  .manifest-review dl div {
+    grid-template-columns: 1fr;
+  }
+}

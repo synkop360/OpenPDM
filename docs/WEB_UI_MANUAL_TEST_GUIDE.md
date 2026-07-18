@@ -81,20 +81,21 @@ Optional but useful for the multi-user collaboration checks:
 ## Verify Membership Administration
 
 1. Register two local users and sign in as the user who owns an Organization and Project.
-2. In **Organization members**, add the second registered user by email and assign a role.
+2. In **Organization members**, review the role permission summary, search for a member, then add the second registered user by email and assign a role.
 3. Confirm the user appears with their display name, email and selected role.
 4. In **Project members**, select that Organization member and assign a Project role.
-5. Change the Project role and confirm the updated role remains after refresh.
+5. Change the Project role, review the current and proposed permission impact before confirming, and confirm the updated role remains after refresh.
 6. Sign in as the second user and confirm the Organization and Project are accessible according to the assigned role.
 7. Remove the user from the Organization and confirm their Project membership and access are revoked.
-8. Confirm a Maintainer cannot manage an Owner and that the UI reports the last-Owner safeguard when applicable.
+8. Confirm a Maintainer cannot manage an Owner and that the final Owner controls are disabled with an explanation until another Owner is assigned.
 
 Expected result:
 
 * Owners and Maintainers can manage non-Owner memberships;
 * only Owners can grant or manage Owner roles;
 * Project candidates come from existing Organization members;
-* every Organization and Project retains at least one Owner.
+* every Organization and Project retains at least one Owner;
+* member search and role-impact explanations remain usable at narrow viewport widths.
 
 Install dependencies:
 
@@ -352,14 +353,14 @@ Expected result:
 
 * the action succeeds without a page reload
 * the collaboration state changes to `locked`
-* the current user is shown as the lock owner
+* the lock owner is shown by human display name with the lock timestamp and age
 * the check-in form remains available
 * the timeline gains a lock-related event
 
 Potential artifacts to watch for:
 
 * state stays `available` until a full refresh
-* owner identity is missing after checkout
+* owner identity or lock age is missing after checkout
 * duplicate lock events appear in the timeline
 
 ### 11. Verify Required Comment on Check-In
@@ -503,18 +504,20 @@ Potential artifacts to watch for:
 1. Build `plugins/dummy-categories/dist/asset-categories.openpdm-plugin` with `uv run python scripts/build_dummy_categories_plugin.py`.
 2. Sign in as a Platform Administrator and open **Administration** from the sidebar footer.
 3. Under **Install Community Plugin**, select the built package and choose **Install package**.
-4. Confirm the plugin appears with compatible lifecycle information, then enable it.
+4. Filter the plugin list by lifecycle state, review its manifest, declared capabilities, Extension API compatibility and package digest, then review and confirm enablement.
 5. Restart the backend without deleting the database or configured plugin-package storage, return to the administration page, and confirm the plugin can still run.
 6. Open a Project, select an Engineering Asset, and locate **Plugin-provided metadata**.
 7. Confirm the Asset category selector contains the plugin's document, drawing, model and assembly options.
 8. Select a category, choose **Apply metadata**, and confirm `classification.category` and `classification.managed_by` appear.
-9. Disable the plugin and return to the Asset. Confirm it is no longer returned as a running Metadata Provider and its category control is unavailable.
+9. Open configuration. Confirm public schema fields render as bounded controls, configured secrets show only a write-only status, and a replacement secret input starts blank. Save a valid change; for an unsupported schema, confirm malformed advanced JSON is rejected inline.
+10. Review and confirm plugin disablement, then return to the Asset. Confirm it is no longer returned as a running Metadata Provider and its category control is unavailable.
 
 Expected result:
 
-* installation, enablement and disablement require Platform Administrator authority;
+* installation, enablement and disablement require Platform Administrator authority and explicit review;
 * enabled and running provider capabilities are discovered through the public application API;
-* category labels and values are rendered as text, not executable plugin-provided UI;
+* Official Plugins and Community Plugins use the same administration and Extension API paths;
+* configuration secrets are never read back and declarative labels and values render as text, not executable plugin-provided UI;
 * plugin metadata is persisted through the Metadata Platform Module after authorization;
 * package storage survives an ordinary backend image or container replacement;
 * disabling the plugin removes it from provider discovery without removing previously authorized metadata.
@@ -561,6 +564,18 @@ Expected result:
 * browser B reflects the latest lock state after refresh
 * ownership cues and action availability match the refreshed state
 
+### Stale Lock Recovery
+
+1. Open an Engineering Asset with a stale lock while signed in as a Project Maintainer or Owner.
+2. Confirm the lock owner display name, creation time, age and stale explanation are visible.
+3. Choose **Recover stale lock**, review the interruption and audit warning, then cancel.
+4. Repeat and confirm the recovery.
+
+Expected result:
+
+* cancellation leaves the lock unchanged;
+* confirmation force-unlocks the Engineering Asset and records the human actor in the collaboration timeline;
+* Contributors and Viewers cannot invoke force-unlock.
 ### Notification Refresh
 
 1. In browser A, perform a collaboration action that should notify other Project members.

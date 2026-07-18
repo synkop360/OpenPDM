@@ -972,7 +972,8 @@ describe("App", () => {
     fireEvent.click(removeButton!);
     await waitFor(() => expect(screen.queryByLabelText("Project role for Member")).not.toBeInTheDocument());
 
-    expect(screen.getByLabelText("Organization role for Owner")).not.toBeDisabled();
+    expect(screen.getByLabelText("Organization role for Owner")).toBeDisabled();
+    expect(screen.getAllByText(/Final Owner/)).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledWith(
       "/organizations/org-1/members",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ user_email: "member@example.com", role: "Viewer" }) }),
@@ -1025,6 +1026,24 @@ describe("App", () => {
           },
         ]);
       }
+      if (path === "/plugins/org.example.categories/configuration" && method === "GET") {
+        return jsonResponse({
+          plugin_id: "org.example.categories",
+          configuration_schema: { type: "object", properties: { prefix: { type: "string" }, token: { type: "string", secret: true } }, required: ["prefix", "token"], additionalProperties: false },
+          values: { prefix: "current" },
+          configured_secret_fields: ["token"],
+          updated_at: "2026-01-01T00:00:00",
+        });
+      }
+      if (path === "/plugins/org.example.categories/configuration" && method === "PUT") {
+        return jsonResponse({
+          plugin_id: "org.example.categories",
+          configuration_schema: { type: "object", properties: { prefix: { type: "string" }, token: { type: "string", secret: true } }, required: ["prefix", "token"], additionalProperties: false },
+          values: { prefix: "updated" },
+          configured_secret_fields: ["token"],
+          updated_at: "2026-01-02T00:00:00",
+        });
+      }
       if (path === "/plugins/org.example.categories/state" && method === "POST") {
         return jsonResponse({
           id: "org.example.categories",
@@ -1051,12 +1070,25 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Plugin administration" })).toBeInTheDocument();
     expect(await screen.findByText("Categories")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Enable plugin" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         "/plugins/org.example.categories/state",
         expect.objectContaining({ method: "POST" }),
       ),
-    );
+    );    fireEvent.click(screen.getByRole("button", { name: "Configure" }));
+    const secretInput = await screen.findByPlaceholderText("Secret configured — enter to replace");
+    expect(secretInput).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("prefix (required)"), { target: { value: "updated" } });
+    fireEvent.change(secretInput, { target: { value: "replacement-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/plugins/org.example.categories/configuration",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ values: { prefix: "updated", token: "replacement-secret" } }),
+      }),
+    ));
   });
 
   it("denies plugin administration to an ordinary authenticated user", async () => {

@@ -84,6 +84,7 @@ import {
   type ProjectAssetView,
   type ProjectMembership,
   type PluginRecord,
+  type PluginConfiguration,
   type ProviderDescriptor,
   type ProviderOptionSet,
   type MetadataEntry,
@@ -105,6 +106,7 @@ import {
 } from "./app/storage";
 import { useRouteFocus } from "./app/useRouteFocus";
 import { ProjectTabs } from "./components/navigation/ProjectTabs";
+import { ConfirmDialog } from "./components/primitives/Dialog";
 import { AppShell } from "./components/shell/AppShell";
 import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
@@ -112,6 +114,14 @@ import { useFoundationStatus } from "./hooks/useFoundationStatus";
 import "./styles.css";
 
 type AuthMode = "sign-in" | "register";
+
+type ConfigurationProperty = {
+  type?: string;
+  title?: string;
+  description?: string;
+  enum?: unknown[];
+  secret?: boolean;
+};
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString();
@@ -224,6 +234,34 @@ function formatMetadataSummary(metadata: Record<string, unknown>): string | null
     .join(" • ");
 }
 
+const ROLE_IMPACT: Record<string, string> = {
+  Owner: "Full administration, including Owner role changes and destructive governance actions.",
+  Maintainer: "Can manage members and collaboration recovery, but cannot govern Owners.",
+  Contributor: "Can create and update Engineering Assets without managing access.",
+  Viewer: "Read-only access to the workspace.",
+};
+
+function configurationProperties(configuration: PluginConfiguration): Record<string, ConfigurationProperty> {
+  const properties = configuration.configuration_schema?.properties;
+  return properties && typeof properties === "object" && !Array.isArray(properties)
+    ? properties as Record<string, ConfigurationProperty>
+    : {};
+}
+
+function supportsSchemaForm(configuration: PluginConfiguration): boolean {
+  const schema = configuration.configuration_schema;
+  if (!schema || schema.type !== "object") return false;
+  return Object.values(configurationProperties(configuration)).every((property) =>
+    property.enum?.length || ["string", "number", "integer", "boolean"].includes(property.type ?? ""),
+  );
+}
+
+function lockAge(createdAt: string): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
 function OpenPdmApp() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -304,7 +342,13 @@ function OpenPdmApp() {
   );
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [pluginPackage, setPluginPackage] = useState<File | null>(null);
-  const [pluginConfiguration, setPluginConfiguration] = useState<Record<string, string>>({});
+  const [pluginConfigurations, setPluginConfigurations] = useState<Record<string, PluginConfiguration>>({});
+  const [pluginConfigurationDrafts, setPluginConfigurationDrafts] = useState<Record<string, Record<string, unknown>>>({});
+  const [pluginConfigurationJson, setPluginConfigurationJson] = useState<Record<string, string>>({});
+  const [pluginConfigurationErrors, setPluginConfigurationErrors] = useState<Record<string, string | null>>({});
+  const [pluginQuery, setPluginQuery] = useState("");
+  const [pluginLifecycleFilter, setPluginLifecycleFilter] = useState("all");
+  const [memberQuery, setMemberQuery] = useState("");
   const [pluginUpgradePackages, setPluginUpgradePackages] = useState<Record<string, File | null>>({});
   const [collaborationError, setCollaborationError] = useState<ApiError | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
@@ -800,6 +844,25 @@ function OpenPdmApp() {
   const hasAssets = assets.data.length > 0;
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
+  const organizationOwnerCount = organizationMembers.data.filter((membership) => membership.role === "Owner").length;
+  const projectOwnerCount = projectMembers.data.filter((membership) => membership.role === "Owner").length;
+  const normalizedMemberQuery = memberQuery.trim().toLowerCase();
+  const matchesMemberQuery = (membership: OrganizationMembership | ProjectMembership) =>
+    !normalizedMemberQuery || [membership.user?.display_name, membership.user?.email, membership.role]
+      .some((value) => value?.toLowerCase().includes(normalizedMemberQuery));
+  const userNameById = new Map<string, string>();
+  for (const membership of [...organizationMembers.data, ...projectMembers.data]) {
+    if (membership.user) userNameById.set(membership.user.id, membership.user.display_name);
+  }
+  if (session.data?.user) userNameById.set(session.data.user.id, session.data.user.display_name);
+  const describeActor = (userId: string | null) =>
+    !userId ? "System" : userId === session.data?.user.id ? "You" : userNameById.get(userId) ?? "Unknown member";
+  const filteredPlugins = plugins.data.filter((plugin) => {
+    const query = pluginQuery.trim().toLowerCase();
+    const matchesQuery = !query || [plugin.name, plugin.id, plugin.plugin_type, ...plugin.capabilities]
+      .some((value) => value.toLowerCase().includes(query));
+    return matchesQuery && (pluginLifecycleFilter === "all" || plugin.lifecycle_state === pluginLifecycleFilter);
+  });
 
   function updateAssetFilters(
     patch: Partial<Record<"q" | "status" | "sort" | "direction", string>>,
@@ -1082,7 +1145,16 @@ function OpenPdmApp() {
 
   async function handleOrganizationRoleChange(membershipId: string, role: string): Promise<void> {
     if (!session.data?.token || !selectedOrganizationId) return;
-    setBusyAction(`organization-role-${membershipId}`);
+    const membership = organizationMembers.data.find((item) => item.id === membershipId);
+    if (!membership || membership.role === role) return;
+    if (membership.role === "Owner" && organizationOwnerCount === 1) {
+      setBanner("Assign another Organization Owner before changing the final Owner role.");
+      return;
+    }
+    const approved = window.confirm(
+      `Review Organization role change for ${membership.user?.display_name ?? "this member"}:\n\n${membership.role} → ${role}\n\n${ROLE_IMPACT[role]}`,
+    );
+    if (!approved) return;    setBusyAction(`organization-role-${membershipId}`);
     setBanner(null);
     try {
       await changeOrganizationMemberRole(
@@ -1102,7 +1174,11 @@ function OpenPdmApp() {
 
   async function handleRemoveOrganizationMember(membership: OrganizationMembership): Promise<void> {
     if (!session.data?.token || !selectedOrganizationId) return;
-    if (!window.confirm(`Remove ${membership.user?.display_name ?? "this user"} from the Organization?`)) return;
+    if (membership.role === "Owner" && organizationOwnerCount === 1) {
+      setBanner("The final Organization Owner cannot be removed. Assign another Owner first.");
+      return;
+    }
+    if (!window.confirm(`Remove ${membership.user?.display_name ?? "this user"} from the Organization?\n\nTheir Organization and inherited workspace access will be revoked.`)) return;
     setBusyAction(`remove-organization-${membership.id}`);
     setBanner(null);
     try {
@@ -1145,7 +1221,16 @@ function OpenPdmApp() {
 
   async function handleProjectRoleChange(membershipId: string, role: string): Promise<void> {
     if (!session.data?.token || !selectedProjectId) return;
-    setBusyAction(`project-role-${membershipId}`);
+    const membership = projectMembers.data.find((item) => item.id === membershipId);
+    if (!membership || membership.role === role) return;
+    if (membership.role === "Owner" && projectOwnerCount === 1) {
+      setBanner("Assign another Project Owner before changing the final Owner role.");
+      return;
+    }
+    const approved = window.confirm(
+      `Review Project role change for ${membership.user?.display_name ?? "this member"}:\n\n${membership.role} → ${role}\n\n${ROLE_IMPACT[role]}`,
+    );
+    if (!approved) return;    setBusyAction(`project-role-${membershipId}`);
     setBanner(null);
     try {
       await changeProjectMemberRole(session.data.token, selectedProjectId, membershipId, role);
@@ -1160,7 +1245,11 @@ function OpenPdmApp() {
 
   async function handleRemoveProjectMember(membership: ProjectMembership): Promise<void> {
     if (!session.data?.token || !selectedProjectId) return;
-    if (!window.confirm(`Remove ${membership.user?.display_name ?? "this user"} from the Project?`)) return;
+    if (membership.role === "Owner" && projectOwnerCount === 1) {
+      setBanner("The final Project Owner cannot be removed. Assign another Owner first.");
+      return;
+    }
+    if (!window.confirm(`Remove ${membership.user?.display_name ?? "this user"} from the Project?\n\nOrganization membership is retained, but Project access is revoked.`)) return;
     setBusyAction(`remove-project-${membership.id}`);
     setBanner(null);
     try {
@@ -1506,9 +1595,12 @@ function OpenPdmApp() {
   async function handleLoadPluginConfiguration(pluginId: string): Promise<void> {
     if (!session.data?.token) return;
     setBusyAction(`plugin-config-load-${pluginId}`);
+    setPluginConfigurationErrors((current) => ({ ...current, [pluginId]: null }));
     try {
       const configuration = await getPluginConfiguration(session.data.token, pluginId);
-      setPluginConfiguration((current) => ({
+      setPluginConfigurations((current) => ({ ...current, [pluginId]: configuration }));
+      setPluginConfigurationDrafts((current) => ({ ...current, [pluginId]: { ...configuration.values } }));
+      setPluginConfigurationJson((current) => ({
         ...current,
         [pluginId]: JSON.stringify(configuration.values, null, 2),
       }));
@@ -1519,25 +1611,47 @@ function OpenPdmApp() {
     }
   }
 
+  function updatePluginConfigurationField(pluginId: string, key: string, value: unknown): void {
+    setPluginConfigurationDrafts((current) => ({
+      ...current,
+      [pluginId]: { ...(current[pluginId] ?? {}), [key]: value },
+    }));
+    setPluginConfigurationErrors((current) => ({ ...current, [pluginId]: null }));
+  }
+
   async function handleSavePluginConfiguration(pluginId: string): Promise<void> {
     if (!session.data?.token) return;
+    const configuration = pluginConfigurations[pluginId];
+    if (!configuration) return;
     setBusyAction(`plugin-config-save-${pluginId}`);
     setBanner(null);
+    setPluginConfigurationErrors((current) => ({ ...current, [pluginId]: null }));
     try {
-      const values = JSON.parse(pluginConfiguration[pluginId] ?? "{}") as Record<string, unknown>;
-      await updatePluginConfiguration(session.data.token, pluginId, values);
+      let values: Record<string, unknown>;
+      if (supportsSchemaForm(configuration)) {
+        values = pluginConfigurationDrafts[pluginId] ?? {};
+      } else {
+        const parsed = JSON.parse(pluginConfigurationJson[pluginId] ?? "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("Advanced configuration must be a JSON object.");
+        }
+        values = parsed as Record<string, unknown>;
+      }
+      const saved = await updatePluginConfiguration(session.data.token, pluginId, values);
+      setPluginConfigurations((current) => ({ ...current, [pluginId]: saved }));
+      setPluginConfigurationDrafts((current) => ({ ...current, [pluginId]: { ...saved.values } }));
+      setPluginConfigurationJson((current) => ({ ...current, [pluginId]: JSON.stringify(saved.values, null, 2) }));
       await refreshPlugins();
-      setBanner("Plugin configuration saved.");
+      setBanner("Plugin configuration saved. Secret values remain write-only.");
     } catch (error: unknown) {
-      setBanner(error instanceof Error ? error.message : "Plugin configuration is not valid JSON.");
+      const message = error instanceof Error ? error.message : "Plugin configuration is not valid.";
+      setPluginConfigurationErrors((current) => ({ ...current, [pluginId]: message }));
     } finally {
       setBusyAction(null);
     }
   }
-
   async function handleRemovePlugin(plugin: PluginRecord): Promise<void> {
     if (!session.data?.token) return;
-    if (!window.confirm(`Remove ${plugin.name}? Immutable package evidence will be retained.`)) return;
     setBusyAction(`plugin-remove-${plugin.id}`);
     setBanner(null);
     try {
@@ -2172,98 +2286,49 @@ function OpenPdmApp() {
                 {plugins.status === "error" ? (
                   <p className="error-message" role="alert">{plugins.error}</p>
                 ) : null}
+                <div className="governance-filter-bar" aria-label="Plugin filters">
+                  <label>Search plugins<input type="search" placeholder="Name, identifier or capability" value={pluginQuery} onChange={(event) => setPluginQuery(event.target.value)} /></label>
+                  <label>Lifecycle<select value={pluginLifecycleFilter} onChange={(event) => setPluginLifecycleFilter(event.target.value)}><option value="all">All states</option>{[...new Set(plugins.data.map((plugin) => plugin.lifecycle_state))].map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
+                </div>
+                <p className="muted-text governance-result-count" aria-live="polite">{filteredPlugins.length} of {plugins.data.length} plugins shown. Official Plugins and Community Plugins follow the same lifecycle controls.</p>
                 <div className="plugin-grid">
-                  {plugins.data.map((plugin) => (
+                  {filteredPlugins.map((plugin) => {
+                    const configuration = pluginConfigurations[plugin.id];
+                    const draft = pluginConfigurationDrafts[plugin.id] ?? {};
+                    const properties = configuration ? configurationProperties(configuration) : {};
+                    const required = Array.isArray(configuration?.configuration_schema?.required) ? configuration.configuration_schema.required as string[] : [];
+                    return (
                     <article className="detail-card plugin-card" key={plugin.id}>
-                      <div className="detail-row">
-                        <div>
-                          <h3>{plugin.name}</h3>
-                          <p>{plugin.id} · v{plugin.version}</p>
-                        </div>
-                        <span className="status-pill">{plugin.lifecycle_state}</span>
-                      </div>
-                      <p className="muted-text">{plugin.capabilities.join(", ")}</p>
-                      {plugin.diagnostic_reason ? (
-                        <p className="error-message">{plugin.diagnostic_reason}</p>
-                      ) : null}
+                      <div className="detail-row"><div><p className="eyebrow">{plugin.plugin_type} plugin</p><h3>{plugin.name}</h3><p>{plugin.id} · v{plugin.version}</p></div><span className={`status-pill plugin-state-${plugin.lifecycle_state}`}>{plugin.lifecycle_state}</span></div>
+                      <div className="capability-list" aria-label="Declared capabilities">{plugin.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div>
+                      {plugin.diagnostic_reason ? <p className="error-message">{plugin.diagnostic_reason}</p> : null}
+                      <details className="manifest-review"><summary>Review manifest and package evidence</summary><dl><div><dt>Extension API</dt><dd>{plugin.extension_api_versions.join(", ") || "Not declared"}</dd></div><div><dt>Package digest</dt><dd><code>{plugin.package_digest}</code></dd></div><div><dt>Installed</dt><dd>{formatTimestamp(plugin.created_at)}</dd></div><div><dt>Last changed</dt><dd>{formatTimestamp(plugin.updated_at)}</dd></div></dl></details>
                       <div className="collaboration-actions">
-                        <button
-                          className="secondary-button"
-                          disabled={busyAction === `plugin-state-${plugin.id}`}
-                          onClick={() => void handlePluginState(plugin)}
-                          type="button"
-                        >
-                          {plugin.enabled ? "Disable" : "Enable"}
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() => void handleLoadPluginConfiguration(plugin.id)}
-                          type="button"
-                        >
-                          Load configuration
-                        </button>
-                        <button
-                          className="secondary-button warning-button"
-                          disabled={plugin.enabled || busyAction === `plugin-remove-${plugin.id}`}
-                          onClick={() => void handleRemovePlugin(plugin)}
-                          type="button"
-                        >
-                          Remove
-                        </button>
+                        <ConfirmDialog confirmLabel={plugin.enabled ? "Disable plugin" : "Enable plugin"} description={`${plugin.enabled ? "Disable" : "Enable"} ${plugin.name}. Declared capabilities: ${plugin.capabilities.join(", ") || "none"}. This audited lifecycle change uses the same Extension API path for Official and Community Plugins.`} onConfirm={() => void handlePluginState(plugin)} title={`Review ${plugin.enabled ? "disable" : "enable"} action`} trigger={<button className="secondary-button" disabled={busyAction === `plugin-state-${plugin.id}`} type="button">{plugin.enabled ? "Disable" : "Enable"}</button>} />
+                        <button className="secondary-button" disabled={busyAction === `plugin-config-load-${plugin.id}`} onClick={() => void handleLoadPluginConfiguration(plugin.id)} type="button">{configuration ? "Reset configuration" : "Configure"}</button>
+                        <ConfirmDialog confirmLabel="Remove plugin" description={`Remove ${plugin.name}. Immutable package evidence and audit history will be retained. Enabled plugins must be disabled first.`} onConfirm={() => void handleRemovePlugin(plugin)} title="Review plugin removal" trigger={<button className="secondary-button warning-button" disabled={plugin.enabled || busyAction === `plugin-remove-${plugin.id}`} type="button">Remove</button>} />
                       </div>
-                      <div className="plugin-upgrade-row">
-                        <label>
-                          Same-identity upgrade package
-                          <input
-                            accept=".openpdm-plugin,application/zip"
-                            disabled={plugin.enabled}
-                            type="file"
-                            onChange={(event) =>
-                              setPluginUpgradePackages((current) => ({
-                                ...current,
-                                [plugin.id]: event.target.files?.[0] ?? null,
-                              }))
-                            }
-                          />
-                        </label>
-                        <button
-                          className="secondary-button"
-                          disabled={
-                            plugin.enabled ||
-                            !pluginUpgradePackages[plugin.id] ||
-                            busyAction === `plugin-upgrade-${plugin.id}`
-                          }
-                          onClick={() => void handleUpgradePlugin(plugin)}
-                          type="button"
-                        >
-                          {busyAction === `plugin-upgrade-${plugin.id}` ? "Upgrading..." : "Upgrade"}
-                        </button>
-                      </div>
-                      {pluginConfiguration[plugin.id] !== undefined ? (
-                        <div className="form-grid plugin-configuration">
-                          <label>
-                            Configuration values (JSON)
-                            <textarea
-                              value={pluginConfiguration[plugin.id]}
-                              onChange={(event) =>
-                                setPluginConfiguration((current) => ({
-                                  ...current,
-                                  [plugin.id]: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-                          <button
-                            className="primary-button"
-                            onClick={() => void handleSavePluginConfiguration(plugin.id)}
-                            type="button"
-                          >
-                            Save configuration
-                          </button>
-                        </div>
+                      <div className="plugin-upgrade-row"><label>Same-identity upgrade package<input accept=".openpdm-plugin,application/zip" disabled={plugin.enabled} type="file" onChange={(event) => setPluginUpgradePackages((current) => ({ ...current, [plugin.id]: event.target.files?.[0] ?? null }))} /></label><button className="secondary-button" disabled={plugin.enabled || !pluginUpgradePackages[plugin.id] || busyAction === `plugin-upgrade-${plugin.id}`} onClick={() => void handleUpgradePlugin(plugin)} type="button">{busyAction === `plugin-upgrade-${plugin.id}` ? "Upgrading..." : "Review and upgrade"}</button></div>
+                      {configuration ? (
+                        <section className="form-grid plugin-configuration" aria-label={`${plugin.name} configuration`}>
+                          <div><h4>Configuration</h4><p className="muted-text">Schema-bounded values are validated by the Platform Core. Secrets are write-only and never read back.</p></div>
+                          {supportsSchemaForm(configuration) ? Object.entries(properties).map(([key, property]) => {
+                            const isSecret = property.secret === true;
+                            const value = draft[key];
+                            const label = property.title ?? key;
+                            return (
+                              <label key={key}>{label}{required.includes(key) ? " (required)" : ""}
+                                {property.enum?.length ? <select value={String(value ?? "")} onChange={(event) => updatePluginConfigurationField(plugin.id, key, event.target.value)}><option value="">Select a value</option>{property.enum.map((option) => <option key={String(option)} value={String(option)}>{String(option)}</option>)}</select> : property.type === "boolean" ? <input checked={Boolean(value)} type="checkbox" onChange={(event) => updatePluginConfigurationField(plugin.id, key, event.target.checked)} /> : <input type={isSecret ? "password" : property.type === "number" || property.type === "integer" ? "number" : "text"} value={String(value ?? "")} placeholder={isSecret && configuration.configured_secret_fields.includes(key) ? "Secret configured — enter to replace" : undefined} onChange={(event) => updatePluginConfigurationField(plugin.id, key, property.type === "number" || property.type === "integer" ? (event.target.value === "" ? "" : Number(event.target.value)) : event.target.value)} />}
+                                {property.description ? <small>{property.description}</small> : null}{isSecret && configuration.configured_secret_fields.includes(key) ? <small className="secret-status">Configured · value hidden</small> : null}
+                              </label>
+                            );
+                          }) : <label>Advanced configuration (JSON object)<textarea aria-invalid={Boolean(pluginConfigurationErrors[plugin.id])} value={pluginConfigurationJson[plugin.id] ?? "{}"} onChange={(event) => { setPluginConfigurationJson((current) => ({ ...current, [plugin.id]: event.target.value })); setPluginConfigurationErrors((current) => ({ ...current, [plugin.id]: null })); }} /><small>The manifest uses schema constructs that need the validated JSON fallback.</small></label>}
+                          {pluginConfigurationErrors[plugin.id] ? <p className="error-message" role="alert">{pluginConfigurationErrors[plugin.id]}</p> : null}
+                          <div className="collaboration-actions"><button className="primary-button" disabled={busyAction === `plugin-config-save-${plugin.id}`} onClick={() => void handleSavePluginConfiguration(plugin.id)} type="button">{busyAction === `plugin-config-save-${plugin.id}` ? "Saving..." : "Save configuration"}</button><button className="secondary-button" onClick={() => void handleLoadPluginConfiguration(plugin.id)} type="button">Reset draft</button></div>
+                        </section>
                       ) : null}
                     </article>
-                  ))}
+                  );})}
                 </div>
                   </>
                 )}
@@ -2390,7 +2455,7 @@ function OpenPdmApp() {
                   <section className="panel content-span focused-panel">
                     <header className="panel-header"><div><p className="eyebrow">Live context</p><h2>Collaboration</h2></div><Activity /></header>
                     <div className="overview-grid">
-                      <article className="detail-card"><h3>Selected Asset state</h3><p>{assetDetail.data?.name ?? "No Asset selected"}</p><span className="status-pill">{collaborationState.data?.state ?? "unavailable"}</span></article>
+                      <article className="detail-card"><h3>Selected Asset state</h3><p>{assetDetail.data?.name ?? "No Asset selected"}</p><span className="status-pill">{collaborationState.data?.state ?? "unavailable"}</span>{collaborationState.data?.lock ? <small>Held by {describeActor(collaborationState.data.lock.owner_user_id)} for {lockAge(collaborationState.data.lock.created_at)}</small> : <small>No active lock</small>}</article>
                       <article className="detail-card"><h3>Project notifications</h3><div className="compact-list">{notifications.data.filter((item) => item.project_id === selectedProjectId).slice(0, 8).map((item) => <div key={item.id}><span>{formatNotificationEvent(item.event_type)}</span><small>{formatTimestamp(item.created_at)}</small></div>)}</div></article>
                     </div>
                   </section>
@@ -2399,7 +2464,11 @@ function OpenPdmApp() {
                 {projectTab === "members" ? (
                   <section className="panel content-span focused-panel">
                     <header className="panel-header"><div><p className="eyebrow">Access</p><h2>Members</h2></div><Users /></header>
-                    <p className="muted-text">Review Organization and Project access in the routed workspace.</p>
+                    <p className="muted-text">Review Organization and Project access in the routed workspace. Role changes are reviewed before they are committed.</p>
+                    <div className="role-impact-grid" aria-label="Role permission summary">
+                      {Object.entries(ROLE_IMPACT).map(([role, impact]) => <article key={role}><strong>{role}</strong><span>{impact}</span></article>)}
+                    </div>
+                    <label className="member-search">Search members<input type="search" placeholder="Name, email or role" value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} /></label>
                     <div className="members-workspace">
                   {view === "project" && projectTab === "members" && selectedOrganizationId ? (
                     <section className="membership-panel" aria-labelledby="organization-members-heading">
@@ -2411,7 +2480,8 @@ function OpenPdmApp() {
                         <p className="error-message" role="alert">{organizationMembers.error}</p>
                       ) : null}
                       <div className="member-list">
-                        {organizationMembers.data.map((membership) => {
+                        {organizationMembers.data.filter(matchesMemberQuery).map((membership) => {
+                          const isLastOwner = membership.role === "Owner" && organizationOwnerCount === 1;
                           const canManageTarget =
                             canManageOrganizationMembers &&
                             (membership.role !== "Owner" || currentOrganizationRole === "Owner");
@@ -2420,10 +2490,11 @@ function OpenPdmApp() {
                               <span>
                                 <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
                                 <small>{membership.user?.email}</small>
+                                {isLastOwner ? <small className="owner-safeguard">Final Owner · assign another Owner before demoting or removing</small> : null}
                               </span>
                               <select
                                 aria-label={`Organization role for ${membership.user?.display_name ?? "member"}`}
-                                disabled={!canManageTarget || busyAction === `organization-role-${membership.id}`}
+                                disabled={!canManageTarget || isLastOwner || busyAction === `organization-role-${membership.id}`}
                                 value={membership.role}
                                 onChange={(event) => void handleOrganizationRoleChange(membership.id, event.target.value)}
                               >
@@ -2435,7 +2506,7 @@ function OpenPdmApp() {
                               {canManageTarget ? (
                                 <button
                                   className="secondary-button"
-                                  disabled={busyAction === `remove-organization-${membership.id}`}
+                                  disabled={isLastOwner || busyAction === `remove-organization-${membership.id}`}
                                   onClick={() => void handleRemoveOrganizationMember(membership)}
                                   type="button"
                                 >
@@ -2488,7 +2559,8 @@ function OpenPdmApp() {
                         <p className="error-message" role="alert">{projectMembers.error}</p>
                       ) : null}
                       <div className="member-list">
-                        {projectMembers.data.map((membership) => {
+                        {projectMembers.data.filter(matchesMemberQuery).map((membership) => {
+                          const isLastOwner = membership.role === "Owner" && projectOwnerCount === 1;
                           const canManageTarget =
                             canManageProjectMembers &&
                             (membership.role !== "Owner" || currentProjectRole === "Owner");
@@ -2497,10 +2569,11 @@ function OpenPdmApp() {
                               <span>
                                 <strong>{membership.user?.display_name ?? "Unknown user"}</strong>
                                 <small>{membership.user?.email}</small>
+                                {isLastOwner ? <small className="owner-safeguard">Final Owner · assign another Owner before demoting or removing</small> : null}
                               </span>
                               <select
                                 aria-label={`Project role for ${membership.user?.display_name ?? "member"}`}
-                                disabled={!canManageTarget || busyAction === `project-role-${membership.id}`}
+                                disabled={!canManageTarget || isLastOwner || busyAction === `project-role-${membership.id}`}
                                 value={membership.role}
                                 onChange={(event) => void handleProjectRoleChange(membership.id, event.target.value)}
                               >
@@ -2512,7 +2585,7 @@ function OpenPdmApp() {
                               {canManageTarget ? (
                                 <button
                                   className="secondary-button"
-                                  disabled={busyAction === `remove-project-${membership.id}`}
+                                  disabled={isLastOwner || busyAction === `remove-project-${membership.id}`}
                                   onClick={() => void handleRemoveProjectMember(membership)}
                                   type="button"
                                 >
@@ -3224,9 +3297,7 @@ function OpenPdmApp() {
                           <div>
                             <h3>{entry.event_type}</h3>
                             <p>
-                              {entry.actor_user_id === session.data?.user.id
-                                ? "You"
-                                : entry.actor_user_id ?? "System"}
+                              {describeActor(entry.actor_user_id)}
                             </p>
                           </div>
                           <small>{formatTimestamp(entry.occurred_at)}</small>
