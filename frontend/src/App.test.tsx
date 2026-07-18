@@ -398,8 +398,23 @@ describe("App", () => {
     expect(calls.some(([path]) => path.includes("/chunks/"))).toBe(false);
   });
 
-  it("navigates to a related asset through the relationship exploration surface", async () => {
+  it.each(["resolve", "reject"] as const)(
+    "keeps the new Asset recovery when an old discard DELETE later %s",
+    async (deleteOutcome) => {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    window.localStorage.setItem("openpdm.assetId", "asset-1");
+    window.sessionStorage.setItem("openpdm.transfer.user-1.asset-1", JSON.stringify({
+      userId: "user-1", assetId: "asset-1", sessionId: "old-session", blobId: null,
+      fileName: "wing.step", fileSize: 10, fileType: "application/step", fileLastModified: 1,
+    }));
+    window.sessionStorage.setItem("openpdm.transfer.user-1.asset-2", JSON.stringify({
+      userId: "user-1", assetId: "asset-2", sessionId: "new-session", blobId: null,
+      fileName: "spar.step", fileSize: 20, fileType: "application/step", fileLastModified: 2,
+    }));
+    let settleDelete!: () => void;
+    const pendingDelete = new Promise<JsonResponse>((resolve, reject) => {
+      settleDelete = () => deleteOutcome === "resolve" ? resolve(jsonResponse(undefined, 204)) : reject(new TypeError("offline"));
+    });
 
     const assetsById = {
       "asset-1": {
@@ -428,8 +443,9 @@ describe("App", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input);
+        if (path === "/blobs/upload-sessions/old-session" && init?.method === "DELETE") return pendingDelete;
         if (path === "/foundation") {
           return jsonResponse({
             name: "OpenPDM",
@@ -646,16 +662,18 @@ describe("App", () => {
     fireEvent.click(projectButtons[0]);
     fireEvent.click(await screen.findByRole("tab", { name: "Assets" }));
     expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
-    const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
-    fireEvent.click(openButtons[0]);
-    expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
-    expect(
-      await screen.findByText(
-        (_content, element) =>
-          element?.tagName.toLowerCase() === "p" && element.textContent === "Load-bearing support",
-      ),
-    ).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
+    await screen.findByRole("button", { name: /Wing Panel/i });
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
+    expect(await screen.findByText("Select wing.step to resume the interrupted transfer.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input, init]) =>
+      String(input) === "/blobs/upload-sessions/old-session" && init?.method === "DELETE")).toBe(true));
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[1]);
+    expect(await screen.findByText("Select spar.step to resume the interrupted transfer.")).toBeInTheDocument();
+    settleDelete();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText("Select spar.step to resume the interrupted transfer.")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("openpdm.transfer.user-1.asset-2")).toContain("new-session");
   });
 
   it("shows collaboration recovery guidance when checkout is rejected", async () => {
