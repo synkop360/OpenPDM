@@ -3345,6 +3345,7 @@ function OpenPdmApp() {
                     <label>
                       Revision comment
                       <input
+                        disabled={busyAction === "upload"}
                         required
                         value={uploadForm.comment}
                         onChange={(event) =>
@@ -3355,6 +3356,7 @@ function OpenPdmApp() {
                     <label>
                       Representation name
                       <input
+                        disabled={busyAction === "upload"}
                         value={uploadForm.representationName}
                         onChange={(event) =>
                           setUploadForm((current) => ({
@@ -3367,6 +3369,7 @@ function OpenPdmApp() {
                     <label>
                       File
                       <input
+                        disabled={busyAction === "upload"}
                         required
                         type="file"
                         onChange={(event) => handleUploadFileChange(event.target.files?.[0] ?? null)}
