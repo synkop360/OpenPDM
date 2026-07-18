@@ -507,7 +507,7 @@ textarea {
 }
 
 .transfer-status {
-  background: rgba(239, 246, 243, 0.9);
+  background: var(--panel-strong);
   border: 1px solid var(--line);
   border-radius: 14px;
   display: grid;
@@ -527,12 +527,13 @@ textarea {
 
 .transfer-status-failed,
 .transfer-status-permission {
-  background: #fff7ed;
-  border-color: #e7b88d;
+  background: var(--soft);
+  border-color: var(--warning);
 }
 
 .transfer-status-success {
-  background: #e8f5ee;
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .collaboration-pill {

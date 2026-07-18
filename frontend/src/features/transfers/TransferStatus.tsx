@@ -14,13 +14,16 @@ const labels: Record<Exclude<TransferPhase, "idle">, string> = {
   permission: "Check-in unavailable",
 };
 
-export function TransferStatus({ phase, receivedBytes, totalBytes, message, onCancel, onRetry }: {
+export function TransferStatus({ phase, receivedBytes, totalBytes, message, onCancel, onRetry, onDiscard,
+  retryLabel = "Retry check-in" }: {
   phase: TransferPhase;
   receivedBytes: number;
   totalBytes: number;
   message?: string | null;
   onCancel?: () => void;
   onRetry?: () => void;
+  onDiscard?: () => void;
+  retryLabel?: string;
 }) {
   if (phase === "idle") return null;
   const active = phase === "preparing" || phase === "uploading" || phase === "verifying";
@@ -38,7 +41,10 @@ export function TransferStatus({ phase, receivedBytes, totalBytes, message, onCa
       ) : null}
       <div className="collaboration-actions">
         {active && onCancel ? <button className="secondary-button" type="button" onClick={onCancel}>Cancel transfer</button> : null}
-        {phase === "failed" && onRetry ? <button className="secondary-button" type="button" onClick={onRetry}>Retry check-in</button> : null}
+        {phase === "failed" && onRetry ? <button className="secondary-button" type="button" onClick={onRetry}>{retryLabel}</button> : null}
+        {(phase === "failed" || phase === "awaiting-file") && onDiscard ? (
+          <button className="secondary-button warning-button" type="button" onClick={onDiscard}>Discard transfer</button>
+        ) : null}
       </div>
     </section>
   );

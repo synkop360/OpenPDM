@@ -142,7 +142,7 @@ export type BlobUploadSession = {
   total_size_bytes: number;
   checksum_sha256: string | null;
   chunk_size_bytes: number;
-  status: string;
+  status: "active" | "completed" | "cancelled" | "expired";
   received_bytes: number;
   received_chunk_numbers: number[];
   expires_at: string;

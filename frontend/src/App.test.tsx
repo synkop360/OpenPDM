@@ -21,6 +21,7 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     window.history.replaceState({}, "", "/");
     vi.restoreAllMocks();
   });
@@ -51,6 +52,12 @@ describe("App", () => {
 
   it("loads the authenticated workspace and revision history from the public API", async () => {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    window.localStorage.setItem("openpdm.assetId", "asset-1");
+    window.sessionStorage.setItem("openpdm.transfer.asset-1", JSON.stringify({
+      assetId: "asset-1", sessionId: "session-1", blobId: null,
+      fileName: "native.fcstd", fileSize: 1234, fileType: "application/octet-stream",
+      fileLastModified: 42,
+    }));
 
     vi.stubGlobal(
       "fetch",
@@ -353,6 +360,10 @@ describe("App", () => {
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(await screen.findByText("Resume transfer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
+    await waitFor(() => expect(screen.queryByText("Resume transfer")).not.toBeInTheDocument());
+    expect(window.sessionStorage.getItem("openpdm.transfer.asset-1")).toBeNull();
   });
 
   it("navigates to a related asset through the relationship exploration surface", async () => {

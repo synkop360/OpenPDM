@@ -27,4 +27,17 @@ describe("TransferStatus", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry check-in" }));
     expect(retry).toHaveBeenCalledOnce();
   });
+
+  it("offers discard for terminal recovery and never offers cancel during check-in", () => {
+    const discard = vi.fn();
+    const { rerender } = render(<TransferStatus phase="awaiting-file" receivedBytes={0} totalBytes={10} onDiscard={discard} />);
+    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
+    expect(discard).toHaveBeenCalledOnce();
+    rerender(<TransferStatus phase="checking-in" receivedBytes={10} totalBytes={10}
+      onCancel={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Cancel transfer" })).not.toBeInTheDocument();
+    rerender(<TransferStatus phase="failed" receivedBytes={10} totalBytes={10} onRetry={vi.fn()}
+      retryLabel="Retry transfer" onDiscard={discard} />);
+    expect(screen.getByRole("button", { name: "Retry transfer" })).toBeInTheDocument();
+  });
 });
