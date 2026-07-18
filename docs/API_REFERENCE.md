@@ -4,6 +4,12 @@ This reference inventories the public application API implemented by `backend/sr
 
 Except for health, foundation, registration and sign-in, endpoints require an opaque bearer token issued by the local authentication flow.
 
+## Operational Collection Contract
+
+Operational collection endpoints end in `/page` and return `{ "items": [...], "next_cursor": "..." }`. `next_cursor` is `null` on the final page. They use stable opaque keyset cursors, default to 50 items, and accept at most 100. A cursor is valid only for the same collection, authorization scope, filters, sort key and direction that created it. Clients must treat cursors as opaque and start again without a cursor after changing any of those inputs.
+
+The common query parameters are `limit`, `cursor`, `sort` and `direction=asc|desc`. Collection-specific filters are documented by OpenAPI. Sort and filter keys are allowlisted by the owning Platform Module; unsupported values return `400`. The existing unpaged list routes remain available for compatibility.
+
 ## Foundation And Authentication
 
 | Method | Path | Purpose |
@@ -25,6 +31,7 @@ Except for health, foundation, registration and sign-in, endpoints require an op
 | `GET` | `/organizations` | List the actor's Organization memberships |
 | `GET` | `/organizations/{organization_id}` | Read an accessible Organization |
 | `GET` | `/organizations/{organization_id}/members` | List Organization members |
+| `GET` | `/organizations/{organization_id}/members/page` | Page, filter and sort Organization members |
 | `POST` | `/organizations/{organization_id}/members` | Add a registered user and role |
 | `PATCH` | `/organizations/{organization_id}/members/{membership_id}` | Change an Organization role |
 | `DELETE` | `/organizations/{organization_id}/members/{membership_id}` | Remove membership and contained Project access |
@@ -33,11 +40,19 @@ Except for health, foundation, registration and sign-in, endpoints require an op
 | `GET` | `/organizations/{organization_id}/projects/me` | List the actor's Project memberships |
 | `GET` | `/projects/{project_id}` | Read an accessible Project |
 | `GET` | `/projects/{project_id}/members` | List Project members |
+| `GET` | `/projects/{project_id}/members/page` | Page, filter and sort Project members |
 | `POST` | `/projects/{project_id}/members` | Assign an Organization member to a Project |
 | `PATCH` | `/projects/{project_id}/members/{membership_id}` | Change a Project role |
 | `DELETE` | `/projects/{project_id}/members/{membership_id}` | Remove a Project membership |
+| `GET` | `/users/me/project-views` | List the actor's private saved Engineering Asset views |
+| `POST` | `/users/me/project-views` | Create a private saved Engineering Asset view |
+| `GET` | `/users/me/project-views/{view_id}` | Read an owned saved view |
+| `PUT` | `/users/me/project-views/{view_id}` | Replace an owned saved view |
+| `DELETE` | `/users/me/project-views/{view_id}` | Delete an owned saved view |
 
 Membership addition accepts exactly one of `user_email` or the legacy `user_id`. Roles are `Owner`, `Maintainer`, `Contributor` and `Viewer`. Only Owners manage Owner roles, and every Organization and Project must retain at least one Owner.
+
+Saved Engineering Asset views are owner-private, scoped to one readable Project, and store only allowlisted generic Asset filters, sort configuration, density and selected columns. They are not returned after the owner loses Project access.
 
 ## Engineering Assets, Revisions And Blobs
 
@@ -45,6 +60,7 @@ Membership addition accepts exactly one of `user_email` or the legacy `user_id`.
 | --- | --- | --- |
 | `POST` | `/projects/{project_id}/assets` | Create a generic Engineering Asset |
 | `GET` | `/projects/{project_id}/assets` | List Project Engineering Assets |
+| `GET` | `/projects/{project_id}/assets/page` | Page, filter and sort Project Engineering Assets |
 | `GET` | `/assets/{asset_id}` | Read an Engineering Asset aggregate |
 | `GET` | `/assets/{asset_id}/history` | List immutable Revisions |
 | `POST` | `/assets/{asset_id}/revisions` | Create a Revision |
@@ -63,6 +79,8 @@ Membership addition accepts exactly one of `user_email` or the legacy `user_id`.
 | `POST` | `/assets/{asset_id}/checkin` | Create a Revision and release the lock |
 | `GET` | `/assets/{asset_id}/timeline` | Read collaboration timeline entries |
 | `GET` | `/notifications` | List actor notifications |
+| `GET` | `/notifications/page` | Page and filter actor notifications |
+| `POST` | `/notifications/read` | Atomically acknowledge selected or all matching notifications |
 | `POST` | `/notifications/{notification_id}/read` | Acknowledge a notification |
 
 ## Relationships, References And Graph Queries
@@ -96,6 +114,7 @@ Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/plugins` | List installed plugin lifecycle records |
+| `GET` | `/plugins/page` | Page, filter and sort plugin lifecycle records |
 | `GET` | `/plugins/{plugin_id}` | Inspect one plugin and its diagnostic state |
 | `POST` | `/plugins/packages` | Install a validated plugin package; Platform Administrator only |
 | `POST` | `/plugins/{plugin_id}/install` | Promote a compatible discovered package to installed state |
@@ -109,6 +128,8 @@ Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See 
 | `POST` | `/plugins/{plugin_id}/providers/assets/{project_id}` | Invoke an Asset Provider within one authorized Project |
 | `GET` | `/providers` | Discover running provider plugins and their public capabilities |
 | `POST` | `/plugins/{plugin_id}/providers/options` | Retrieve bounded declarative option sets from an Option Provider |
+
+Plugin configuration responses include the bounded declarative `configuration_schema` used to render safe operator controls.
 
 `POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file plus `plugin_type` and `discover_only` query parameters. Structurally valid incompatible packages receive an inspectable `incompatible` state but cannot be enabled. Authenticated applications discover only running providers through `GET /providers`. Option Providers return bounded text values and labels; they cannot inject HTML, scripts, styles or application components. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
 

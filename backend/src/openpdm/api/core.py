@@ -8,7 +8,17 @@ from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
@@ -270,6 +280,72 @@ class NotificationResponse(BaseModel):
     created_at: str
 
 
+class AssetPageResponse(BaseModel):
+    items: list[AssetResponse]
+    next_cursor: str | None
+
+
+class OrganizationMembershipPageResponse(BaseModel):
+    items: list[OrganizationMembershipResponse]
+    next_cursor: str | None
+
+
+class ProjectMembershipPageResponse(BaseModel):
+    items: list[ProjectMembershipResponse]
+    next_cursor: str | None
+
+
+class NotificationPageResponse(BaseModel):
+    items: list[NotificationResponse]
+    next_cursor: str | None
+
+
+class PluginPageResponse(BaseModel):
+    items: list[PluginResponse]
+    next_cursor: str | None
+
+
+class ProjectAssetViewResponse(BaseModel):
+    id: str
+    project_id: str
+    name: str
+    filters: dict[str, Any]
+    sort: dict[str, Any]
+    density: str
+    selected_columns: list[str]
+    created_at: str
+    updated_at: str
+
+
+class ProjectAssetViewRequest(BaseModel):
+    project_id: str
+    name: str = Field(min_length=1, max_length=200)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    sort: dict[str, Any]
+    density: str = "comfortable"
+    selected_columns: list[str] = Field(min_length=1, max_length=20)
+
+
+class UpdateProjectAssetViewRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    sort: dict[str, Any]
+    density: str = "comfortable"
+    selected_columns: list[str] = Field(min_length=1, max_length=20)
+
+
+class ReadNotificationsRequest(BaseModel):
+    notification_ids: list[str] = Field(default_factory=list, max_length=100)
+    all_matching: bool = False
+    project_id: str | None = None
+    is_read: bool | None = None
+
+
+class ReadNotificationsResponse(BaseModel):
+    updated_count: int
+    notification_ids: list[str]
+
+
 class RegisterUserRequest(BaseModel):
     email: str
     display_name: str
@@ -393,6 +469,7 @@ class PutPluginConfigurationRequest(BaseModel):
 
 class PluginConfigurationResponse(BaseModel):
     plugin_id: str
+    configuration_schema: dict[str, Any] | None
     values: dict[str, Any]
     configured_secret_fields: list[str]
     updated_at: str | None
@@ -713,6 +790,20 @@ def serialize_notification(notification: Any) -> NotificationResponse:
     )
 
 
+def serialize_project_asset_view(view: Any) -> ProjectAssetViewResponse:
+    return ProjectAssetViewResponse(
+        id=view.id,
+        project_id=view.project_id,
+        name=view.name,
+        filters=view.filters,
+        sort=view.sort,
+        density=view.density,
+        selected_columns=view.selected_columns,
+        created_at=_iso(view.created_at),
+        updated_at=_iso(view.updated_at),
+    )
+
+
 def get_storage() -> BlobStorage:
     """FastAPI dependency for blob storage."""
     return build_blob_storage()
@@ -991,6 +1082,43 @@ def list_organization_members(
     ]
 
 
+@router.get(
+    "/organizations/{organization_id}/members/page",
+    response_model=OrganizationMembershipPageResponse,
+)
+def list_organization_members_page(
+    organization_id: str,
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = None,
+    role: str | None = None,
+    query: str | None = Query(default=None, alias="q", max_length=200),
+    sort: str = "created_at",
+    direction: str = "asc",
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> OrganizationMembershipPageResponse:
+    page = OrganizationModule.list_members_page(
+        db,
+        organization_id=organization_id,
+        actor=context.user,
+        limit=limit,
+        cursor=cursor,
+        role=role,
+        query=query,
+        sort=sort,
+        direction=direction,
+    )
+    return OrganizationMembershipPageResponse(
+        items=[
+            OrganizationMembershipResponse(
+                id=item.id, role=item.role, user=serialize_user(item.user)
+            )
+            for item in page.items
+        ],
+        next_cursor=page.next_cursor,
+    )
+
+
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: CreateProjectRequest,
@@ -1049,6 +1177,104 @@ def get_project(
     return serialize_project(
         ProjectModule.get_project(db, project_id=project_id, actor=context.user)
     )
+
+
+@router.get("/users/me/project-views", response_model=list[ProjectAssetViewResponse])
+def list_project_asset_views(
+    project_id: str | None = None,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[ProjectAssetViewResponse]:
+    return [
+        serialize_project_asset_view(view)
+        for view in ProjectModule.list_asset_views(db, actor=context.user, project_id=project_id)
+    ]
+
+
+@router.post(
+    "/users/me/project-views",
+    response_model=ProjectAssetViewResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_project_asset_view(
+    payload: ProjectAssetViewRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ProjectAssetViewResponse:
+    AssetsModule.validate_asset_view_definition(
+        filters=payload.filters,
+        sort=payload.sort,
+        selected_columns=payload.selected_columns,
+    )
+    view = ProjectModule.create_asset_view(
+        db,
+        actor=context.user,
+        project_id=payload.project_id,
+        name=payload.name,
+        filters=payload.filters,
+        sort=payload.sort,
+        density=payload.density,
+        selected_columns=payload.selected_columns,
+    )
+    db.commit()
+    return serialize_project_asset_view(view)
+
+
+@router.get(
+    "/users/me/project-views/{view_id}",
+    response_model=ProjectAssetViewResponse,
+)
+def get_project_asset_view(
+    view_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ProjectAssetViewResponse:
+    return serialize_project_asset_view(
+        ProjectModule.get_asset_view(db, actor=context.user, view_id=view_id)
+    )
+
+
+@router.put(
+    "/users/me/project-views/{view_id}",
+    response_model=ProjectAssetViewResponse,
+)
+def update_project_asset_view(
+    view_id: str,
+    payload: UpdateProjectAssetViewRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ProjectAssetViewResponse:
+    AssetsModule.validate_asset_view_definition(
+        filters=payload.filters,
+        sort=payload.sort,
+        selected_columns=payload.selected_columns,
+    )
+    view = ProjectModule.update_asset_view(
+        db,
+        actor=context.user,
+        view_id=view_id,
+        name=payload.name,
+        filters=payload.filters,
+        sort=payload.sort,
+        density=payload.density,
+        selected_columns=payload.selected_columns,
+    )
+    db.commit()
+    return serialize_project_asset_view(view)
+
+
+@router.delete(
+    "/users/me/project-views/{view_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_project_asset_view(
+    view_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    ProjectModule.delete_asset_view(db, actor=context.user, view_id=view_id)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/projects/{project_id}/members", response_model=ProjectMembershipResponse)
@@ -1127,6 +1353,41 @@ def list_project_members(
     ]
 
 
+@router.get(
+    "/projects/{project_id}/members/page",
+    response_model=ProjectMembershipPageResponse,
+)
+def list_project_members_page(
+    project_id: str,
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = None,
+    role: str | None = None,
+    query: str | None = Query(default=None, alias="q", max_length=200),
+    sort: str = "created_at",
+    direction: str = "asc",
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ProjectMembershipPageResponse:
+    page = ProjectModule.list_members_page(
+        db,
+        project_id=project_id,
+        actor=context.user,
+        limit=limit,
+        cursor=cursor,
+        role=role,
+        query=query,
+        sort=sort,
+        direction=direction,
+    )
+    return ProjectMembershipPageResponse(
+        items=[
+            ProjectMembershipResponse(id=item.id, role=item.role, user=serialize_user(item.user))
+            for item in page.items
+        ],
+        next_cursor=page.next_cursor,
+    )
+
+
 @router.get("/notifications", response_model=list[NotificationResponse])
 def list_notifications(
     context: SessionContext = Depends(get_authenticated_session),
@@ -1136,6 +1397,59 @@ def list_notifications(
         serialize_notification(item)
         for item in NotificationsModule.list_notifications(db, actor=context.user)
     ]
+
+
+@router.get("/notifications/page", response_model=NotificationPageResponse)
+def list_notifications_page(
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = None,
+    project_id: str | None = None,
+    is_read: bool | None = None,
+    sort: str = "created_at",
+    direction: str = "desc",
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> NotificationPageResponse:
+    page = NotificationsModule.list_notifications_page(
+        db,
+        actor=context.user,
+        limit=limit,
+        cursor=cursor,
+        project_id=project_id,
+        is_read=is_read,
+        sort=sort,
+        direction=direction,
+    )
+    return NotificationPageResponse(
+        items=[serialize_notification(item) for item in page.items],
+        next_cursor=page.next_cursor,
+    )
+
+
+@router.post("/notifications/read", response_model=ReadNotificationsResponse)
+def mark_notifications_read(
+    payload: ReadNotificationsRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> ReadNotificationsResponse:
+    if payload.all_matching == bool(payload.notification_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Choose notification_ids or all_matching.",
+        )
+    changed = NotificationsModule.mark_read_many(
+        db,
+        actor=context.user,
+        notification_ids=payload.notification_ids,
+        all_matching=payload.all_matching,
+        project_id=payload.project_id,
+        is_read=payload.is_read,
+    )
+    db.commit()
+    return ReadNotificationsResponse(
+        updated_count=len(changed),
+        notification_ids=[item.id for item in changed],
+    )
 
 
 @router.post("/notifications/{notification_id}/read", response_model=NotificationResponse)
@@ -1215,6 +1529,35 @@ def list_assets(
         serialize_asset(item)
         for item in AssetsModule.list_assets(db, project_id=project_id, actor=context.user)
     ]
+
+
+@router.get("/projects/{project_id}/assets/page", response_model=AssetPageResponse)
+def list_assets_page(
+    project_id: str,
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
+    query: str | None = Query(default=None, alias="q", max_length=200),
+    sort: str = "created_at",
+    direction: str = "desc",
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> AssetPageResponse:
+    page = AssetsModule.list_assets_page(
+        db,
+        project_id=project_id,
+        actor=context.user,
+        limit=limit,
+        cursor=cursor,
+        status_filter=status_filter,
+        query=query,
+        sort=sort,
+        direction=direction,
+    )
+    return AssetPageResponse(
+        items=[serialize_asset(item) for item in page.items],
+        next_cursor=page.next_cursor,
+    )
 
 
 @router.get("/assets/{asset_id}", response_model=AssetResponse)
@@ -1707,6 +2050,35 @@ def list_plugins(
     return [serialize_plugin(item) for item in PluginsModule.list_plugins(db, actor=context.user)]
 
 
+@router.get("/plugins/page", response_model=PluginPageResponse)
+def list_plugins_page(
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = None,
+    lifecycle_state: str | None = None,
+    enabled: bool | None = None,
+    query: str | None = Query(default=None, alias="q", max_length=200),
+    sort: str = "created_at",
+    direction: str = "desc",
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> PluginPageResponse:
+    page = PluginsModule.list_plugins_page(
+        db,
+        actor=context.user,
+        limit=limit,
+        cursor=cursor,
+        lifecycle_state=lifecycle_state,
+        enabled=enabled,
+        query=query,
+        sort=sort,
+        direction=direction,
+    )
+    return PluginPageResponse(
+        items=[serialize_plugin(item) for item in page.items],
+        next_cursor=page.next_cursor,
+    )
+
+
 @router.get("/plugins/{plugin_id}", response_model=PluginResponse)
 def get_plugin(
     plugin_id: str,
@@ -1739,6 +2111,7 @@ def get_plugin_configuration(
         secret_fields = sorted(secrets)
     return PluginConfigurationResponse(
         plugin_id=plugin.id,
+        configuration_schema=plugin.configuration_schema,
         values=configuration.public_values if configuration else {},
         configured_secret_fields=secret_fields,
         updated_at=_iso(configuration.updated_at) if configuration else None,
@@ -1774,6 +2147,7 @@ def put_plugin_configuration(
     configured_secret_fields = sorted(cipher.decrypt(configuration.encrypted_secrets))
     return PluginConfigurationResponse(
         plugin_id=configuration.plugin_id,
+        configuration_schema=plugin.configuration_schema,
         values=configuration.public_values,
         configured_secret_fields=configured_secret_fields,
         updated_at=_iso(configuration.updated_at),

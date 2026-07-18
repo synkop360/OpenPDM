@@ -44,12 +44,14 @@ from openpdm.platform_core.modules.models import (
     PluginEventDelivery,
     PluginRecord,
     Project,
+    ProjectAssetView,
     ProjectMembership,
     Representation,
     Revision,
     SessionToken,
     User,
 )
+from openpdm.platform_core.pagination import PageResult, paginate
 from openpdm.platform_core.public import PluginEventDeliveryView
 from openpdm.platform_core.request_context import get_request_id
 
@@ -65,6 +67,18 @@ PROJECT_PERMISSION_ROLES = {
     "manage_members": {"Owner", "Maintainer"},
 }
 ALLOWED_STATUSES = {"draft", "active", "archived"}
+ASSET_PAGE_SORTS = {"created_at", "updated_at", "name", "status"}
+ASSET_VIEW_COLUMNS = {
+    "name",
+    "description",
+    "status",
+    "created_at",
+    "updated_at",
+    "created_by_user_id",
+}
+MEMBERSHIP_PAGE_SORTS = {"created_at", "role"}
+NOTIFICATION_PAGE_SORTS = {"created_at", "event_type"}
+PLUGIN_PAGE_SORTS = {"created_at", "updated_at", "name", "lifecycle_state"}
 ALLOWED_METADATA_TYPES = {"string", "number", "boolean", "date", "json"}
 ALLOWED_PLUGIN_TYPES = {"official", "community"}
 PLUGIN_LIFECYCLE_STATES = {
@@ -258,6 +272,10 @@ def require(condition: bool, message: str, code: int = status.HTTP_400_BAD_REQUE
     """Raise an HTTPException when a precondition fails."""
     if not condition:
         raise HTTPException(status_code=code, detail=message)
+
+
+def validate_page_sort(sort: str, allowed: set[str]) -> None:
+    require(sort in allowed, "Unsupported collection sort key.")
 
 
 def collaboration_error(
@@ -932,6 +950,50 @@ class OrganizationModule:
             )
         )
 
+    @staticmethod
+    def list_members_page(
+        db: Session,
+        *,
+        organization_id: str,
+        actor: User,
+        limit: int,
+        cursor: str | None,
+        role: str | None,
+        query: str | None,
+        sort: str,
+        direction: str,
+    ) -> PageResult[OrganizationMembership]:
+        OrganizationModule.get_organization(db, organization_id, actor)
+        validate_page_sort(sort, MEMBERSHIP_PAGE_SORTS)
+        if role is not None:
+            require(role in ORG_ROLE_PRIORITY, "Unsupported Organization role filter.")
+        normalized_query = query.strip().lower() if query else ""
+        statement = (
+            select(OrganizationMembership)
+            .options(joinedload(OrganizationMembership.user))
+            .where(OrganizationMembership.organization_id == organization_id)
+        )
+        if role:
+            statement = statement.where(OrganizationMembership.role == role)
+        if normalized_query:
+            statement = statement.join(User).where(
+                or_(
+                    func.lower(User.email).contains(normalized_query),
+                    func.lower(User.display_name).contains(normalized_query),
+                )
+            )
+        return paginate(
+            db,
+            statement=statement,
+            model=OrganizationMembership,
+            resource="organization-members",
+            scope=repr((organization_id, role, normalized_query)),
+            sort=sort,
+            direction=direction,
+            limit=limit,
+            cursor=cursor,
+        )
+
 
 class ProjectModule:
     """Public Project module service."""
@@ -1360,6 +1422,219 @@ class ProjectModule:
             )
         )
 
+    @staticmethod
+    def list_members_page(
+        db: Session,
+        *,
+        project_id: str,
+        actor: User,
+        limit: int,
+        cursor: str | None,
+        role: str | None,
+        query: str | None,
+        sort: str,
+        direction: str,
+    ) -> PageResult[ProjectMembership]:
+        ProjectModule.require_project_permission(
+            db, project_id=project_id, actor=actor, permission="read_project"
+        )
+        validate_page_sort(sort, MEMBERSHIP_PAGE_SORTS)
+        if role is not None:
+            require(role in PROJECT_ROLE_PRIORITY, "Unsupported Project role filter.")
+        normalized_query = query.strip().lower() if query else ""
+        statement = (
+            select(ProjectMembership)
+            .options(joinedload(ProjectMembership.user))
+            .where(ProjectMembership.project_id == project_id)
+        )
+        if role:
+            statement = statement.where(ProjectMembership.role == role)
+        if normalized_query:
+            statement = statement.join(User).where(
+                or_(
+                    func.lower(User.email).contains(normalized_query),
+                    func.lower(User.display_name).contains(normalized_query),
+                )
+            )
+        return paginate(
+            db,
+            statement=statement,
+            model=ProjectMembership,
+            resource="project-members",
+            scope=repr((project_id, role, normalized_query)),
+            sort=sort,
+            direction=direction,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    @staticmethod
+    def create_asset_view(
+        db: Session,
+        *,
+        actor: User,
+        project_id: str,
+        name: str,
+        filters: dict[str, object],
+        sort: dict[str, object],
+        density: str,
+        selected_columns: list[str],
+    ) -> ProjectAssetView:
+        project = ProjectModule.require_project_permission(
+            db, project_id=project_id, actor=actor, permission="read_project"
+        )
+        normalized_name = name.strip()
+        require(bool(normalized_name), "Saved view name is required.")
+        require(density in {"compact", "comfortable"}, "Unsupported saved view density.")
+        existing = db.scalar(
+            select(ProjectAssetView).where(
+                and_(
+                    ProjectAssetView.owner_user_id == actor.id,
+                    ProjectAssetView.project_id == project_id,
+                    ProjectAssetView.name == normalized_name,
+                )
+            )
+        )
+        require(
+            existing is None,
+            "A saved view with this name already exists.",
+            status.HTTP_409_CONFLICT,
+        )
+        view = ProjectAssetView(
+            owner_user_id=actor.id,
+            project_id=project_id,
+            name=normalized_name,
+            filters=filters,
+            sort=sort,
+            density=density,
+            selected_columns=selected_columns,
+        )
+        db.add(view)
+        db.flush()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="project_asset_view.created",
+            resource_type="project_asset_view",
+            resource_id=view.id,
+            organization_id=project.organization_id,
+            project_id=project.id,
+        )
+        return view
+
+    @staticmethod
+    def list_asset_views(
+        db: Session, *, actor: User, project_id: str | None = None
+    ) -> list[ProjectAssetView]:
+        statement = (
+            select(ProjectAssetView)
+            .join(Project, Project.id == ProjectAssetView.project_id)
+            .join(
+                ProjectMembership,
+                and_(
+                    ProjectMembership.project_id == Project.id,
+                    ProjectMembership.user_id == actor.id,
+                    ProjectMembership.role.in_(PROJECT_PERMISSION_ROLES["read_project"]),
+                ),
+            )
+            .join(
+                OrganizationMembership,
+                and_(
+                    OrganizationMembership.organization_id == Project.organization_id,
+                    OrganizationMembership.user_id == actor.id,
+                ),
+            )
+            .where(ProjectAssetView.owner_user_id == actor.id)
+        )
+        if project_id is not None:
+            ProjectModule.require_project_permission(
+                db, project_id=project_id, actor=actor, permission="read_project"
+            )
+            statement = statement.where(ProjectAssetView.project_id == project_id)
+        return list(db.scalars(statement.order_by(ProjectAssetView.name, ProjectAssetView.id)))
+
+    @staticmethod
+    def get_asset_view(db: Session, *, actor: User, view_id: str) -> ProjectAssetView:
+        view = db.scalar(
+            select(ProjectAssetView).where(
+                and_(ProjectAssetView.id == view_id, ProjectAssetView.owner_user_id == actor.id)
+            )
+        )
+        if view is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Saved view not found."
+            )
+        ProjectModule.require_project_permission(
+            db, project_id=view.project_id, actor=actor, permission="read_project"
+        )
+        return view
+
+    @staticmethod
+    def update_asset_view(
+        db: Session,
+        *,
+        actor: User,
+        view_id: str,
+        name: str,
+        filters: dict[str, object],
+        sort: dict[str, object],
+        density: str,
+        selected_columns: list[str],
+    ) -> ProjectAssetView:
+        view = ProjectModule.get_asset_view(db, actor=actor, view_id=view_id)
+        normalized_name = name.strip()
+        require(bool(normalized_name), "Saved view name is required.")
+        require(density in {"compact", "comfortable"}, "Unsupported saved view density.")
+        duplicate = db.scalar(
+            select(ProjectAssetView).where(
+                and_(
+                    ProjectAssetView.owner_user_id == actor.id,
+                    ProjectAssetView.project_id == view.project_id,
+                    ProjectAssetView.name == normalized_name,
+                    ProjectAssetView.id != view.id,
+                )
+            )
+        )
+        require(
+            duplicate is None,
+            "A saved view with this name already exists.",
+            status.HTTP_409_CONFLICT,
+        )
+        view.name = normalized_name
+        view.filters = filters
+        view.sort = sort
+        view.density = density
+        view.selected_columns = selected_columns
+        view.updated_at = utc_now()
+        project = db.get(Project, view.project_id)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="project_asset_view.updated",
+            resource_type="project_asset_view",
+            resource_id=view.id,
+            organization_id=project.organization_id if project else None,
+            project_id=view.project_id,
+        )
+        return view
+
+    @staticmethod
+    def delete_asset_view(db: Session, *, actor: User, view_id: str) -> ProjectAssetView:
+        view = ProjectModule.get_asset_view(db, actor=actor, view_id=view_id)
+        project = db.get(Project, view.project_id)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="project_asset_view.deleted",
+            resource_type="project_asset_view",
+            resource_id=view.id,
+            organization_id=project.organization_id if project else None,
+            project_id=view.project_id,
+        )
+        db.delete(view)
+        db.flush()
+        return view
+
 
 class NotificationsModule:
     """Public in-app notifications service for Phase 2 collaboration."""
@@ -1506,6 +1781,118 @@ class NotificationsModule:
                 .order_by(NotificationRecord.created_at.desc())
             )
         )
+
+    @staticmethod
+    def list_notifications_page(
+        db: Session,
+        *,
+        actor: User,
+        limit: int,
+        cursor: str | None,
+        project_id: str | None,
+        is_read: bool | None,
+        sort: str,
+        direction: str,
+    ) -> PageResult[NotificationRecord]:
+        validate_page_sort(sort, NOTIFICATION_PAGE_SORTS)
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(
+            db, user_id=actor.id
+        )
+        if project_id is not None:
+            require(
+                project_id in visible_project_ids,
+                "Notification Project access denied.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        statement = select(NotificationRecord).where(
+            and_(
+                NotificationRecord.recipient_user_id == actor.id,
+                NotificationRecord.project_id.in_(visible_project_ids),
+            )
+        )
+        if project_id is not None:
+            statement = statement.where(NotificationRecord.project_id == project_id)
+        if is_read is not None:
+            statement = statement.where(NotificationRecord.is_read == is_read)
+        return paginate(
+            db,
+            statement=statement,
+            model=NotificationRecord,
+            resource="notifications",
+            scope=repr((actor.id, project_id, is_read)),
+            sort=sort,
+            direction=direction,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    @staticmethod
+    def mark_read_many(
+        db: Session,
+        *,
+        actor: User,
+        notification_ids: list[str],
+        all_matching: bool,
+        project_id: str | None,
+        is_read: bool | None,
+    ) -> list[NotificationRecord]:
+        visible_project_ids = NotificationsModule._visible_project_ids_for_user(
+            db, user_id=actor.id
+        )
+        if project_id is not None:
+            require(
+                project_id in visible_project_ids,
+                "Notification Project access denied.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        unique_ids = list(dict.fromkeys(notification_ids))
+        statement = select(NotificationRecord).where(
+            and_(
+                NotificationRecord.recipient_user_id == actor.id,
+                NotificationRecord.project_id.in_(visible_project_ids),
+            )
+        )
+        if all_matching:
+            if project_id is not None:
+                statement = statement.where(NotificationRecord.project_id == project_id)
+            if is_read is not None:
+                statement = statement.where(NotificationRecord.is_read == is_read)
+        else:
+            statement = statement.where(NotificationRecord.id.in_(unique_ids))
+        notifications = list(db.scalars(statement))
+        if not all_matching and len(notifications) != len(unique_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more notifications were not found.",
+            )
+        changed: list[NotificationRecord] = []
+        read_at = utc_now()
+        for notification in notifications:
+            if notification.is_read:
+                continue
+            notification.is_read = True
+            notification.read_at = read_at
+            changed.append(notification)
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="notification.read",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=notification.organization_id,
+                project_id=notification.project_id,
+                details={"notification_event_type": notification.event_type},
+            )
+            emit_event(
+                db,
+                event_type="notification.read",
+                resource_type="notification",
+                resource_id=notification.id,
+                organization_id=notification.organization_id,
+                project_id=notification.project_id,
+                payload={"notification_event_type": notification.event_type},
+            )
+        return changed
 
     @staticmethod
     def mark_read(db: Session, *, notification_id: str, actor: User) -> NotificationRecord:
@@ -1695,6 +2082,82 @@ class AssetsModule:
             select(Asset).where(Asset.project_id == project_id).order_by(Asset.created_at.desc())
         )
         return list(db.scalars(statement))
+
+    @staticmethod
+    def validate_asset_view_definition(
+        *,
+        filters: dict[str, object],
+        sort: dict[str, object],
+        selected_columns: list[str],
+    ) -> None:
+        unknown_filters = set(filters) - {"query", "status"}
+        require(not unknown_filters, "Unsupported Asset saved-view filter.")
+        status_filter = filters.get("status")
+        if status_filter is not None:
+            require(
+                isinstance(status_filter, str) and status_filter in ALLOWED_STATUSES,
+                "Unsupported Asset status filter.",
+            )
+        query = filters.get("query")
+        require(query is None or isinstance(query, str), "Asset query filter must be text.")
+        require(set(sort) == {"field", "direction"}, "Asset saved-view sort is incomplete.")
+        field = sort.get("field")
+        direction = sort.get("direction")
+        require(
+            isinstance(field, str) and field in ASSET_PAGE_SORTS,
+            "Unsupported Asset sort key.",
+        )
+        require(direction in {"asc", "desc"}, "Unsupported Asset sort direction.")
+        require(
+            bool(selected_columns) and set(selected_columns) <= ASSET_VIEW_COLUMNS,
+            "Unsupported Asset saved-view column.",
+        )
+        require(
+            len(selected_columns) == len(set(selected_columns)),
+            "Asset saved-view columns must be unique.",
+        )
+
+    @staticmethod
+    def list_assets_page(
+        db: Session,
+        *,
+        project_id: str,
+        actor: User,
+        limit: int,
+        cursor: str | None,
+        status_filter: str | None,
+        query: str | None,
+        sort: str,
+        direction: str,
+    ) -> PageResult[Asset]:
+        ProjectModule.require_project_permission(
+            db, project_id=project_id, actor=actor, permission="read_project"
+        )
+        validate_page_sort(sort, ASSET_PAGE_SORTS)
+        if status_filter is not None:
+            require(status_filter in ALLOWED_STATUSES, "Unsupported Asset status filter.")
+        normalized_query = query.strip().lower() if query else ""
+        statement = select(Asset).where(Asset.project_id == project_id)
+        if status_filter:
+            statement = statement.where(Asset.status == status_filter)
+        if normalized_query:
+            statement = statement.where(
+                or_(
+                    func.lower(Asset.name).contains(normalized_query),
+                    func.lower(Asset.description).contains(normalized_query),
+                )
+            )
+        return paginate(
+            db,
+            statement=statement,
+            model=Asset,
+            resource="project-assets",
+            scope=repr((project_id, status_filter, normalized_query)),
+            sort=sort,
+            direction=direction,
+            limit=limit,
+            cursor=cursor,
+        )
 
     @staticmethod
     def get_asset(db: Session, *, asset_id: str, actor: User) -> Asset:
@@ -3625,6 +4088,50 @@ class PluginsModule:
     @staticmethod
     def list_plugins(db: Session, actor: User) -> list[PluginRecord]:
         return list(db.scalars(select(PluginRecord).order_by(PluginRecord.created_at.desc())))
+
+    @staticmethod
+    def list_plugins_page(
+        db: Session,
+        *,
+        actor: User,
+        limit: int,
+        cursor: str | None,
+        lifecycle_state: str | None,
+        enabled: bool | None,
+        query: str | None,
+        sort: str,
+        direction: str,
+    ) -> PageResult[PluginRecord]:
+        validate_page_sort(sort, PLUGIN_PAGE_SORTS)
+        if lifecycle_state is not None:
+            require(
+                lifecycle_state in PLUGIN_LIFECYCLE_STATES,
+                "Unsupported plugin lifecycle filter.",
+            )
+        normalized_query = query.strip().lower() if query else ""
+        statement = select(PluginRecord)
+        if lifecycle_state:
+            statement = statement.where(PluginRecord.lifecycle_state == lifecycle_state)
+        if enabled is not None:
+            statement = statement.where(PluginRecord.enabled == enabled)
+        if normalized_query:
+            statement = statement.where(
+                or_(
+                    func.lower(PluginRecord.name).contains(normalized_query),
+                    func.lower(PluginRecord.id).contains(normalized_query),
+                )
+            )
+        return paginate(
+            db,
+            statement=statement,
+            model=PluginRecord,
+            resource="plugins",
+            scope=repr((lifecycle_state, enabled, normalized_query)),
+            sort=sort,
+            direction=direction,
+            limit=limit,
+            cursor=cursor,
+        )
 
     @staticmethod
     def get_plugin(db: Session, *, plugin_id: str, actor: User) -> PluginRecord:
