@@ -16,6 +16,7 @@ from fastapi import (
     Header,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
@@ -136,6 +137,29 @@ class BlobResponse(ApiModel):
     size_bytes: int
     checksum_sha256: str
     created_at: str
+
+
+class CreateBlobUploadSessionRequest(BaseModel):
+    filename: str
+    media_type: str
+    total_size_bytes: int
+    checksum_sha256: str | None = None
+
+
+class BlobUploadSessionResponse(ApiModel):
+    id: str
+    filename: str
+    media_type: str
+    total_size_bytes: int
+    checksum_sha256: str | None
+    chunk_size_bytes: int
+    status: str
+    received_bytes: int
+    received_chunk_numbers: list[int]
+    expires_at: str
+    created_at: str
+    updated_at: str
+    blob: BlobResponse | None = None
 
 
 class RepresentationResponse(ApiModel):
@@ -566,6 +590,25 @@ def serialize_blob(blob: Any) -> BlobResponse:
         size_bytes=blob.size_bytes,
         checksum_sha256=blob.checksum_sha256,
         created_at=_iso(blob.created_at),
+    )
+
+
+def serialize_blob_upload_session(upload_session: Any) -> BlobUploadSessionResponse:
+    chunks = sorted(upload_session.chunks, key=lambda chunk: chunk.chunk_number)
+    return BlobUploadSessionResponse(
+        id=upload_session.id,
+        filename=upload_session.filename,
+        media_type=upload_session.media_type,
+        total_size_bytes=upload_session.total_size_bytes,
+        checksum_sha256=upload_session.checksum_sha256,
+        chunk_size_bytes=upload_session.chunk_size_bytes,
+        status=upload_session.status,
+        received_bytes=sum(chunk.size_bytes for chunk in chunks),
+        received_chunk_numbers=[chunk.chunk_number for chunk in chunks],
+        expires_at=_iso(upload_session.expires_at),
+        created_at=_iso(upload_session.created_at),
+        updated_at=_iso(upload_session.updated_at),
+        blob=serialize_blob(upload_session.blob) if upload_session.blob is not None else None,
     )
 
 
@@ -1475,6 +1518,103 @@ async def upload_blob(
     blob = await BlobModule.upload_blob(db, actor=context.user, file=file, storage=storage)
     db.commit()
     return serialize_blob(blob)
+
+
+@router.post(
+    "/blobs/upload-sessions",
+    response_model=BlobUploadSessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_blob_upload_session(
+    payload: CreateBlobUploadSessionRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+    storage: BlobStorage = Depends(get_storage),
+) -> BlobUploadSessionResponse:
+    upload_session = BlobModule.create_upload_session(
+        db,
+        actor=context.user,
+        filename=payload.filename,
+        media_type=payload.media_type,
+        total_size_bytes=payload.total_size_bytes,
+        checksum_sha256=payload.checksum_sha256,
+        storage=storage,
+        settings=Settings(),
+    )
+    db.commit()
+    return serialize_blob_upload_session(upload_session)
+
+
+@router.put(
+    "/blobs/upload-sessions/{session_id}/chunks/{chunk_number}",
+    response_model=BlobUploadSessionResponse,
+)
+async def put_blob_upload_session_chunk(
+    session_id: str,
+    chunk_number: int,
+    request: Request,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+    storage: BlobStorage = Depends(get_storage),
+) -> BlobUploadSessionResponse:
+    require_content_type = request.headers.get("content-type", "").split(";", 1)[0]
+    if require_content_type != "application/octet-stream":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chunk content type must be application/octet-stream.",
+        )
+    upload_session = BlobModule.put_upload_chunk(
+        db,
+        session_id=session_id,
+        chunk_number=chunk_number,
+        content=await request.body(),
+        actor=context.user,
+        storage=storage,
+    )
+    db.commit()
+    return serialize_blob_upload_session(upload_session)
+
+
+@router.get("/blobs/upload-sessions/{session_id}", response_model=BlobUploadSessionResponse)
+def get_blob_upload_session(
+    session_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+    storage: BlobStorage = Depends(get_storage),
+) -> BlobUploadSessionResponse:
+    upload_session = BlobModule.get_upload_session(
+        db, session_id=session_id, actor=context.user, storage=storage
+    )
+    db.commit()
+    return serialize_blob_upload_session(upload_session)
+
+
+@router.post(
+    "/blobs/upload-sessions/{session_id}/complete", response_model=BlobUploadSessionResponse
+)
+def complete_blob_upload_session(
+    session_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+    storage: BlobStorage = Depends(get_storage),
+) -> BlobUploadSessionResponse:
+    upload_session = BlobModule.complete_upload_session(
+        db, session_id=session_id, actor=context.user, storage=storage
+    )
+    db.commit()
+    return serialize_blob_upload_session(upload_session)
+
+
+@router.delete("/blobs/upload-sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_blob_upload_session(
+    session_id: str,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+    storage: BlobStorage = Depends(get_storage),
+) -> Response:
+    BlobModule.cancel_upload_session(db, session_id=session_id, actor=context.user, storage=storage)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/blobs/{blob_id}/download")

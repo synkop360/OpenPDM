@@ -67,7 +67,20 @@ Saved Engineering Asset views are owner-private, scoped to one readable Project,
 | `POST` | `/revisions/{revision_id}/representations` | Add a Representation |
 | `POST` | `/assets/{asset_id}/status` | Change the generic lifecycle status |
 | `POST` | `/blobs/uploads` | Upload Blob content |
+| `POST` | `/blobs/upload-sessions` | Create a bounded resumable Blob upload session |
+| `PUT` | `/blobs/upload-sessions/{session_id}/chunks/{chunk_number}` | Persist one raw `application/octet-stream` chunk |
+| `GET` | `/blobs/upload-sessions/{session_id}` | Read authorized upload progress |
+| `POST` | `/blobs/upload-sessions/{session_id}/complete` | Verify, assemble, and create the Blob |
+| `DELETE` | `/blobs/upload-sessions/{session_id}` | Cancel and clean a resumable upload session |
 | `GET` | `/blobs/{blob_id}/download` | Download authorized Blob content |
+
+`POST /blobs/uploads` remains supported for legacy multipart clients. A resumable
+session accepts `filename`, `media_type`, `total_size_bytes`, and an optional
+SHA-256 digest. Session views expose progress and the completed Blob, never
+provider object locations. Chunks are zero-based, can arrive out of order, and
+must meet the returned fixed chunk size except for the final remainder.
+Identical retries, completion, and cancellation are idempotent. Every session
+operation reauthorizes the owning user.
 
 ## Collaboration And Notifications
 

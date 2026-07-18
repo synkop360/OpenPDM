@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 
 from openpdm.infrastructure.settings import Settings
@@ -21,6 +23,14 @@ class BlobStorageSettings:
     local_root: str
 
 
+@dataclass(frozen=True)
+class UploadAssemblyResult:
+    """Provider-neutral integrity result for an assembled upload session."""
+
+    size_bytes: int
+    checksum_sha256: str
+
+
 class BlobStorage(ABC):
     """Public infrastructure-facing blob storage contract."""
 
@@ -31,6 +41,26 @@ class BlobStorage(ABC):
     @abstractmethod
     def get_bytes(self, storage_key: str) -> bytes:
         """Read bytes for the given storage key."""
+
+    @abstractmethod
+    def initialize_upload_session(self, session_id: str) -> None:
+        """Initialize provider-private storage for a resumable upload session."""
+
+    @abstractmethod
+    def put_upload_chunk(
+        self, session_id: str, chunk_number: int, content: bytes, checksum_sha256: str
+    ) -> None:
+        """Persist an idempotent verified chunk without exposing provider details."""
+
+    @abstractmethod
+    def assemble_upload_session(
+        self, session_id: str, storage_key: str, chunk_numbers: list[int]
+    ) -> UploadAssemblyResult:
+        """Assemble ordered chunks into final Blob storage and report actual integrity."""
+
+    @abstractmethod
+    def cleanup_upload_session(self, session_id: str) -> None:
+        """Remove provider-private temporary storage for a session."""
 
 
 class LocalFileBlobStorage(BlobStorage):
@@ -56,6 +86,40 @@ class LocalFileBlobStorage(BlobStorage):
     def get_bytes(self, storage_key: str) -> bytes:
         target = self._resolve_target(storage_key)
         return target.read_bytes()
+
+    def _session_path(self, session_id: str) -> Path:
+        if not session_id or PurePath(session_id).name != session_id:
+            raise ValueError("Upload session identifier is invalid.")
+        return self._resolve_target(f"upload-sessions/{session_id}")
+
+    def initialize_upload_session(self, session_id: str) -> None:
+        (self._session_path(session_id) / "chunks").mkdir(parents=True, exist_ok=True)
+
+    def put_upload_chunk(
+        self, session_id: str, chunk_number: int, content: bytes, checksum_sha256: str
+    ) -> None:
+        chunk_path = self._session_path(session_id) / "chunks" / str(chunk_number)
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+        if chunk_path.exists():
+            if hashlib.sha256(chunk_path.read_bytes()).hexdigest() != checksum_sha256:
+                raise ValueError("Stored upload chunk differs from retry.")
+            return
+        chunk_path.write_bytes(content)
+
+    def assemble_upload_session(
+        self, session_id: str, storage_key: str, chunk_numbers: list[int]
+    ) -> UploadAssemblyResult:
+        session_path = self._session_path(session_id)
+        content = b"".join(
+            (session_path / "chunks" / str(number)).read_bytes() for number in chunk_numbers
+        )
+        self.put_bytes(storage_key, content)
+        return UploadAssemblyResult(len(content), hashlib.sha256(content).hexdigest())
+
+    def cleanup_upload_session(self, session_id: str) -> None:
+        session_path = self._session_path(session_id)
+        if session_path.exists():
+            shutil.rmtree(session_path)
 
 
 class S3CompatibleBlobStorage(BlobStorage):
@@ -95,6 +159,44 @@ class S3CompatibleBlobStorage(BlobStorage):
     def get_bytes(self, storage_key: str) -> bytes:
         response = self._client.get_object(Bucket=self._bucket, Key=storage_key)
         return response["Body"].read()
+
+    @staticmethod
+    def _session_prefix(session_id: str) -> str:
+        if not session_id or PurePath(session_id).name != session_id:
+            raise ValueError("Upload session identifier is invalid.")
+        return f"upload-sessions/{session_id}/"
+
+    def initialize_upload_session(self, session_id: str) -> None:
+        self._session_prefix(session_id)
+
+    def put_upload_chunk(
+        self, session_id: str, chunk_number: int, content: bytes, checksum_sha256: str
+    ) -> None:
+        key = f"{self._session_prefix(session_id)}chunks/{chunk_number}"
+        try:
+            existing = self.get_bytes(key)
+        except Exception:  # Provider absence is represented by a new object.
+            existing = None
+        if existing is not None:
+            if hashlib.sha256(existing).hexdigest() != checksum_sha256:
+                raise ValueError("Stored upload chunk differs from retry.")
+            return
+        self._client.put_object(Bucket=self._bucket, Key=key, Body=content)
+
+    def assemble_upload_session(
+        self, session_id: str, storage_key: str, chunk_numbers: list[int]
+    ) -> UploadAssemblyResult:
+        prefix = self._session_prefix(session_id)
+        content = b"".join(self.get_bytes(f"{prefix}chunks/{number}") for number in chunk_numbers)
+        self.put_bytes(storage_key, content)
+        return UploadAssemblyResult(len(content), hashlib.sha256(content).hexdigest())
+
+    def cleanup_upload_session(self, session_id: str) -> None:
+        prefix = self._session_prefix(session_id)
+        response = self._client.list_objects_v2(Bucket=self._bucket, Prefix=prefix)
+        objects = [{"Key": item["Key"]} for item in response.get("Contents", [])]
+        if objects:
+            self._client.delete_objects(Bucket=self._bucket, Delete={"Objects": objects})
 
 
 _STORAGE_CACHE: dict[str, BlobStorage] = {}

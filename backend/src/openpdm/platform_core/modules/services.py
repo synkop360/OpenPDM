@@ -7,6 +7,7 @@ import hashlib
 import secrets
 from collections import deque
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import wraps
@@ -35,6 +36,8 @@ from openpdm.platform_core.modules.models import (
     AssetRelationship,
     AuditRecord,
     Blob,
+    BlobUploadChunk,
+    BlobUploadSession,
     DomainEvent,
     MetadataEntry,
     NotificationRecord,
@@ -2028,6 +2031,319 @@ class BlobModule:
                 status.HTTP_403_FORBIDDEN,
             )
         return blob, storage.get_bytes(blob.storage_key)
+
+    @staticmethod
+    def _upload_session_or_error(
+        db: Session, *, session_id: str, actor: User, storage: BlobStorage
+    ) -> BlobUploadSession:
+        upload_session = db.get(BlobUploadSession, session_id)
+        if upload_session is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Upload session not found."
+            )
+        if upload_session.owner_user_id != actor.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Upload session access denied."
+            )
+        expires_at = upload_session.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if upload_session.status == "active" and expires_at <= utc_now():
+            storage.cleanup_upload_session(upload_session.id)
+            upload_session.status = "expired"
+            upload_session.updated_at = utc_now()
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="blob.upload_session.expired",
+                resource_type="blob_upload_session",
+                resource_id=upload_session.id,
+            )
+            emit_event(
+                db,
+                event_type="blob.upload_session.expired",
+                resource_type="blob_upload_session",
+                resource_id=upload_session.id,
+            )
+            db.commit()
+        if upload_session.status == "expired":
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE, detail="Upload session has expired."
+            )
+        return upload_session
+
+    @staticmethod
+    def create_upload_session(
+        db: Session,
+        *,
+        actor: User,
+        filename: str,
+        media_type: str,
+        total_size_bytes: int,
+        checksum_sha256: str | None,
+        storage: BlobStorage,
+        settings: Settings,
+    ) -> BlobUploadSession:
+        safe_filename = PurePath(filename).name
+        require(bool(safe_filename), "Filename is required.")
+        require(bool(media_type.strip()), "Media type is required.")
+        require(total_size_bytes > 0, "Total size must be greater than zero.")
+        require(
+            total_size_bytes <= settings.blob_upload_max_size_bytes,
+            "Total size exceeds the configured upload maximum.",
+        )
+        if checksum_sha256 is not None:
+            require(
+                len(checksum_sha256) == 64
+                and all(character in "0123456789abcdefABCDEF" for character in checksum_sha256),
+                "Checksum must be a SHA-256 hexadecimal digest.",
+            )
+            checksum_sha256 = checksum_sha256.lower()
+        upload_session = BlobUploadSession(
+            owner_user_id=actor.id,
+            filename=safe_filename,
+            media_type=media_type.strip(),
+            total_size_bytes=total_size_bytes,
+            checksum_sha256=checksum_sha256,
+            chunk_size_bytes=settings.blob_upload_chunk_size_bytes,
+            expires_at=utc_now() + timedelta(seconds=settings.blob_upload_session_ttl_seconds),
+        )
+        db.add(upload_session)
+        db.flush()
+        with suppress(OSError):
+            storage.initialize_upload_session(upload_session.id)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="blob.upload_session.created",
+            resource_type="blob_upload_session",
+            resource_id=upload_session.id,
+            details={"total_size_bytes": total_size_bytes},
+        )
+        emit_event(
+            db,
+            event_type="blob.upload_session.created",
+            resource_type="blob_upload_session",
+            resource_id=upload_session.id,
+        )
+        return upload_session
+
+    @staticmethod
+    def get_upload_session(
+        db: Session, *, session_id: str, actor: User, storage: BlobStorage
+    ) -> BlobUploadSession:
+        return BlobModule._upload_session_or_error(
+            db, session_id=session_id, actor=actor, storage=storage
+        )
+
+    @staticmethod
+    def put_upload_chunk(
+        db: Session,
+        *,
+        session_id: str,
+        chunk_number: int,
+        content: bytes,
+        actor: User,
+        storage: BlobStorage,
+    ) -> BlobUploadSession:
+        upload_session = BlobModule._upload_session_or_error(
+            db, session_id=session_id, actor=actor, storage=storage
+        )
+        require(
+            upload_session.status == "active",
+            "Upload session is not active.",
+            status.HTTP_409_CONFLICT,
+        )
+        chunk_count = (
+            upload_session.total_size_bytes + upload_session.chunk_size_bytes - 1
+        ) // upload_session.chunk_size_bytes
+        require(0 <= chunk_number < chunk_count, "Chunk number is outside the upload range.")
+        require(bool(content), "Upload chunks must not be empty.")
+        expected_size = (
+            upload_session.chunk_size_bytes
+            if chunk_number < chunk_count - 1
+            else upload_session.total_size_bytes
+            - upload_session.chunk_size_bytes * (chunk_count - 1)
+        )
+        require(len(content) == expected_size, "Chunk size does not match the session contract.")
+        checksum = hashlib.sha256(content).hexdigest()
+        existing = db.scalar(
+            select(BlobUploadChunk).where(
+                and_(
+                    BlobUploadChunk.session_id == upload_session.id,
+                    BlobUploadChunk.chunk_number == chunk_number,
+                )
+            )
+        )
+        if existing is not None:
+            require(
+                existing.checksum_sha256 == checksum and existing.size_bytes == len(content),
+                "Chunk retry differs from the accepted chunk.",
+                status.HTTP_409_CONFLICT,
+            )
+            return upload_session
+        try:
+            storage.initialize_upload_session(upload_session.id)
+            storage.put_upload_chunk(upload_session.id, chunk_number, content, checksum)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Upload storage is unavailable."
+            ) from exc
+        db.add(
+            BlobUploadChunk(
+                session_id=upload_session.id,
+                chunk_number=chunk_number,
+                size_bytes=len(content),
+                checksum_sha256=checksum,
+            )
+        )
+        upload_session.updated_at = utc_now()
+        db.flush()
+        return upload_session
+
+    @staticmethod
+    def complete_upload_session(
+        db: Session, *, session_id: str, actor: User, storage: BlobStorage
+    ) -> BlobUploadSession:
+        upload_session = BlobModule._upload_session_or_error(
+            db, session_id=session_id, actor=actor, storage=storage
+        )
+        if upload_session.status == "completed":
+            return upload_session
+        require(
+            upload_session.status == "active",
+            "Upload session is not active.",
+            status.HTTP_409_CONFLICT,
+        )
+        chunks = list(
+            db.scalars(
+                select(BlobUploadChunk)
+                .where(BlobUploadChunk.session_id == upload_session.id)
+                .order_by(BlobUploadChunk.chunk_number)
+            )
+        )
+        expected_numbers = list(
+            range(
+                (upload_session.total_size_bytes + upload_session.chunk_size_bytes - 1)
+                // upload_session.chunk_size_bytes
+            )
+        )
+        require(
+            [chunk.chunk_number for chunk in chunks] == expected_numbers,
+            "Upload session is incomplete.",
+            status.HTTP_409_CONFLICT,
+        )
+        storage_key = (
+            f"{utc_now().strftime('%Y/%m/%d')}/{secrets.token_hex(16)}-{upload_session.filename}"
+        )
+        try:
+            assembled = storage.assemble_upload_session(
+                upload_session.id, storage_key, expected_numbers
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Upload storage assembly failed."
+            ) from exc
+        require(
+            assembled.size_bytes == upload_session.total_size_bytes,
+            "Assembled content size does not match the upload session.",
+            status.HTTP_409_CONFLICT,
+        )
+        require(
+            upload_session.checksum_sha256 is None
+            or assembled.checksum_sha256 == upload_session.checksum_sha256,
+            "Assembled content digest does not match the upload session.",
+            status.HTTP_409_CONFLICT,
+        )
+        blob = Blob(
+            storage_key=storage_key,
+            filename=upload_session.filename,
+            media_type=upload_session.media_type,
+            size_bytes=assembled.size_bytes,
+            checksum_sha256=assembled.checksum_sha256,
+            created_by_user_id=actor.id,
+        )
+        db.add(blob)
+        db.flush()
+        upload_session.blob_id = blob.id
+        upload_session.status = "completed"
+        upload_session.updated_at = utc_now()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="blob.upload_session.completed",
+            resource_type="blob_upload_session",
+            resource_id=upload_session.id,
+        )
+        emit_event(
+            db,
+            event_type="blob.upload_session.completed",
+            resource_type="blob_upload_session",
+            resource_id=upload_session.id,
+        )
+        return upload_session
+
+    @staticmethod
+    def cancel_upload_session(
+        db: Session, *, session_id: str, actor: User, storage: BlobStorage
+    ) -> None:
+        upload_session = BlobModule._upload_session_or_error(
+            db, session_id=session_id, actor=actor, storage=storage
+        )
+        if upload_session.status == "cancelled":
+            return
+        require(
+            upload_session.status == "active",
+            "Upload session cannot be cancelled.",
+            status.HTTP_409_CONFLICT,
+        )
+        storage.cleanup_upload_session(upload_session.id)
+        upload_session.status = "cancelled"
+        upload_session.updated_at = utc_now()
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="blob.upload_session.cancelled",
+            resource_type="blob_upload_session",
+            resource_id=upload_session.id,
+        )
+        emit_event(
+            db,
+            event_type="blob.upload_session.cancelled",
+            resource_type="blob_upload_session",
+            resource_id=upload_session.id,
+        )
+
+    @staticmethod
+    def cleanup_expired_upload_sessions(db: Session, *, storage: BlobStorage) -> int:
+        sessions = list(
+            db.scalars(
+                select(BlobUploadSession).where(
+                    and_(
+                        BlobUploadSession.status == "active",
+                        BlobUploadSession.expires_at <= utc_now(),
+                    )
+                )
+            )
+        )
+        for upload_session in sessions:
+            storage.cleanup_upload_session(upload_session.id)
+            upload_session.status = "expired"
+            upload_session.updated_at = utc_now()
+            record_audit(
+                db,
+                actor_user_id=upload_session.owner_user_id,
+                action="blob.upload_session.expired",
+                resource_type="blob_upload_session",
+                resource_id=upload_session.id,
+            )
+            emit_event(
+                db,
+                event_type="blob.upload_session.expired",
+                resource_type="blob_upload_session",
+                resource_id=upload_session.id,
+            )
+        return len(sessions)
 
 
 class AssetsModule:
