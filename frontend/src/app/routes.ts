@@ -1,4 +1,9 @@
-export type AppView = "home" | "projects" | "project" | "plugin-administration";
+export type AppView =
+  | "home"
+  | "notifications"
+  | "projects"
+  | "project"
+  | "plugin-administration";
 
 export const projectTabs = [
   "overview",
@@ -25,7 +30,9 @@ export function parseAppRoute(pathname: string): AppRoute {
     view:
       routeParts[0] === "administration" && routeParts[1] === "plugins"
         ? "plugin-administration"
-        : routeParts[0] === "projects"
+        : routeParts[0] === "notifications"
+          ? "notifications"
+          : routeParts[0] === "projects"
           ? isProjectRoute
             ? "project"
             : "projects"

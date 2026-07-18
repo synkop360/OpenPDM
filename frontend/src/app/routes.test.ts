@@ -14,6 +14,13 @@ describe("parseAppRoute", () => {
     expect(parseAppRoute("/projects/project-7/unknown").projectTab).toBe("overview");
   });
 
+  it("recognizes the dedicated notification workspace", () => {
+    expect(parseAppRoute("/notifications")).toEqual({
+      view: "notifications",
+      projectId: null,
+      projectTab: "overview",
+    });
+  });
   it("recognizes plugin administration without leaking route details", () => {
     expect(parseAppRoute("/administration/plugins")).toEqual({
       view: "plugin-administration",

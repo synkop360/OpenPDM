@@ -248,7 +248,7 @@ Potential artifacts to watch for:
 
 ### 5. Create a Generic Engineering Asset
 
-1. In the Engineering Assets panel, use `Create a generic Engineering Asset`.
+1. Open the Project `Assets` route, expand `Create Engineering Asset`, and use the focused creation form.
 2. Enter:
    * asset name
    * optional description
@@ -442,26 +442,28 @@ Potential artifacts to watch for:
 This check uses the same two browser sessions from the collaboration checks.
 
 1. In browser A, perform a collaboration action that should notify other Project members, for example `Check out` or `Unlock`.
-2. In browser B, use the notifications panel and click `Refresh`.
-3. Confirm a new notification appears for the approved event.
-4. In browser B, click `Mark as read` on that notification.
+2. In browser B, open the dedicated `Notifications` route.
+3. Confirm the unread event appears, then filter the queue by its Project.
+4. Select the event and use `Mark selected read`.
+5. Switch `Show` to `All events` and confirm the acknowledged event remains available as read.
+6. Generate another unread event and use `Mark all matching read` with the Project filter active.
 
 Expected result:
 
 * browser B can see the approved collaboration notification in the Web UI
 * the acting user does not receive a duplicate self-notification for the successful action
-* the notification stays visible after it is marked as read
-* the notification state changes from unread to read without leaving the page
+* selected acknowledgment updates the queue atomically
+* all-matching acknowledgment affects only unread events in the selected Project
+* acknowledged events remain available when `All events` is selected
 
 Potential artifacts to watch for:
 
 * notifications appear for the acting user despite the approved actor-exclusion rule
-* notifications disappear completely after read instead of remaining visible
+* Project or read filters reset without user action
 * the read action succeeds in the API but the UI does not update
-* notifications from another Project appear in the current user view
+* notifications from another Project are acknowledged by a Project-scoped action
 
 ### 16. Verify Archived-Asset Recovery Feedback
-
 This check is easiest through the public API docs or another admin surface that
 can set the Asset status to `archived`.
 
@@ -627,3 +629,36 @@ Treat the workflow as passing when all of the following are true:
 * installed plugin packages remain available after an ordinary backend restart or replacement
 * the session survives a browser refresh
 * sign-out removes access to the protected workspace
+
+## Operational Workspace Acceptance
+
+### Home priority surface
+
+* Confirm unread collaboration events, recent Projects, and recent Engineering Assets are visible without entering a Project route.
+* Simulate a failed collection request and confirm the scoped recovery panel offers a retry without hiding still-available data.
+
+### Engineering Asset master/detail workspace
+
+* Open a Project `Assets` route and change search, lifecycle status, sort field, and direction.
+* Confirm `q`, `status`, `sort`, and `direction` are reflected in the URL and survive reload and browser navigation.
+* Save the current setup as a private view, apply it, then delete it. Confirm another user cannot list or mutate that view.
+* Move forward and backward through bounded pages. Confirm selection stays stable while the selected Asset remains in the result and changes safely when it does not.
+* At narrow widths, confirm selecting an Asset opens the detail sheet and its close button restores the master list.
+
+### Relationship exploration
+
+* Open the Project `Relationships` route and select an Engineering Asset.
+* Confirm incoming edges, outgoing edges, and external or unresolved references are presented in separate labeled regions.
+* Confirm the workspace exposes no bulk relationship or reference mutation action.
+
+### Responsive containment
+
+Repeat Home, Assets, Notifications, and Relationships at 390px, 768px, and a desktop width.
+
+Expected result:
+
+* no page-level horizontal overflow occurs
+* bounded data tables scroll inside their own region when necessary
+* navigation remains navigation-only on mobile
+* Asset detail remains usable as a responsive sheet
+* all filters, selection actions, pagination, and recovery controls remain keyboard reachable
