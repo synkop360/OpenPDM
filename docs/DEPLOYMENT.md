@@ -91,10 +91,12 @@ matches the declared size and optional SHA-256 digest.
 
 Upload sessions are bound to an Engineering Asset. Every operation checks the
 session owner and current Project permission again, so membership revocation
-takes effect during an in-progress transfer. Creating a session also performs a
-bounded cleanup pass (up to 25 expired sessions), providing a production caller
-without adding a scheduler. Expired sessions beyond that bound are handled by
-later session creation requests.
+takes effect during an in-progress transfer. Creating a session also performs
+bounded cleanup passes (up to 25 expired sessions and 25 completed sessions
+whose provider cleanup is pending), providing a production caller without adding
+a scheduler. Remaining candidates are handled by later session creation
+requests. Internal cleanup retries do not depend on the original user's current
+membership because they only remove provider-private temporary chunks.
 
 After completion commits the Blob, the backend deletes provider-private chunks.
 A provider cleanup failure is recorded as

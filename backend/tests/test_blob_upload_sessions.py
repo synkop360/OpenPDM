@@ -196,6 +196,16 @@ def test_every_session_operation_reauthorizes_asset_access(tmp_path: Path) -> No
         == 403
     )
     assert upload_chunk(client, member, session_id, 0, b"ABCD").status_code == 403
+    assert (
+        client.post(
+            f"/blobs/upload-sessions/{session_id}/complete", headers=headers(member)
+        ).status_code
+        == 403
+    )
+    assert (
+        client.delete(f"/blobs/upload-sessions/{session_id}", headers=headers(member)).status_code
+        == 403
+    )
 
 
 def test_representation_rejects_foreign_or_wrong_asset_blob_and_accepts_owned_blob(
@@ -302,6 +312,56 @@ def test_completed_chunk_cleanup_failure_is_observable_and_retryable(tmp_path: P
         assert upload_session is not None
         assert not upload_session.cleanup_pending
         assert upload_session.cleanup_error is None
+
+
+def test_unrelated_session_creation_retries_pending_completed_cleanup(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    from openpdm.api.core import get_storage
+
+    class CleanupFailOnceStorage(LocalFileBlobStorage):
+        fail_cleanup = True
+
+        def cleanup_upload_session(self, session_id: str) -> None:
+            if self.fail_cleanup:
+                raise OSError("provider unavailable")
+            super().cleanup_upload_session(session_id)
+
+    storage = CleanupFailOnceStorage(str(tmp_path / "blobs"), "openpdm-blobs")
+    client.app.dependency_overrides[get_storage] = lambda: storage
+    first = create_session(client, token, total_size_bytes=4)
+    first_id = str(first["id"])
+    assert upload_chunk(client, token, first_id, 0, b"ABCD").status_code == 200
+    assert (
+        client.post(
+            f"/blobs/upload-sessions/{first_id}/complete", headers=headers(token)
+        ).status_code
+        == 200
+    )
+    first_path = tmp_path / "blobs" / "openpdm-blobs" / "upload-sessions" / first_id
+    assert first_path.exists()
+    with session_scope() as db:
+        first_row = db.get(BlobUploadSession, first_id)
+        assert first_row is not None
+        assert first_row.cleanup_pending
+
+    failed_retry_request = create_session(client, token, total_size_bytes=4)
+    assert failed_retry_request["id"] != first_id
+    with session_scope() as db:
+        first_row = db.get(BlobUploadSession, first_id)
+        assert first_row is not None
+        assert first_row.cleanup_pending
+        assert first_row.cleanup_error == "OSError"
+
+    storage.fail_cleanup = False
+    unrelated = create_session(client, token, total_size_bytes=4)
+    assert unrelated["id"] != first_id
+    assert not first_path.exists()
+    with session_scope() as db:
+        first_row = db.get(BlobUploadSession, first_id)
+        assert first_row is not None
+        assert not first_row.cleanup_pending
+        assert first_row.cleanup_error is None
 
 
 def test_cancellation_is_idempotent_and_prevents_blob_creation(tmp_path: Path) -> None:

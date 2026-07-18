@@ -2126,6 +2126,7 @@ class BlobModule:
         settings: Settings,
         assets: "AssetsInterface",
     ) -> BlobUploadSession:
+        BlobModule.cleanup_pending_completed_upload_sessions(db, storage=storage, limit=25)
         BlobModule.cleanup_expired_upload_sessions(db, storage=storage, limit=25)
         assets.require_asset_permission(
             db, asset_id=asset_id, actor=actor, permission="create_revision"
@@ -2443,10 +2444,19 @@ class BlobModule:
         upload_session = db.scalar(
             select(BlobUploadSession)
             .where(BlobUploadSession.id == session_id)
+            .with_for_update()
             .execution_options(populate_existing=True)
         )
         if upload_session is None or upload_session.status != "completed":
             return False
+        return BlobModule._cleanup_completed_upload_session_row(
+            db, upload_session=upload_session, storage=storage
+        )
+
+    @staticmethod
+    def _cleanup_completed_upload_session_row(
+        db: Session, *, upload_session: BlobUploadSession, storage: BlobStorage
+    ) -> bool:
         if not upload_session.cleanup_pending:
             return True
         try:
@@ -2472,6 +2482,44 @@ class BlobModule:
             resource_id=upload_session.id,
         )
         return True
+
+    @staticmethod
+    def cleanup_pending_completed_upload_sessions(
+        db: Session, *, storage: BlobStorage, limit: int = 100
+    ) -> int:
+        candidate_ids = list(
+            db.scalars(
+                select(BlobUploadSession.id)
+                .where(
+                    and_(
+                        BlobUploadSession.status == "completed",
+                        BlobUploadSession.cleanup_pending.is_(True),
+                    )
+                )
+                .limit(limit)
+            )
+        )
+        cleaned = 0
+        for session_id in candidate_ids:
+            upload_session = db.scalar(
+                select(BlobUploadSession)
+                .where(
+                    and_(
+                        BlobUploadSession.id == session_id,
+                        BlobUploadSession.status == "completed",
+                        BlobUploadSession.cleanup_pending.is_(True),
+                    )
+                )
+                .with_for_update(skip_locked=True)
+                .execution_options(populate_existing=True)
+            )
+            if upload_session is None:
+                continue
+            if BlobModule._cleanup_completed_upload_session_row(
+                db, upload_session=upload_session, storage=storage
+            ):
+                cleaned += 1
+        return cleaned
 
     @staticmethod
     def cleanup_expired_upload_sessions(

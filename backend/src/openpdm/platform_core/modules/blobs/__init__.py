@@ -64,3 +64,7 @@ class BlobsInterface(Protocol):
     def cleanup_completed_upload_session(
         self, db: Any, *, session_id: str, storage: BlobStorage
     ) -> bool: ...
+
+    def cleanup_pending_completed_upload_sessions(
+        self, db: Any, *, storage: BlobStorage, limit: int = 100
+    ) -> int: ...
