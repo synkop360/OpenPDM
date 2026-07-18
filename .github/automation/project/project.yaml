@@ -5924,6 +5924,97 @@ roadmap:
               Complexity: L
               ADR: ADR-0007
 
+          - title: "Phase 4 Plugin Task: Discover running providers and expose declarative options"
+            closed: true
+            body: |
+              ## Objective
+              Allow authenticated application clients to discover running provider capabilities without hard-coded plugin identities.
+
+              ## Description
+              Record and implement ADR-0040, add authenticated provider discovery, and expose bounded declarative Option Provider values through Extension API v1 without permitting executable UI injection.
+
+              ## Acceptance Criteria
+              - `GET /providers` returns only running providers and public capability metadata.
+              - Option Provider responses are bounded, schema-validated text values and labels.
+              - Official Plugins and Community Plugins use the same discovery and invocation contracts.
+              - Provider output cannot inject HTML, scripts, styles or application components.
+
+              ## Dependencies
+              - Phase 4 Epic: Web UI Demonstration Redesign
+              - ADR-0034
+              - ADR-0039
+              - ADR-0040
+
+              ## Suggested Labels
+              architecture, plugin, feature, test, P1
+            labels: [architecture, plugin, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0034, ADR-0039, ADR-0040
+
+          - title: "Phase 4 UI Task: Integrate discovered Metadata Providers with Engineering Assets"
+            closed: true
+            body: |
+              ## Objective
+              Make running Metadata Providers demonstrable through the Engineering Asset Web UI.
+
+              ## Description
+              Proxy provider routes, discover running providers, render declarative category options, invoke Metadata Providers for authorized Assets and display persisted generic metadata.
+
+              ## Acceptance Criteria
+              - A running Metadata Provider appears without hard-coded plugin identity.
+              - The Asset view renders safe declarative options returned by the provider.
+              - Applying an option persists and displays generic metadata through public APIs.
+              - Discovery failures are shown as actionable errors rather than empty-provider states.
+              - Frontend tests prove proxy coverage and running-provider visibility.
+
+              ## Dependencies
+              - Phase 4 Plugin Task: Discover running providers and expose declarative options
+
+              ## Suggested Labels
+              frontend, plugin, feature, test, P1
+            labels: [frontend, plugin, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0007, ADR-0040
+
+          - title: "Phase 4 Deployment Task: Persist immutable plugin packages across container replacement"
+            closed: true
+            body: |
+              ## Objective
+              Preserve installed plugin packages across backend rebuilds and container replacement.
+
+              ## Description
+              Add deployment-owned persistent plugin package storage, return an actionable conflict when package evidence is unavailable, and verify installation, activation, discovery and invocation across backend restarts.
+
+              ## Acceptance Criteria
+              - Docker Compose mounts a named volume at the configured plugin package root.
+              - Installed immutable packages survive backend container restart and replacement.
+              - Missing package files return an actionable API conflict rather than HTTP 500.
+              - Automated tests cover deployment persistence and missing-package handling.
+              - The category Community Plugin remains running and invokable after backend restart.
+
+              ## Dependencies
+              - Phase 4 Plugin Task: Discover running providers and expose declarative options
+              - ADR-0034
+              - ADR-0037
+
+              ## Suggested Labels
+              deployment, plugin, bug, test, P1
+            labels: [deployment, plugin, bug, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Infrastructure
+              Complexity: M
+              ADR: ADR-0034, ADR-0037
+
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
