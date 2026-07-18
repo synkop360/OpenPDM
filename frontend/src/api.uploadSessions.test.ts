@@ -16,7 +16,7 @@ describe("Blob upload-session API", () => {
       new Response(JSON.stringify({ id: "s" }), {
         status: 200, headers: { "Content-Type": "application/json" },
       }));
-    await createBlobUploadSession("token", { filename: "a.step", media_type: "application/step", total_size_bytes: 4 });
+    await createBlobUploadSession("token", { asset_id: "asset-1", filename: "a.step", media_type: "application/step", total_size_bytes: 4 });
     await getBlobUploadSession("token", "s");
     await putBlobUploadChunk("token", "s", 0, new Blob(["data"]));
     await completeBlobUploadSession("token", "s");

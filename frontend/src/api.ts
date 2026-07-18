@@ -127,7 +127,6 @@ export type ProjectMembership = {
 
 export type BlobRecord = {
   id: string;
-  storage_key: string;
   filename: string;
   media_type: string;
   size_bytes: number;
@@ -137,6 +136,7 @@ export type BlobRecord = {
 
 export type BlobUploadSession = {
   id: string;
+  asset_id: string;
   filename: string;
   media_type: string;
   total_size_bytes: number;
@@ -152,6 +152,7 @@ export type BlobUploadSession = {
 };
 
 export type CreateBlobUploadSessionPayload = {
+  asset_id: string;
   filename: string;
   media_type: string;
   total_size_bytes: number;

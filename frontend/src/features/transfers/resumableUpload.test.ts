@@ -16,6 +16,7 @@ const file = new File(["abcdefghij"], "model.step", {
 function session(overrides: Partial<BlobUploadSession> = {}): BlobUploadSession {
   return {
     id: "session-1",
+    asset_id: "asset-1",
     filename: file.name,
     media_type: file.type,
     total_size_bytes: file.size,
@@ -33,7 +34,7 @@ function session(overrides: Partial<BlobUploadSession> = {}): BlobUploadSession 
 }
 
 const completedBlob = {
-  id: "blob-1", storage_key: "blobs/blob-1", filename: file.name, media_type: file.type,
+  id: "blob-1", filename: file.name, media_type: file.type,
   size_bytes: file.size, checksum_sha256: "a".repeat(64), created_at: "2026-07-18T00:00:00Z",
 };
 
@@ -89,6 +90,9 @@ describe("resumableUpload", () => {
     await resumableUpload({ token: "token", userId: "user-1", assetId: "asset-1", file, api });
     expect(networkPut).toHaveBeenCalledTimes(3);
 
+    api.createSession = vi.fn().mockResolvedValue(session({
+      asset_id: "asset-2", chunk_size_bytes: file.size, received_bytes: 0, received_chunk_numbers: [],
+    }));
     api.putChunk = vi.fn().mockRejectedValue(new ApiError("conflict", 409));
     await expect(resumableUpload({ token: "token", userId: "user-1", assetId: "asset-2", file, api }))
       .rejects.toMatchObject({ status: 409 });

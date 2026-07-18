@@ -107,6 +107,7 @@ export class NonResumableTransferError extends Error {
 function validateSession(
   value: unknown,
   file: File,
+  assetId: string,
   expected?: { id: string; chunkSize: number },
 ): BlobUploadSession {
   if (!value || typeof value !== "object") {
@@ -117,7 +118,7 @@ function validateSession(
     /^[A-Za-z0-9_-]{1,128}$/.test(candidate);
   const positiveSafeInteger = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) > 0;
   const nonnegativeSafeInteger = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) >= 0;
-  if (!safeId(session.id) || typeof session.filename !== "string" || typeof session.media_type !== "string" ||
+  if (!safeId(session.id) || session.asset_id !== assetId || typeof session.filename !== "string" || typeof session.media_type !== "string" ||
       !positiveSafeInteger(session.total_size_bytes) || !positiveSafeInteger(session.chunk_size_bytes) ||
       !nonnegativeSafeInteger(session.received_bytes) || !Array.isArray(session.received_chunk_numbers) ||
       !["active", "completed", "cancelled", "expired"].includes(String(session.status))) {
@@ -154,8 +155,7 @@ function validateSession(
       throw new NonResumableTransferError("The upload session returned an invalid completion state.");
     }
     const record = blob as Record<string, unknown>;
-    if (!safeId(record.id) || typeof record.storage_key !== "string" || !record.storage_key ||
-        record.filename !== file.name || record.media_type !== mediaType || record.size_bytes !== file.size ||
+    if (!safeId(record.id) || record.filename !== file.name || record.media_type !== mediaType || record.size_bytes !== file.size ||
         typeof record.checksum_sha256 !== "string" || !/^[a-fA-F0-9]{64}$/.test(record.checksum_sha256) ||
         typeof record.created_at !== "string" || !record.created_at) {
       throw new NonResumableTransferError("The upload session returned an invalid Blob contract.");
@@ -200,11 +200,12 @@ export async function resumableUpload(options: {
     current = options.recovery
       ? await api.getSession(options.token, options.recovery.sessionId, options.signal)
       : await api.createSession(options.token, {
+        asset_id: options.assetId,
         filename: options.file.name,
         media_type: options.file.type || "application/octet-stream",
         total_size_bytes: options.file.size,
       }, options.signal);
-    current = validateSession(current, options.file);
+    current = validateSession(current, options.file, options.assetId);
     if (options.recovery && current.id !== options.recovery.sessionId) {
       throw new NonResumableTransferError("The saved upload session identity does not match the server response.");
     }
@@ -243,14 +244,14 @@ export async function resumableUpload(options: {
       options.file.slice(start, Math.min(start + current.chunk_size_bytes, options.file.size)),
       options.signal,
     );
-    current = validateSession(current, options.file, sessionContract);
+    current = validateSession(current, options.file, options.assetId, sessionContract);
     options.onProgress?.(current.received_bytes, current.total_size_bytes);
   }
   throwIfAborted(options.signal);
   options.onVerifying?.();
   current = await api.completeSession(options.token, current.id, options.signal);
   throwIfAborted(options.signal);
-  current = validateSession(current, options.file, sessionContract);
+  current = validateSession(current, options.file, options.assetId, sessionContract);
   if (!current.blob) throw new Error("The transfer completed without a Blob result.");
   saveCompletedRecovery(options.userId, options.assetId, current.id, options.file, current.blob.id);
   return current;

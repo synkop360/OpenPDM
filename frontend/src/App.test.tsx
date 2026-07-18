@@ -175,7 +175,6 @@ describe("App", () => {
                   created_at: "2026-01-02T00:00:00",
                   blob: {
                     id: "blob-1",
-                    storage_key: "blob-1",
                     filename: "native.fcstd",
                     media_type: "application/octet-stream",
                     size_bytes: 1234,
@@ -317,12 +316,12 @@ describe("App", () => {
         }
         if (path === "/blobs/upload-sessions/session-1") {
           return jsonResponse({
-            id: "session-1", filename: "native.fcstd", media_type: "application/octet-stream",
+            id: "session-1", asset_id: "asset-1", filename: "native.fcstd", media_type: "application/octet-stream",
             total_size_bytes: 1234, checksum_sha256: null, chunk_size_bytes: 512,
             status: "completed", received_bytes: 1234, received_chunk_numbers: [0, 1, 2],
             expires_at: "2026-07-19T00:00:00Z", created_at: "2026-07-18T00:00:00Z",
             updated_at: "2026-07-18T00:00:00Z",
-            blob: { id: "blob-recovered", storage_key: "blob-recovered", filename: "native.fcstd",
+            blob: { id: "blob-recovered", filename: "native.fcstd",
               media_type: "application/octet-stream", size_bytes: 1234, checksum_sha256: "a".repeat(64),
               created_at: "2026-07-18T00:00:00Z" },
           });
