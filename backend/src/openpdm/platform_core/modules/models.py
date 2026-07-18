@@ -180,6 +180,7 @@ class BlobUploadSession(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
     filename: Mapped[str] = mapped_column(String(255))
     media_type: Mapped[str] = mapped_column(String(255))
     total_size_bytes: Mapped[int] = mapped_column(BigInteger)
@@ -187,6 +188,8 @@ class BlobUploadSession(Base):
     chunk_size_bytes: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), default="active", index=True)
     blob_id: Mapped[str | None] = mapped_column(ForeignKey("blobs.id"), index=True)
+    cleanup_pending: Mapped[bool] = mapped_column(default=False, index=True)
+    cleanup_error: Mapped[str | None] = mapped_column(String(255))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
@@ -196,6 +199,7 @@ class BlobUploadSession(Base):
     )
 
     owner: Mapped[User] = relationship()
+    asset: Mapped["Asset"] = relationship()
     blob: Mapped[Blob | None] = relationship()
     chunks: Mapped[list["BlobUploadChunk"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"

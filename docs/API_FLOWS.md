@@ -355,8 +355,9 @@ sequenceDiagram
     participant DB as Upload-session metadata
     participant Store as BlobStorage
 
-    Client->>API: POST /blobs/upload-sessions
-    API->>Blob: create_upload_session(actor, contract)
+    Client->>API: POST /blobs/upload-sessions (asset_id + file contract)
+    API->>Blob: create_upload_session(actor, asset context, contract)
+    Blob->>DB: authorize current Asset/Project write access
     Blob->>DB: persist active session
     Blob->>Store: initialize provider-private session storage
     API-->>Client: opaque session view and chunk size
@@ -373,7 +374,8 @@ sequenceDiagram
     API->>Blob: reauthorize and verify all chunks
     Blob->>Store: ordered assembly and integrity result
     Blob->>DB: create Blob only after verification
-    API-->>Client: completed session with Blob
+    API-->>Client: completed session with client-safe Blob metadata
+    API->>Store: delete provider-private chunks after DB commit
 ```
 
 ## Collaboration State And Conflict Flow

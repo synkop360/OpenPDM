@@ -32,14 +32,17 @@ from openpdm.infrastructure.database import (
 )
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.modules.models import (
+    Asset,
     AuditRecord,
     Blob,
     BlobUploadChunk,
     BlobUploadSession,
     DomainEvent,
+    OrganizationMembership,
+    ProjectMembership,
     User,
 )
-from openpdm.platform_core.modules.services import BlobModule
+from openpdm.platform_core.modules.services import AssetsModule, BlobModule
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -73,8 +76,29 @@ def headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def create_asset(client: TestClient, token: str) -> dict[str, object]:
+    suffix = uuid.uuid4().hex
+    organization = client.post(
+        "/organizations",
+        headers=headers(token),
+        json={"name": f"Transfer {suffix}", "slug": f"transfer-{suffix}"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=headers(token),
+        json={"organization_id": organization["id"], "name": "Transfer", "description": ""},
+    ).json()
+    return client.post(
+        f"/projects/{project['id']}/assets",
+        headers=headers(token),
+        json={"name": "Transfer asset", "description": ""},
+    ).json()
+
+
 def create_session(client: TestClient, token: str, **overrides: object) -> dict[str, object]:
+    asset_id = overrides.pop("asset_id", None) or create_asset(client, token)["id"]
     payload = {
+        "asset_id": asset_id,
         "filename": "nested/path/wing.step",
         "media_type": "application/step",
         "total_size_bytes": 8,
@@ -112,6 +136,8 @@ def test_session_upload_is_resumable_out_of_order_and_completion_is_idempotent(
     assert completed.json()["filename"] == "wing.step"
     blob = completed.json()["blob"]
     assert blob is not None
+    assert "storage_key" not in blob
+    assert completed.json()["asset_id"] == session["asset_id"]
     assert (
         client.get(f"/blobs/{blob['id']}/download", headers=headers(token)).content == b"ABCDEFGH"
     )
@@ -136,6 +162,146 @@ def test_duplicate_chunk_retry_and_other_user_access_are_safe(tmp_path: Path) ->
         == 403
     )
     assert upload_chunk(client, other, session_id, 1, b"EFGH").status_code == 403
+
+
+def test_every_session_operation_reauthorizes_asset_access(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner = register(client, email="owner@example.com")
+    member = register(client, email="member@example.com")
+    asset = create_asset(client, owner)
+    with session_scope() as db:
+        owner_user = db.scalar(select(User).where(User.email == "owner@example.com"))
+        member_user = db.scalar(select(User).where(User.email == "member@example.com"))
+        assert owner_user is not None and member_user is not None
+        asset_row = db.get(Asset, asset["id"])
+        assert asset_row is not None
+        project = asset_row.project
+        db.add(
+            OrganizationMembership(
+                organization_id=project.organization_id, user_id=member_user.id, role="Contributor"
+            )
+        )
+        db.add(ProjectMembership(project_id=project.id, user_id=member_user.id, role="Contributor"))
+        db.commit()
+    session_id = str(create_session(client, member, asset_id=asset["id"])["id"])
+    with session_scope() as db:
+        membership = db.scalar(
+            select(ProjectMembership).where(ProjectMembership.user_id == member_user.id)
+        )
+        assert membership is not None
+        db.delete(membership)
+        db.commit()
+    assert (
+        client.get(f"/blobs/upload-sessions/{session_id}", headers=headers(member)).status_code
+        == 403
+    )
+    assert upload_chunk(client, member, session_id, 0, b"ABCD").status_code == 403
+
+
+def test_representation_rejects_foreign_or_wrong_asset_blob_and_accepts_owned_blob(
+    tmp_path: Path,
+) -> None:
+    client = build_client(tmp_path)
+    owner = register(client, email="owner@example.com")
+    foreign = register(client, email="foreign@example.com")
+    asset = create_asset(client, owner)
+    other_asset = create_asset(client, owner)
+    revision = client.post(
+        f"/assets/{asset['id']}/revisions", headers=headers(owner), json={"comment": "claim"}
+    ).json()
+    foreign_blob = client.post(
+        "/blobs/uploads",
+        headers=headers(foreign),
+        files={"file": ("foreign.step", b"ABCD", "application/step")},
+    ).json()
+    rejected = client.post(
+        f"/revisions/{revision['id']}/representations",
+        headers=headers(owner),
+        json={"name": "foreign", "media_type": "application/step", "blob_id": foreign_blob["id"]},
+    )
+    assert rejected.status_code == 403
+
+    session = create_session(client, owner, asset_id=other_asset["id"], total_size_bytes=4)
+    assert upload_chunk(client, owner, str(session["id"]), 0, b"ABCD").status_code == 200
+    blob = client.post(
+        f"/blobs/upload-sessions/{session['id']}/complete", headers=headers(owner)
+    ).json()["blob"]
+    wrong_context = client.post(
+        f"/revisions/{revision['id']}/representations",
+        headers=headers(owner),
+        json={"name": "wrong", "media_type": "application/step", "blob_id": blob["id"]},
+    )
+    assert wrong_context.status_code == 403
+
+    owned_blob = client.post(
+        "/blobs/uploads",
+        headers=headers(owner),
+        files={"file": ("owned.step", b"EFGH", "application/step")},
+    ).json()
+    accepted = client.post(
+        f"/revisions/{revision['id']}/representations",
+        headers=headers(owner),
+        json={"name": "owned", "media_type": "application/step", "blob_id": owned_blob["id"]},
+    )
+    assert accepted.status_code == 201
+
+
+def test_completed_chunk_cleanup_failure_is_observable_and_retryable(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    session = create_session(client, token, total_size_bytes=4)
+    session_id = str(session["id"])
+    assert upload_chunk(client, token, session_id, 0, b"ABCD").status_code == 200
+    assert (
+        client.post(
+            f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token)
+        ).status_code
+        == 200
+    )
+
+    class FlakyCleanup:
+        calls = 0
+
+        def cleanup_upload_session(self, ignored_session_id: str) -> None:
+            self.calls += 1
+            if self.calls == 1:
+                raise OSError("provider unavailable")
+
+    storage = FlakyCleanup()
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        upload_session.cleanup_pending = True
+        db.flush()
+        assert not BlobModule.cleanup_completed_upload_session(
+            db, session_id=session_id, storage=storage
+        )  # type: ignore[arg-type]
+        db.commit()
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        assert upload_session.cleanup_pending
+        assert upload_session.cleanup_error == "OSError"
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditRecord)
+                .where(
+                    AuditRecord.action == "blob.upload_session.cleanup_failed",
+                    AuditRecord.resource_id == session_id,
+                )
+            )
+            == 1
+        )
+        assert BlobModule.cleanup_completed_upload_session(
+            db, session_id=session_id, storage=storage
+        )  # type: ignore[arg-type]
+        db.commit()
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        assert not upload_session.cleanup_pending
+        assert upload_session.cleanup_error is None
 
 
 def test_cancellation_is_idempotent_and_prevents_blob_creation(tmp_path: Path) -> None:
@@ -175,6 +341,7 @@ def test_cancellation_is_idempotent_and_prevents_blob_creation(tmp_path: Path) -
 def test_invalid_upload_session_limits_and_chunks_are_rejected(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     token = register(client, email="owner@example.com")
+    asset_id = create_asset(client, token)["id"]
     for payload in (
         {"filename": "a", "media_type": "text/plain", "total_size_bytes": 0},
         {"filename": "a", "media_type": "text/plain", "total_size_bytes": 33},
@@ -186,9 +353,49 @@ def test_invalid_upload_session_limits_and_chunks_are_rejected(tmp_path: Path) -
         },
     ):
         assert (
-            client.post("/blobs/upload-sessions", headers=headers(token), json=payload).status_code
+            client.post(
+                "/blobs/upload-sessions",
+                headers=headers(token),
+                json={"asset_id": asset_id, **payload},
+            ).status_code
             == 400
         )
+
+
+def test_upload_session_rejects_overlong_or_blank_filename_and_media_type(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    asset_id = create_asset(client, token)["id"]
+    base = {
+        "asset_id": asset_id,
+        "filename": "a",
+        "media_type": "text/plain",
+        "total_size_bytes": 4,
+    }
+    assert (
+        client.post(
+            "/blobs/upload-sessions", headers=headers(token), json={**base, "filename": "x" * 256}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/blobs/upload-sessions", headers=headers(token), json={**base, "media_type": "x" * 256}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/blobs/upload-sessions", headers=headers(token), json={**base, "filename": "   "}
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            "/blobs/upload-sessions", headers=headers(token), json={**base, "media_type": "   "}
+        ).status_code
+        == 400
+    )
     session_id = str(create_session(client, token)["id"])
     assert upload_chunk(client, token, session_id, 0, b"").status_code == 400
     assert upload_chunk(client, token, session_id, 0, b"ABC").status_code == 400
@@ -299,6 +506,16 @@ def test_upload_session_migration_is_upgradeable(tmp_path: Path) -> None:
     blob_types = {column["name"]: column["type"] for column in inspector.get_columns("blobs")}
     assert isinstance(session_types["total_size_bytes"], BigInteger)
     assert isinstance(session_types["chunk_size_bytes"], BigInteger)
+    assert {"asset_id", "cleanup_pending", "cleanup_error"} <= set(session_types)
+    assert any(
+        foreign_key["referred_table"] == "assets"
+        and foreign_key["constrained_columns"] == ["asset_id"]
+        for foreign_key in inspector.get_foreign_keys("blob_upload_sessions")
+    )
+    assert any(
+        index["column_names"] == ["asset_id"]
+        for index in inspector.get_indexes("blob_upload_sessions")
+    )
     assert isinstance(chunk_types["size_bytes"], BigInteger)
     assert isinstance(blob_types["size_bytes"], BigInteger)
 
@@ -587,6 +804,7 @@ def test_chunk_stream_rechecks_locked_session_after_concurrent_cancellation(tmp_
             session_id=session_id,
             actor=streaming_actor,
             storage=storage,
+            assets=AssetsModule,
         )
         assert contract == (8, 4)
 
@@ -595,6 +813,7 @@ def test_chunk_stream_rechecks_locked_session_after_concurrent_cancellation(tmp_
             session_id=session_id,
             actor=cancelling_actor,
             storage=storage,
+            assets=AssetsModule,
         )
         cancelling_db.commit()
 
@@ -608,6 +827,7 @@ def test_chunk_stream_rechecks_locked_session_after_concurrent_cancellation(tmp_
                 checksum_sha256=hashlib.sha256(b"ABCD").hexdigest(),
                 actor=streaming_actor,
                 storage=storage,
+                assets=AssetsModule,
             )
         assert exc_info.value.status_code == 409
         streaming_db.rollback()
@@ -642,10 +862,14 @@ def test_competing_sessions_keep_identical_chunk_and_completion_idempotent(tmp_p
         assert first_actor is not None
         assert second_actor is not None
         BlobModule.get_upload_session(
-            first_db, session_id=session_id, actor=first_actor, storage=storage
+            first_db, session_id=session_id, actor=first_actor, storage=storage, assets=AssetsModule
         )
         BlobModule.get_upload_session(
-            second_db, session_id=session_id, actor=second_actor, storage=storage
+            second_db,
+            session_id=session_id,
+            actor=second_actor,
+            storage=storage,
+            assets=AssetsModule,
         )
 
         checksum = hashlib.sha256(b"ABCD").hexdigest()
@@ -658,6 +882,7 @@ def test_competing_sessions_keep_identical_chunk_and_completion_idempotent(tmp_p
             checksum_sha256=checksum,
             actor=first_actor,
             storage=storage,
+            assets=AssetsModule,
         )
         first_db.commit()
         second = BlobModule.put_upload_chunk(
@@ -669,6 +894,7 @@ def test_competing_sessions_keep_identical_chunk_and_completion_idempotent(tmp_p
             checksum_sha256=checksum,
             actor=second_actor,
             storage=storage,
+            assets=AssetsModule,
         )
         second_db.commit()
         assert first.id == second.id == session_id
@@ -685,18 +911,26 @@ def test_competing_sessions_keep_identical_chunk_and_completion_idempotent(tmp_p
         assert first_actor is not None
         assert second_actor is not None
         BlobModule.get_upload_session(
-            first_db, session_id=session_id, actor=first_actor, storage=storage
+            first_db, session_id=session_id, actor=first_actor, storage=storage, assets=AssetsModule
         )
         BlobModule.get_upload_session(
-            second_db, session_id=session_id, actor=second_actor, storage=storage
+            second_db,
+            session_id=session_id,
+            actor=second_actor,
+            storage=storage,
+            assets=AssetsModule,
         )
 
         first_completed = BlobModule.complete_upload_session(
-            first_db, session_id=session_id, actor=first_actor, storage=storage
+            first_db, session_id=session_id, actor=first_actor, storage=storage, assets=AssetsModule
         )
         first_db.commit()
         second_completed = BlobModule.complete_upload_session(
-            second_db, session_id=session_id, actor=second_actor, storage=storage
+            second_db,
+            session_id=session_id,
+            actor=second_actor,
+            storage=storage,
+            assets=AssetsModule,
         )
         second_db.commit()
         assert first_completed.blob_id == second_completed.blob_id
@@ -987,10 +1221,16 @@ def test_storage_failure_keeps_session_recoverable(tmp_path: Path) -> None:
     from openpdm.api.core import get_storage
 
     client.app.dependency_overrides[get_storage] = lambda: FailingUploadStorage()
+    asset_id = create_asset(client, token)["id"]
     response = client.post(
         "/blobs/upload-sessions",
         headers=headers(token),
-        json={"filename": "wing.step", "media_type": "application/step", "total_size_bytes": 8},
+        json={
+            "asset_id": asset_id,
+            "filename": "wing.step",
+            "media_type": "application/step",
+            "total_size_bytes": 8,
+        },
     )
     assert response.status_code == 201
     session_id = response.json()["id"]

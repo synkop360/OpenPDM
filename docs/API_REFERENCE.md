@@ -75,12 +75,20 @@ Saved Engineering Asset views are owner-private, scoped to one readable Project,
 | `GET` | `/blobs/{blob_id}/download` | Download authorized Blob content |
 
 `POST /blobs/uploads` remains supported for legacy multipart clients. A resumable
-session accepts `filename`, `media_type`, `total_size_bytes`, and an optional
+session accepts the target `asset_id`, `filename`, `media_type`,
+`total_size_bytes`, and an optional
 SHA-256 digest. Session views expose progress and the completed Blob, never
 provider object locations. Chunks are zero-based, can arrive out of order, and
 must meet the returned fixed chunk size except for the final remainder.
 Identical retries, completion, and cancellation are idempotent. Every session
-operation reauthorizes the owning user.
+operation reauthorizes both the owning user and current write access to the
+target Engineering Asset. Completed Blob responses expose client-safe metadata
+only: identifier, filename, media type, size, checksum and creation time.
+
+A Representation may claim a completed resumable Blob only for the Engineering
+Asset bound to its upload session. Legacy multipart Blobs remain usable by their
+creating user, subject to current write permission on the target Engineering
+Asset; another user's Blob identifier never grants authority.
 
 ## Collaboration And Notifications
 

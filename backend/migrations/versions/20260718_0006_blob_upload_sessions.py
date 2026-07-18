@@ -23,6 +23,7 @@ def upgrade() -> None:
         "blob_upload_sessions",
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("owner_user_id", sa.String(length=36), nullable=False),
+        sa.Column("asset_id", sa.String(length=36), nullable=False),
         sa.Column("filename", sa.String(length=255), nullable=False),
         sa.Column("media_type", sa.String(length=255), nullable=False),
         sa.Column("total_size_bytes", sa.BigInteger(), nullable=False),
@@ -30,18 +31,25 @@ def upgrade() -> None:
         sa.Column("chunk_size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("blob_id", sa.String(length=36), nullable=True),
+        sa.Column("cleanup_pending", sa.Boolean(), nullable=False),
+        sa.Column("cleanup_error", sa.String(length=255), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["blob_id"], ["blobs.id"]),
         sa.ForeignKeyConstraint(["owner_user_id"], ["users.id"]),
+        sa.ForeignKeyConstraint(["asset_id"], ["assets.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
         op.f("ix_blob_upload_sessions_owner_user_id"), "blob_upload_sessions", ["owner_user_id"]
     )
+    op.create_index(op.f("ix_blob_upload_sessions_asset_id"), "blob_upload_sessions", ["asset_id"])
     op.create_index(op.f("ix_blob_upload_sessions_status"), "blob_upload_sessions", ["status"])
     op.create_index(op.f("ix_blob_upload_sessions_blob_id"), "blob_upload_sessions", ["blob_id"])
+    op.create_index(
+        op.f("ix_blob_upload_sessions_cleanup_pending"), "blob_upload_sessions", ["cleanup_pending"]
+    )
     op.create_index(
         op.f("ix_blob_upload_sessions_expires_at"), "blob_upload_sessions", ["expires_at"]
     )
@@ -63,7 +71,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index(op.f("ix_blob_upload_chunks_session_id"), table_name="blob_upload_chunks")
     op.drop_table("blob_upload_chunks")
-    for name in ("expires_at", "blob_id", "status", "owner_user_id"):
+    for name in ("expires_at", "cleanup_pending", "blob_id", "status", "asset_id", "owner_user_id"):
         op.drop_index(op.f(f"ix_blob_upload_sessions_{name}"), table_name="blob_upload_sessions")
     op.drop_table("blob_upload_sessions")
     with op.batch_alter_table("blobs") as batch_op:

@@ -89,6 +89,20 @@ temporary object layout behind the BlobStorage interface.
 No Blob record is created until every chunk is present and the assembled content
 matches the declared size and optional SHA-256 digest.
 
+Upload sessions are bound to an Engineering Asset. Every operation checks the
+session owner and current Project permission again, so membership revocation
+takes effect during an in-progress transfer. Creating a session also performs a
+bounded cleanup pass (up to 25 expired sessions), providing a production caller
+without adding a scheduler. Expired sessions beyond that bound are handled by
+later session creation requests.
+
+After completion commits the Blob, the backend deletes provider-private chunks.
+A provider cleanup failure is recorded as
+`blob.upload_session.cleanup_failed`, leaves the session marked for cleanup, and
+does not invalidate the committed Blob or change completion idempotency. A
+repeated completion request retries that cleanup. Provider object keys and
+cleanup diagnostics are never returned in public Blob responses.
+
 ## Local Backend-only Development
 
 If you only need the backend during development, run:

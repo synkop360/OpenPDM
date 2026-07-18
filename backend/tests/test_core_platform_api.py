@@ -24,6 +24,7 @@ from openpdm.platform_core.modules.models import (
     AssetReference,
     AssetRelationship,
     AuditRecord,
+    Blob,
     DomainEvent,
     NotificationRecord,
     PluginRecord,
@@ -513,10 +514,15 @@ def test_blob_upload_normalizes_filename_and_keeps_local_storage_within_bucket(
     ).json()
 
     assert blob["filename"] == "escape.txt"
-    assert ".." not in blob["storage_key"]
+    assert "storage_key" not in blob
+    with session_scope() as db:
+        blob_row = db.get(Blob, blob["id"])
+        assert blob_row is not None
+        storage_key = blob_row.storage_key
+    assert ".." not in storage_key
 
     bucket_root = (tmp_path / "blobs" / "openpdm-blobs").resolve()
-    stored_path = (bucket_root / blob["storage_key"]).resolve()
+    stored_path = (bucket_root / storage_key).resolve()
     assert stored_path.is_file()
     assert stored_path.read_bytes() == b"escape-data"
     assert stored_path.is_relative_to(bucket_root)

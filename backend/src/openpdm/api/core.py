@@ -133,7 +133,6 @@ class ProjectMembershipResponse(BaseModel):
 
 class BlobResponse(ApiModel):
     id: str
-    storage_key: str
     filename: str
     media_type: str
     size_bytes: int
@@ -142,14 +141,16 @@ class BlobResponse(ApiModel):
 
 
 class CreateBlobUploadSessionRequest(BaseModel):
-    filename: str
-    media_type: str
+    asset_id: str
+    filename: str = Field(min_length=1, max_length=255)
+    media_type: str = Field(min_length=1, max_length=255)
     total_size_bytes: int
     checksum_sha256: str | None = None
 
 
 class BlobUploadSessionResponse(ApiModel):
     id: str
+    asset_id: str
     filename: str
     media_type: str
     total_size_bytes: int
@@ -586,7 +587,6 @@ def serialize_project(project: Any) -> ProjectResponse:
 def serialize_blob(blob: Any) -> BlobResponse:
     return BlobResponse(
         id=blob.id,
-        storage_key=blob.storage_key,
         filename=blob.filename,
         media_type=blob.media_type,
         size_bytes=blob.size_bytes,
@@ -599,6 +599,7 @@ def serialize_blob_upload_session(upload_session: Any) -> BlobUploadSessionRespo
     chunks = sorted(upload_session.chunks, key=lambda chunk: chunk.chunk_number)
     return BlobUploadSessionResponse(
         id=upload_session.id,
+        asset_id=upload_session.asset_id,
         filename=upload_session.filename,
         media_type=upload_session.media_type,
         total_size_bytes=upload_session.total_size_bytes,
@@ -1536,12 +1537,14 @@ def create_blob_upload_session(
     upload_session = BlobModule.create_upload_session(
         db,
         actor=context.user,
+        asset_id=payload.asset_id,
         filename=payload.filename,
         media_type=payload.media_type,
         total_size_bytes=payload.total_size_bytes,
         checksum_sha256=payload.checksum_sha256,
         storage=storage,
         settings=Settings(),
+        assets=AssetsModule,
     )
     db.commit()
     return serialize_blob_upload_session(upload_session)
@@ -1566,7 +1569,7 @@ async def put_blob_upload_session_chunk(
             detail="Chunk content type must be application/octet-stream.",
         )
     total_size_bytes, chunk_size_bytes = BlobModule.get_upload_chunk_contract(
-        db, session_id=session_id, actor=context.user, storage=storage
+        db, session_id=session_id, actor=context.user, storage=storage, assets=AssetsModule
     )
     chunk_count = (total_size_bytes + chunk_size_bytes - 1) // chunk_size_bytes
     if not 0 <= chunk_number < chunk_count:
@@ -1601,6 +1604,7 @@ async def put_blob_upload_session_chunk(
             checksum_sha256=digest.hexdigest(),
             actor=context.user,
             storage=storage,
+            assets=AssetsModule,
         )
     db.commit()
     return serialize_blob_upload_session(upload_session)
@@ -1614,7 +1618,7 @@ def get_blob_upload_session(
     storage: BlobStorage = Depends(get_storage),
 ) -> BlobUploadSessionResponse:
     upload_session = BlobModule.get_upload_session(
-        db, session_id=session_id, actor=context.user, storage=storage
+        db, session_id=session_id, actor=context.user, storage=storage, assets=AssetsModule
     )
     db.commit()
     return serialize_blob_upload_session(upload_session)
@@ -1630,8 +1634,10 @@ def complete_blob_upload_session(
     storage: BlobStorage = Depends(get_storage),
 ) -> BlobUploadSessionResponse:
     upload_session = BlobModule.complete_upload_session(
-        db, session_id=session_id, actor=context.user, storage=storage
+        db, session_id=session_id, actor=context.user, storage=storage, assets=AssetsModule
     )
+    db.commit()
+    BlobModule.cleanup_completed_upload_session(db, session_id=session_id, storage=storage)
     db.commit()
     return serialize_blob_upload_session(upload_session)
 
@@ -1643,7 +1649,9 @@ def cancel_blob_upload_session(
     db: Session = Depends(get_db_session),
     storage: BlobStorage = Depends(get_storage),
 ) -> Response:
-    BlobModule.cancel_upload_session(db, session_id=session_id, actor=context.user, storage=storage)
+    BlobModule.cancel_upload_session(
+        db, session_id=session_id, actor=context.user, storage=storage, assets=AssetsModule
+    )
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
