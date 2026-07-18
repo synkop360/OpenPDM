@@ -280,6 +280,30 @@ describe("App", () => {
             },
           ]);
         }
+        if (path === "/providers") {
+          return jsonResponse([
+            {
+              id: "org.openpdm.examples.asset-categories",
+              name: "Asset Categories API Test Plugin",
+              capabilities: ["metadata_provider", "option_provider"],
+            },
+          ]);
+        }
+        if (path === "/plugins/org.openpdm.examples.asset-categories/providers/options") {
+          return jsonResponse([
+            {
+              key: "category",
+              label: "Asset category",
+              options: [
+                { value: "document", label: "Document" },
+                { value: "drawing", label: "Drawing" },
+              ],
+            },
+          ]);
+        }
+        if (path === "/metadata/asset/asset-1") {
+          return jsonResponse([]);
+        }
         if (path === "/notifications") {
           return jsonResponse([
             {
@@ -317,6 +341,9 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration notifications" })).toBeInTheDocument();
+    expect(await screen.findByText("Asset Categories API Test Plugin")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Asset category")).toBeInTheDocument();
+    expect(screen.queryByText("No running Metadata Provider is available.")).not.toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();

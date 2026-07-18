@@ -1,0 +1,16 @@
+export const API_PROXY_PATHS = [
+  "/health",
+  "/foundation",
+  "/auth",
+  "/organizations",
+  "/projects",
+  "/assets",
+  "/revisions",
+  "/blobs",
+  "/metadata",
+  "/notifications",
+  "/search",
+  "/plugins",
+  "/providers",
+  "/platform",
+] as const;

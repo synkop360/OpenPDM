@@ -2428,7 +2428,13 @@ function OpenPdmApp() {
 
                     {providers.data.every((provider) =>
                       !provider.capabilities.includes("metadata_provider"),
-                    ) ? <p className="empty-state">No running Metadata Provider is available.</p> : null}
+                    ) ? (
+                      <p className={providers.status === "error" ? "error-message" : "empty-state"}>
+                        {providers.status === "error"
+                          ? providers.error
+                          : "No running Metadata Provider is available."}
+                      </p>
+                    ) : null}
 
                     {assetMetadata.data.length > 0 ? (
                       <dl className="metadata-list">

@@ -1,5 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
+import { API_PROXY_PATHS } from "./src/apiRoutes";
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, ".", "");
@@ -10,21 +11,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: Object.fromEntries(
-        [
-          "/health",
-          "/foundation",
-          "/auth",
-          "/organizations",
-          "/projects",
-          "/assets",
-          "/revisions",
-          "/blobs",
-          "/metadata",
-          "/notifications",
-          "/search",
-          "/plugins",
-          "/platform",
-        ].map((path) => [path, apiProxyTarget]),
+        API_PROXY_PATHS.map((path) => [path, apiProxyTarget]),
       ),
     },
     test: {
