@@ -1102,10 +1102,6 @@ def test_postgresql_simultaneous_upload_and_completion_is_idempotent(
     assert len(final_files) == 1
     assert final_files[0].read_bytes() == b"ABCDEFGH"
     session_path = bucket_root / "upload-sessions" / session_id
-    assert sorted(path.name for path in (session_path / "chunks").iterdir()) == ["0", "1"]
-    LocalFileBlobStorage(str(tmp_path / "blobs"), "openpdm-blobs").cleanup_upload_session(
-        session_id
-    )
     assert not session_path.exists()
     assert final_files[0].read_bytes() == b"ABCDEFGH"
 
