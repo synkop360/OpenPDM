@@ -38,6 +38,9 @@ services:
       OPENPDM_S3_BUCKET: openpdm-blobs
       OPENPDM_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-openpdm}
       OPENPDM_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-openpdm-secret}
+      OPENPDM_PLUGIN_PACKAGE_ROOT: /var/lib/openpdm/plugins
+    volumes:
+      - plugin-packages:/var/lib/openpdm/plugins
     ports:
       - "${OPENPDM_BACKEND_HOST_PORT:-18000}:8000"
     depends_on:
@@ -49,3 +52,4 @@ services:
 volumes:
   postgres-data:
   minio-data:
+  plugin-packages:

@@ -40,7 +40,16 @@ def invoke_plugin(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Plugin does not declare the {capability} capability.",
         )
-    archive = services.package_storage.read(plugin.package_digest)
+    try:
+        archive = services.package_storage.read(plugin.package_digest)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "The installed plugin package is unavailable. "
+                "A Platform Administrator must reinstall or upgrade the plugin package."
+            ),
+        ) from exc
     package = validate_plugin_package(archive)
     if package.digest != plugin.package_digest or package.manifest.id != plugin.id:
         raise HTTPException(

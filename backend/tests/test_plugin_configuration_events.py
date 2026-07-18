@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import pytest
 from cryptography.fernet import Fernet
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from openpdm.extension_api import (
@@ -24,6 +26,7 @@ from openpdm.platform_core.modules.models import (
     User,
 )
 from openpdm.platform_core.modules.services import PluginsModule, emit_event
+from openpdm.plugin_application import PluginInvocationServices, invoke_plugin
 from openpdm.plugin_runtime.dispatcher import dispatch_due_plugin_events
 from openpdm.plugin_runtime.supervisor import RuntimeResult
 
@@ -95,6 +98,45 @@ def test_plugin_configuration_secrets_are_encrypted_and_never_audited(tmp_path: 
         )
         assert audit is not None
         assert "hostile-secret" not in str(audit.details)
+
+
+def test_missing_immutable_package_returns_actionable_conflict(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    initialize_database(settings)
+    with session_scope(settings) as db:
+        actor = User(email="user@example.com", display_name="User", password_hash="unused")
+        plugin = PluginRecord(
+            id="org.openpdm.missing-package",
+            name="Missing Package",
+            version="1.0.0",
+            plugin_type="community",
+            capabilities=["option_provider"],
+            extension_api_versions=[1],
+            component="plugin.wasm",
+            package_digest="a" * 64,
+            lifecycle_state="running",
+            enabled=True,
+        )
+        db.add_all([actor, plugin])
+        db.flush()
+
+        with pytest.raises(HTTPException) as error:
+            invoke_plugin(
+                db,
+                plugin_id=plugin.id,
+                capability="option_provider",
+                operation="options",
+                context={"actor": actor, "request_id": "request-1"},
+                payload={},
+                services=PluginInvocationServices(
+                    package_storage=PluginPackageStorage(settings.plugin_package_root),
+                    cipher=PluginSecretCipher(None),
+                    supervisor=SuccessfulSupervisor(),
+                ),
+            )
+
+        assert error.value.status_code == 409
+        assert "reinstall or upgrade" in error.value.detail
 
 
 def test_post_commit_delivery_is_persisted_and_dispatched_once(tmp_path: Path) -> None:
