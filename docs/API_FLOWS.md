@@ -199,6 +199,38 @@ sequenceDiagram
     API-->>UI: asset detail
 ```
 
+## Operational Collections And Saved Views
+
+Operational workspaces use the compatible `/page` routes for Engineering Assets, Organization members, Project members, notifications and plugins. The owning Platform Module applies authorization and its own allowlisted filters and sort keys before the shared pagination helper adds a stable `(sort_value, id)` keyset cursor. The application API coordinates saved-view persistence through the Projects Platform Module and validates the generic Engineering Asset view definition through the Assets Platform Module public interface.
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend UI
+    participant API as FastAPI Router
+    participant Collection as Owning Platform Module
+    participant Assets as AssetsModule
+    participant Projects as ProjectModule
+    participant Paging as Pagination Helper
+    participant DB as Database
+
+    UI->>API: GET collection/page?limit=50&sort=...&direction=...
+    API->>Collection: list_page(actor, filters, sort, cursor)
+    Collection->>Collection: authorize + validate allowlists
+    Collection->>Paging: paginate(authorized statement, opaque cursor)
+    Paging->>DB: keyset query ordered by sort value + id
+    DB-->>Paging: limit + 1 rows
+    Paging-->>Collection: items + next_cursor
+    Collection-->>API: bounded PageResult
+    API-->>UI: {items, next_cursor}
+
+    UI->>API: POST /users/me/project-views
+    API->>Assets: validate view definition
+    API->>Projects: verify Project access and ownership
+    Projects->>DB: persist owner-private saved view
+    API-->>UI: saved view
+```
+
+Legacy unpaged list routes remain compatible. Cursors cannot be reused across a different actor scope, resource, filter set, sort key or direction. Notification batch acknowledgement first validates the complete selected set, then changes all matching unread records in one transaction.
 ## Membership Administration API
 
 The public application API exposes an explicit membership lifecycle. New users must already be registered. Organization assignment uses normalized email by default and accepts `user_id` temporarily for compatibility; callers must provide exactly one identifier.

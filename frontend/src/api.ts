@@ -7,6 +7,26 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
+export type Page<T> = {
+  items: T[];
+  next_cursor: string | null;
+};
+
+export type PageOptions = {
+  limit?: number;
+  cursor?: string;
+  sort?: string;
+  direction?: "asc" | "desc";
+};
+
+function collectionUrl(path: string, options: Record<string, string | number | boolean | undefined>): string {
+  const query = new URLSearchParams();
+  Object.entries(options).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  });
+  return query.size ? path + "?" + query.toString() : path;
+}
+
 export type FoundationStatus = {
   name: string;
   version: string;
@@ -40,6 +60,7 @@ export type PluginRecord = {
 
 export type PluginConfiguration = {
   plugin_id: string;
+  configuration_schema: Record<string, unknown> | null;
   values: Record<string, unknown>;
   configured_secret_fields: string[];
   updated_at: string | null;
@@ -157,6 +178,27 @@ export type TimelineEntry = {
   asset_id: string;
   revision_id: string | null;
   details: Record<string, unknown>;
+};
+
+export type ProjectAssetView = {
+  id: string;
+  project_id: string;
+  name: string;
+  filters: Record<string, unknown>;
+  sort: { field: string; direction: "asc" | "desc" };
+  density: "compact" | "comfortable";
+  selected_columns: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectAssetViewInput = {
+  project_id: string;
+  name: string;
+  filters: Record<string, unknown>;
+  sort: { field: string; direction: "asc" | "desc" };
+  density: "compact" | "comfortable";
+  selected_columns: string[];
 };
 
 export type NotificationRecord = {
@@ -755,4 +797,150 @@ export async function downloadBlob(token: string, blobId: string): Promise<Blob>
     throw new ApiError(`OpenPDM API request failed with status ${response.status}`, response.status);
   }
   return response.blob();
+}
+
+export async function listOrganizationMembersPage(
+  token: string,
+  organizationId: string,
+  options: PageOptions & { role?: string; query?: string } = {},
+): Promise<Page<OrganizationMembership>> {
+  return request<Page<OrganizationMembership>>(
+    collectionUrl("/organizations/" + organizationId + "/members/page", {
+      limit: options.limit,
+      cursor: options.cursor,
+      role: options.role,
+      q: options.query,
+      sort: options.sort,
+      direction: options.direction,
+    }),
+    { token },
+  );
+}
+
+export async function listProjectMembersPage(
+  token: string,
+  projectId: string,
+  options: PageOptions & { role?: string; query?: string } = {},
+): Promise<Page<ProjectMembership>> {
+  return request<Page<ProjectMembership>>(
+    collectionUrl("/projects/" + projectId + "/members/page", {
+      limit: options.limit,
+      cursor: options.cursor,
+      role: options.role,
+      q: options.query,
+      sort: options.sort,
+      direction: options.direction,
+    }),
+    { token },
+  );
+}
+
+export async function listAssetsPage(
+  token: string,
+  projectId: string,
+  options: PageOptions & { status?: string; query?: string } = {},
+): Promise<Page<Asset>> {
+  return request<Page<Asset>>(
+    collectionUrl("/projects/" + projectId + "/assets/page", {
+      limit: options.limit,
+      cursor: options.cursor,
+      status: options.status,
+      q: options.query,
+      sort: options.sort,
+      direction: options.direction,
+    }),
+    { token },
+  );
+}
+
+export async function listNotificationsPage(
+  token: string,
+  options: PageOptions & { projectId?: string; isRead?: boolean } = {},
+): Promise<Page<NotificationRecord>> {
+  return request<Page<NotificationRecord>>(
+    collectionUrl("/notifications/page", {
+      limit: options.limit,
+      cursor: options.cursor,
+      project_id: options.projectId,
+      is_read: options.isRead,
+      sort: options.sort,
+      direction: options.direction,
+    }),
+    { token },
+  );
+}
+
+export async function markNotificationsRead(
+  token: string,
+  payload:
+    | { notification_ids: string[]; all_matching?: false }
+    | { notification_ids?: never; all_matching: true; project_id?: string; is_read?: boolean },
+): Promise<{ updated_count: number; notification_ids: string[] }> {
+  return request<{ updated_count: number; notification_ids: string[] }>("/notifications/read", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function listPluginsPage(
+  token: string,
+  options: PageOptions & {
+    lifecycleState?: string;
+    enabled?: boolean;
+    query?: string;
+  } = {},
+): Promise<Page<PluginRecord>> {
+  return request<Page<PluginRecord>>(
+    collectionUrl("/plugins/page", {
+      limit: options.limit,
+      cursor: options.cursor,
+      lifecycle_state: options.lifecycleState,
+      enabled: options.enabled,
+      q: options.query,
+      sort: options.sort,
+      direction: options.direction,
+    }),
+    { token },
+  );
+}
+
+export async function listProjectAssetViews(
+  token: string,
+  projectId?: string,
+): Promise<ProjectAssetView[]> {
+  return request<ProjectAssetView[]>(
+    collectionUrl("/users/me/project-views", { project_id: projectId }),
+    { token },
+  );
+}
+
+export async function createProjectAssetView(
+  token: string,
+  payload: ProjectAssetViewInput,
+): Promise<ProjectAssetView> {
+  return request<ProjectAssetView>("/users/me/project-views", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function updateProjectAssetView(
+  token: string,
+  viewId: string,
+  payload: Omit<ProjectAssetViewInput, "project_id">,
+): Promise<ProjectAssetView> {
+  return request<ProjectAssetView>("/users/me/project-views/" + viewId, {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function deleteProjectAssetView(token: string, viewId: string): Promise<void> {
+  await request<void>("/users/me/project-views/" + viewId, { method: "DELETE", token });
 }

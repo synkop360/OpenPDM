@@ -61,6 +61,7 @@ The backend now exposes a concrete API surface for:
 * authentication and sessions (`/auth/*`)
 * Organizations, Projects, membership and role administration (`/organizations`, `/projects`)
 * Assets, Revisions, collaboration and notifications (`/assets/*`, `/notifications`)
+* paged operational collections and private saved Engineering Asset views (`*/page`, `/users/me/project-views`)
 * blob upload and download (`/blobs/*`)
 * relationships, references and bounded graph queries (`/relationships`, `/references`, `/assets/*/graph`)
 * metadata, search and the governed Plugin Platform (`/metadata`, `/search/assets`, `/plugins`)
@@ -109,7 +110,9 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 Protect and back up this key outside the database. Losing it makes encrypted plugin configuration unreadable. Set `OPENPDM_PLUGIN_PACKAGE_ROOT` to persistent storage owned only by the backend process. Sandbox fuel, memory and timeout settings are bounded by application validation and should be reduced only after testing installed plugins.
 
-The Compose backend runs Alembic migrations before starting the API. Existing local-development databases created before Alembic tracking are reconciled idempotently and stamped through the current migration head.
+Operational collection routes default to 50 results and enforce a maximum of 100. Their cursors are opaque and are invalid after changing resource scope, actor scope, filters, sort key or direction.
+
+The Compose backend runs Alembic migrations before starting the API. Migration `20260718_0005` creates the owner-private `project_asset_views` table. Existing local-development databases created before Alembic tracking are reconciled idempotently and stamped through the current migration head.
 
 For a backend started outside Compose, upgrade the database before starting the new application version:
 

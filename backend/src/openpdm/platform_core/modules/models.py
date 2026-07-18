@@ -118,6 +118,31 @@ class ProjectMembership(Base):
     user: Mapped[User] = relationship()
 
 
+class ProjectAssetView(Base):
+    """Private per-user Asset collection view within a Project."""
+
+    __tablename__ = "project_asset_views"
+    __table_args__ = (UniqueConstraint("owner_user_id", "project_id", "name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    filters: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    sort: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    density: Mapped[str] = mapped_column(String(32), default="comfortable")
+    selected_columns: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    owner: Mapped[User] = relationship()
+    project: Mapped[Project] = relationship()
+
+
 class Blob(Base):
     """Blob record coordinated independently from lifecycle semantics."""
 
