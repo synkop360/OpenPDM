@@ -13,8 +13,7 @@
   --shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
   background: #0d0f10;
   color: var(--text);
-  font-family:
-    "Segoe UI", "Aptos", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
 }
 
 * {
