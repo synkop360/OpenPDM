@@ -10,8 +10,6 @@ jobs:
   backend:
     name: Backend and repository validation
     runs-on: ubuntu-latest
-    env:
-      OPENPDM_TEST_POSTGRES_URL: postgresql+psycopg://openpdm:openpdm@localhost:5432/openpdm_transfer_test
 
     services:
       postgres:
@@ -50,6 +48,7 @@ jobs:
 
       - name: Test PostgreSQL resumable-transfer concurrency
         env:
+          OPENPDM_TEST_POSTGRES_URL: postgresql+psycopg://openpdm:openpdm@localhost:5432/openpdm_transfer_test
           OPENPDM_REQUIRE_POSTGRES_TRANSFER_TEST: "1"
         run: >-
           uv run pytest
