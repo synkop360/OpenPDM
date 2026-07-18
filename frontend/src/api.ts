@@ -135,6 +135,29 @@ export type BlobRecord = {
   created_at: string;
 };
 
+export type BlobUploadSession = {
+  id: string;
+  filename: string;
+  media_type: string;
+  total_size_bytes: number;
+  checksum_sha256: string | null;
+  chunk_size_bytes: number;
+  status: string;
+  received_bytes: number;
+  received_chunk_numbers: number[];
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  blob: BlobRecord | null;
+};
+
+export type CreateBlobUploadSessionPayload = {
+  filename: string;
+  media_type: string;
+  total_size_bytes: number;
+  checksum_sha256?: string | null;
+};
+
 export type Representation = {
   id: string;
   revision_id: string;
@@ -287,6 +310,7 @@ type RequestOptions = {
   token?: string | null;
   body?: BodyInit | null;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -298,6 +322,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     method: options.method ?? "GET",
     body: options.body,
     headers,
+    signal: options.signal,
   });
   if (!response.ok) {
     let message = `OpenPDM API request failed with status ${response.status}`;
@@ -774,6 +799,52 @@ export async function uploadBlob(token: string, file: File): Promise<BlobRecord>
     token,
     body: formData,
   });
+}
+
+export async function createBlobUploadSession(
+  token: string,
+  payload: CreateBlobUploadSessionPayload,
+  signal?: AbortSignal,
+): Promise<BlobUploadSession> {
+  return request<BlobUploadSession>("/blobs/upload-sessions", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+    signal,
+  });
+}
+
+export async function getBlobUploadSession(token: string, sessionId: string, signal?: AbortSignal): Promise<BlobUploadSession> {
+  return request<BlobUploadSession>(`/blobs/upload-sessions/${sessionId}`, { token, signal });
+}
+
+export async function putBlobUploadChunk(
+  token: string,
+  sessionId: string,
+  chunkNumber: number,
+  content: Blob,
+  signal?: AbortSignal,
+): Promise<BlobUploadSession> {
+  return request<BlobUploadSession>(`/blobs/upload-sessions/${sessionId}/chunks/${chunkNumber}`, {
+    method: "PUT",
+    token,
+    body: content,
+    headers: { "Content-Type": "application/octet-stream" },
+    signal,
+  });
+}
+
+export async function completeBlobUploadSession(token: string, sessionId: string, signal?: AbortSignal): Promise<BlobUploadSession> {
+  return request<BlobUploadSession>(`/blobs/upload-sessions/${sessionId}/complete`, {
+    method: "POST",
+    token,
+    signal,
+  });
+}
+
+export async function cancelBlobUploadSession(token: string, sessionId: string): Promise<void> {
+  await request<void>(`/blobs/upload-sessions/${sessionId}`, { method: "DELETE", token });
 }
 
 export async function addRepresentation(

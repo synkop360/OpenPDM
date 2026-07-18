@@ -75,8 +75,9 @@ import {
   type ReferenceRecord,
   type Relationship,
   unlockAsset,
-  uploadBlob,
+  cancelBlobUploadSession,
   type Asset,
+  type BlobRecord,
   type CollaborationState,
   type NotificationRecord,
   type OrganizationMembership,
@@ -111,6 +112,12 @@ import { AppShell } from "./components/shell/AppShell";
 import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
 import { useFoundationStatus } from "./hooks/useFoundationStatus";
+import { TransferStatus, type TransferPhase } from "./features/transfers/TransferStatus";
+import {
+  clearTransferRecovery,
+  loadTransferRecovery,
+  resumableUpload,
+} from "./features/transfers/resumableUpload";
 import "./styles.css";
 
 type AuthMode = "sign-in" | "register";
@@ -373,11 +380,28 @@ function OpenPdmApp() {
     comment: "",
     representationName: "",
   });
+  const [transfer, setTransfer] = useState<{
+    phase: TransferPhase;
+    receivedBytes: number;
+    totalBytes: number;
+    message: string | null;
+    blob: BlobRecord | null;
+  }>({ phase: "idle", receivedBytes: 0, totalBytes: 0, message: null, blob: null });
+  const [transferController, setTransferController] = useState<AbortController | null>(null);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(
     readStoredValue(ORG_KEY),
   );
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(readStoredValue(PROJECT_KEY));
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(readStoredValue(ASSET_KEY));
+
+  useEffect(() => {
+    if (!selectedAssetId) return;
+    const recovery = loadTransferRecovery(selectedAssetId);
+    setTransfer((current) => recovery && current.phase === "idle"
+      ? { ...current, phase: "awaiting-file", totalBytes: recovery.fileSize,
+          message: `Select ${recovery.fileName} to resume the interrupted transfer.` }
+      : current);
+  }, [selectedAssetId]);
 
   useEffect(() => {
     if (routeProjectId && routeProjectId !== selectedProjectId) {
@@ -1358,8 +1382,39 @@ function OpenPdmApp() {
     setBusyAction("upload");
     setBanner(null);
     setCollaborationError(null);
+    const storedRecovery = loadTransferRecovery(selectedAssetId);
+    const recovery = loadTransferRecovery(selectedAssetId, uploadForm.file);
+    if (!transfer.blob && storedRecovery && !recovery) {
+      setTransfer({ phase: "awaiting-file", receivedBytes: 0, totalBytes: storedRecovery.fileSize,
+        message: `Select the original ${storedRecovery.fileName} file to resume safely.`, blob: null });
+      setBusyAction(null);
+      return;
+    }
+    const controller = new AbortController();
+    setTransferController(controller);
+    setTransfer({ phase: "preparing", receivedBytes: 0, totalBytes: uploadForm.file.size,
+      message: transfer.blob ? "Retrying Revision creation with the verified Blob." : "Creating a bounded upload session.",
+      blob: transfer.blob });
     try {
-      const blob = await uploadBlob(session.data.token, uploadForm.file);
+      let blob = transfer.blob;
+      if (!blob) {
+        const completed = await resumableUpload({
+          token: session.data.token,
+          assetId: selectedAssetId,
+          file: uploadForm.file,
+          recovery,
+          signal: controller.signal,
+          onProgress: (receivedBytes, totalBytes) => setTransfer((current) => ({
+            ...current, phase: "uploading", receivedBytes, totalBytes,
+            message: `${receivedBytes.toLocaleString()} of ${totalBytes.toLocaleString()} bytes confirmed by the server.`,
+          })),
+          onVerifying: () => setTransfer((current) => ({ ...current, phase: "verifying",
+            message: "The server is assembling and verifying the file." })),
+        });
+        blob = completed.blob!;
+      }
+      setTransfer((current) => ({ ...current, phase: "checking-in",
+        message: "The verified Blob is being attached to a new Revision.", blob }));
       await checkinAsset(session.data.token, selectedAssetId, {
         comment: uploadForm.comment,
         representations: [
@@ -1371,20 +1426,32 @@ function OpenPdmApp() {
         ],
       });
       setUploadForm({ file: null, comment: "", representationName: "" });
+      setTransfer((current) => ({ ...current, phase: "success",
+        message: "The new immutable Revision is ready.", blob: null }));
       setBanner("Changes checked in as a new immutable Revision.");
-      const [nextAsset, nextHistory, nextCollaborationState, nextTimeline] = await Promise.all([
-        getAsset(session.data.token, selectedAssetId),
-        getAssetHistory(session.data.token, selectedAssetId),
-        getCollaborationState(session.data.token, selectedAssetId),
-        getAssetTimeline(session.data.token, selectedAssetId),
-      ]);
-      await refreshNotifications(session.data.token);
-      setAssetDetail({ status: "ready", data: nextAsset, error: null });
-      setAssetHistory({ status: "ready", data: nextHistory, error: null });
-      setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
-      setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
-      await refreshAssetPage(session.data.token, selectedProjectId!);
+      try {
+        const [nextAsset, nextHistory, nextCollaborationState, nextTimeline] = await Promise.all([
+          getAsset(session.data.token, selectedAssetId),
+          getAssetHistory(session.data.token, selectedAssetId),
+          getCollaborationState(session.data.token, selectedAssetId),
+          getAssetTimeline(session.data.token, selectedAssetId),
+        ]);
+        await refreshNotifications(session.data.token);
+        setAssetDetail({ status: "ready", data: nextAsset, error: null });
+        setAssetHistory({ status: "ready", data: nextHistory, error: null });
+        setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
+        setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+        await refreshAssetPage(session.data.token, selectedProjectId!);
+      } catch {
+        setBanner("The Revision was created, but the workspace could not refresh. Reload to see the latest state.");
+      }
     } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setTransfer((current) => ({ ...current, phase: "cancelled", message: "No incomplete content became a Blob." }));
+        return;
+      }
+      setTransfer((current) => ({ ...current, phase: "failed",
+        message: error instanceof Error ? error.message : "The check-in could not be completed." }));
       if (error instanceof ApiError) {
         await refreshNotifications(session.data.token);
         setCollaborationError(error);
@@ -1393,8 +1460,46 @@ function OpenPdmApp() {
         setBanner(error instanceof Error ? error.message : "Upload failed.");
       }
     } finally {
+      setTransferController(null);
       setBusyAction(null);
     }
+  }
+
+  function handleUploadFileChange(file: File | null): void {
+    setUploadForm((current) => ({
+      ...current,
+      file,
+      representationName: current.representationName || file?.name || "",
+    }));
+    if (!file || !selectedAssetId) {
+      setTransfer((current) => ({ ...current, blob: null }));
+      return;
+    }
+    const recovery = loadTransferRecovery(selectedAssetId, file);
+    setTransfer({
+      phase: recovery ? "preparing" : "idle",
+      receivedBytes: 0,
+      totalBytes: file.size,
+      message: recovery ? "The original file matches. Submit to resume from server-confirmed chunks." : null,
+      blob: null,
+    });
+  }
+
+  async function handleCancelTransfer(): Promise<void> {
+    transferController?.abort();
+    if (session.data?.token && selectedAssetId) {
+      const recovery = loadTransferRecovery(selectedAssetId);
+      if (recovery) {
+        try { await cancelBlobUploadSession(session.data.token, recovery.sessionId); } catch { /* Expiry is terminal too. */ }
+        clearTransferRecovery(selectedAssetId);
+      }
+    }
+    setTransfer((current) => ({ ...current, phase: "cancelled", message: "The upload session was cancelled." }));
+  }
+
+  function handleRetryCheckin(): void {
+    const form = document.querySelector<HTMLFormElement>("form[data-checkin-form]");
+    form?.requestSubmit();
   }
 
   async function handleCheckout(): Promise<void> {
@@ -3187,7 +3292,7 @@ function OpenPdmApp() {
                     </div>
                   </article>
 
-                  <form className="form-grid compact-form" onSubmit={handleUpload}>
+                  <form className="form-grid compact-form" data-checkin-form onSubmit={handleUpload}>
                     <h3>Check in a new Revision</h3>
                     <label>
                       Revision comment
@@ -3216,14 +3321,7 @@ function OpenPdmApp() {
                       <input
                         required
                         type="file"
-                        onChange={(event) =>
-                          setUploadForm((current) => ({
-                            ...current,
-                            file: event.target.files?.[0] ?? null,
-                            representationName:
-                              current.representationName || event.target.files?.[0]?.name || "",
-                          }))
-                        }
+                        onChange={(event) => handleUploadFileChange(event.target.files?.[0] ?? null)}
                       />
                     </label>
                     <button
@@ -3236,6 +3334,14 @@ function OpenPdmApp() {
                     <p className="muted-text">
                       Check-in is available only while you own the collaboration lock.
                     </p>
+                    <TransferStatus
+                      phase={transfer.phase === "idle" && !collaborationState.data?.can_checkin ? "permission" : transfer.phase}
+                      receivedBytes={transfer.receivedBytes}
+                      totalBytes={transfer.totalBytes}
+                      message={transfer.message}
+                      onCancel={() => void handleCancelTransfer()}
+                      onRetry={handleRetryCheckin}
+                    />
                   </form>
 
                   {collaborationState.status === "error" ? (
