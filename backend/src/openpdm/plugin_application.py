@@ -40,7 +40,16 @@ def invoke_plugin(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Plugin does not declare the {capability} capability.",
         )
-    archive = services.package_storage.read(plugin.package_digest)
+    try:
+        archive = services.package_storage.read(plugin.package_digest)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "The installed plugin package is unavailable. "
+                "A Platform Administrator must reinstall or upgrade the plugin package."
+            ),
+        ) from exc
     package = validate_plugin_package(archive)
     if package.digest != plugin.package_digest or package.manifest.id != plugin.id:
         raise HTTPException(
@@ -89,6 +98,7 @@ def invoke_metadata_provider(
     target_id: str,
     actor: object,
     context: dict[str, object],
+    parameters: dict[str, object] | None,
     services: PluginInvocationServices,
 ) -> list[object]:
     response = invoke_plugin(
@@ -97,7 +107,7 @@ def invoke_metadata_provider(
         capability="metadata_provider",
         operation="metadata",
         context={**context, "actor": actor},
-        payload={"target_type": target_type, "target_id": target_id},
+        payload={"target_type": target_type, "target_id": target_id, **(parameters or {})},
         services=services,
     )
     entries: list[object] = []
@@ -120,6 +130,26 @@ def invoke_metadata_provider(
             )
         )
     return entries
+
+
+def invoke_option_provider(
+    db: Session,
+    *,
+    plugin_id: str,
+    actor: object,
+    context: dict[str, object],
+    services: PluginInvocationServices,
+) -> list[object]:
+    response = invoke_plugin(
+        db,
+        plugin_id=plugin_id,
+        capability="option_provider",
+        operation="options",
+        context={**context, "actor": actor},
+        payload={},
+        services=services,
+    )
+    return list(response.option_sets)
 
 
 def invoke_asset_provider(

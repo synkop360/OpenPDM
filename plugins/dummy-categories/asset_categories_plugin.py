@@ -14,12 +14,14 @@ def response(
     *,
     metadata: list[dict[str, object]] | None = None,
     commands: list[dict[str, object]] | None = None,
+    option_sets: list[dict[str, object]] | None = None,
 ) -> str:
     return json.dumps(
         {
             "success": True,
             "metadata": metadata or [],
             "commands": commands or [],
+            "option_sets": option_sets or [],
             "error": None,
         },
         separators=(",", ":"),
@@ -37,7 +39,23 @@ class WitWorld(wit_world.WitWorld):
         context = envelope["context"]
         payload = envelope["payload"]
         configuration = envelope.get("configuration", {})
-        category = configuration.get("default_category", "document")
+        category = payload.get("category", configuration.get("default_category", "document"))
+
+        if operation == "options":
+            return response(
+                option_sets=[
+                    {
+                        "key": "category",
+                        "label": "Asset category",
+                        "options": [
+                            {"value": "document", "label": "Document"},
+                            {"value": "drawing", "label": "Drawing"},
+                            {"value": "model", "label": "3D model"},
+                            {"value": "assembly", "label": "Assembly"},
+                        ],
+                    }
+                ]
+            )
 
         if operation == "metadata":
             return response(
@@ -82,6 +100,7 @@ class WitWorld(wit_world.WitWorld):
                 "success": False,
                 "metadata": [],
                 "commands": [],
+                "option_sets": [],
                 "error": {
                     "code": "unsupported_operation",
                     "message": "The requested operation is not supported.",

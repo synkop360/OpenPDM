@@ -21,6 +21,7 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState({}, "", "/");
     vi.restoreAllMocks();
   });
 
@@ -43,7 +44,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: /OpenPDM Web UI Prototype/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "OpenPDM" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument();
   });
@@ -279,6 +280,30 @@ describe("App", () => {
             },
           ]);
         }
+        if (path === "/providers") {
+          return jsonResponse([
+            {
+              id: "org.openpdm.examples.asset-categories",
+              name: "Asset Categories API Test Plugin",
+              capabilities: ["metadata_provider", "option_provider"],
+            },
+          ]);
+        }
+        if (path === "/plugins/org.openpdm.examples.asset-categories/providers/options") {
+          return jsonResponse([
+            {
+              key: "category",
+              label: "Asset category",
+              options: [
+                { value: "document", label: "Document" },
+                { value: "drawing", label: "Drawing" },
+              ],
+            },
+          ]);
+        }
+        if (path === "/metadata/asset/asset-1") {
+          return jsonResponse([]);
+        }
         if (path === "/notifications") {
           return jsonResponse([
             {
@@ -303,14 +328,22 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Owner")).toBeInTheDocument();
+    expect(await screen.findAllByText("Owner")).not.toHaveLength(0);
+    expect(await screen.findByRole("heading", { name: "Welcome, Owner" })).toBeInTheDocument();
+    expect(screen.queryByText("Wing Panel")).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Acme/i })).toBeInTheDocument();
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
+    expect(window.location.pathname).toBe("/projects/project-1/overview");
+    fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
+    expect(window.location.pathname).toBe("/projects/project-1/assets");
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration notifications" })).toBeInTheDocument();
+    expect(await screen.findByText("Asset Categories API Test Plugin")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Asset category")).toBeInTheDocument();
+    expect(screen.queryByText("No running Metadata Provider is available.")).not.toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();
@@ -566,6 +599,7 @@ describe("App", () => {
 
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
     const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
     fireEvent.click(openButtons[0]);
@@ -744,6 +778,7 @@ describe("App", () => {
 
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     const checkoutButton = await screen.findByRole("button", { name: "Check out" });
     fireEvent.click(checkoutButton);
 
@@ -913,6 +948,9 @@ describe("App", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
+    const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
+    fireEvent.click(projectButtons[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Members" }));
     expect(await screen.findByRole("heading", { name: "Organization members" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "member@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Add member" }));
@@ -1007,6 +1045,7 @@ describe("App", () => {
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Plugin administration" }));
+    expect(window.location.pathname).toBe("/administration/plugins");
     expect(await screen.findByRole("heading", { name: "Plugin administration" })).toBeInTheDocument();
     expect(await screen.findByText("Categories")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
@@ -1016,5 +1055,41 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     );
+  });
+
+  it("denies plugin administration to an ordinary authenticated user", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    window.history.replaceState({}, "", "/administration/plugins");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === "/foundation") {
+          return jsonResponse({ name: "OpenPDM", version: "0.0.0", phase: "Engineering Platform", architecture: "Modular Monolith" });
+        }
+        if (path === "/auth/session") {
+          return jsonResponse({
+            id: "session-1",
+            token: "token-123",
+            user: {
+              id: "user-2",
+              email: "member@example.com",
+              display_name: "Member",
+              is_active: true,
+              is_platform_admin: false,
+              created_at: "2026-01-01T00:00:00",
+            },
+          });
+        }
+        if (path === "/organizations" || path === "/notifications") return jsonResponse([]);
+        throw new Error(`Unexpected request: ${path}`);
+      }),
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { name: "Platform Administrator authority required" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Install package" })).not.toBeInTheDocument();
   });
 });

@@ -107,8 +107,10 @@ Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See 
 | `GET` | `/plugins/{plugin_id}/event-deliveries` | Inspect delivery, retry and failure state |
 | `POST` | `/plugins/{plugin_id}/providers/metadata` | Invoke a Metadata Provider for one authorized target |
 | `POST` | `/plugins/{plugin_id}/providers/assets/{project_id}` | Invoke an Asset Provider within one authorized Project |
+| `GET` | `/providers` | Discover running provider plugins and their public capabilities |
+| `POST` | `/plugins/{plugin_id}/providers/options` | Retrieve bounded declarative option sets from an Option Provider |
 
-`POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file plus `plugin_type` and `discover_only` query parameters. Structurally valid incompatible packages receive an inspectable `incompatible` state but cannot be enabled. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
+`POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file plus `plugin_type` and `discover_only` query parameters. Structurally valid incompatible packages receive an inspectable `incompatible` state but cannot be enabled. Authenticated applications discover only running providers through `GET /providers`. Option Providers return bounded text values and labels; they cannot inject HTML, scripts, styles or application components. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
 
 ## Errors And Observability
 

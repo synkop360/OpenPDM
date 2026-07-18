@@ -2,12 +2,15 @@
 
 ## Primary Navigation
 
-After sign-in, the Home view greets the user and shows notifications plus available Organizations and Projects. It does not display Engineering Assets. Selecting a Project in the sidebar opens the Project view and its existing Asset, collaboration, relationship and Revision workflows.
+After sign-in, the dark-first responsive Home view greets the user and shows notifications plus available Organizations and Projects. It does not fetch or display Engineering Asset details. Selecting a Project opens `/projects/{project_id}/overview`; routed tabs expose Overview, Assets, Relationships, Collaboration and Members using delivered public APIs.
 
-The sidebar footer exposes Plugin administration. Platform Administrators can install Community Plugin packages, inspect lifecycle state and diagnostics, load or update deployment-scoped configuration, enable or disable compatible plugins, and remove disabled plugins. Ordinary users see the entry as unavailable because Organization and Project roles do not grant platform-wide plugin authority.
+The sidebar footer opens `/administration/plugins`. Platform Administrators can install or upgrade plugin packages, inspect lifecycle state and diagnostics, load or update deployment-scoped configuration, enable or disable compatible plugins, and remove disabled plugins. Ordinary users receive an explicit access-denied view because Organization and Project roles do not grant platform-wide plugin authority.
 
-This guide describes how to manually test the current Web UI prototype across
-the delivered Platform Core workflow, membership administration, Phase 2 collaboration slice and Phase 3 Asset Graph surface.
+At desktop widths, verify the persistent sidebar, compact top bar, Project list and two-column content area. Below the tablet breakpoint, verify that the menu button opens a keyboard-accessible drawer, the scrim and close button dismiss it, and Project tabs remain horizontally usable.
+
+This guide describes how to manually test the current Web UI across the delivered
+Platform Core workflow, membership administration, Phase 2 collaboration slice,
+Phase 3 Asset Graph surface and Phase 4 plugin journey.
 
 The Web UI is a normal consumer of the public application API. It exercises the
 Platform Core through the browser and does not bypass Platform Module
@@ -15,7 +18,7 @@ boundaries.
 
 ## Scope
 
-This guide covers the implemented prototype workflow for:
+This guide covers the implemented workflow for:
 
 * local user registration
 * local sign-in and sign-out
@@ -33,11 +36,12 @@ This guide covers the implemented prototype workflow for:
 * collaboration conflict feedback in the Web UI
 * in-app collaboration notification visibility and read acknowledgment
 * relationship, reference and bounded graph exploration
+* Platform Administrator plugin lifecycle operations
+* running provider discovery, declarative Asset categories and plugin-provided metadata
 
 This guide does not cover:
 
 * detailed Web UI polish review
-* plugin execution
 * engineering-specific behavior
 * desktop client behavior
 * desktop synchronization or desktop notifications
@@ -54,6 +58,7 @@ The current browser workflow exercises these Platform Modules:
 * Collaboration
 * Relationships
 * Notifications
+* Plugins
 
 It also relies on the public authentication and authorization capabilities
 defined for Phase 1.
@@ -124,7 +129,7 @@ Expected result:
 
 * the Vite development server starts successfully
 * the browser can open the local frontend URL printed by Vite
-* the UI header shows `OpenPDM Web UI Prototype`
+* the UI header shows the `OpenPDM` product name
 
 The frontend is configured to call the backend through `import.meta.env.VITE_API_BASE_URL` when that environment variable is set.
 
@@ -136,11 +141,10 @@ VITE_API_BASE_URL=http://localhost:8000
 
 before starting the frontend.
 
-When using the local Docker Compose stack, the frontend can also rely on the
-proxy configuration in `frontend/vite.config.ts`, which forwards API requests for
-`/health`, `/foundation`, `/auth`, `/organizations`, `/projects`, `/assets`,
-`/revisions`, `/blobs`, `/metadata`, `/search`, and `/plugins` to
-`http://localhost:18000`.
+Without `VITE_API_BASE_URL`, the Vite development proxy forwards public API
+requests to `http://localhost:18000`, matching the Docker Compose host port. If
+the backend is started directly through the local command, start Vite with
+`VITE_API_PROXY_TARGET=http://localhost:8000` instead.
 
 ## Test Data Recommendation
 
@@ -492,6 +496,27 @@ Potential artifacts to watch for:
 * stale Organization or Asset cards remain visible after sign-out
 * refresh restores a revoked or signed-out session
 
+## Verify the Phase 4 Plugin Journey
+
+1. Build `plugins/dummy-categories/dist/asset-categories.openpdm-plugin` with `uv run python scripts/build_dummy_categories_plugin.py`.
+2. Sign in as a Platform Administrator and open **Administration** from the sidebar footer.
+3. Under **Install Community Plugin**, select the built package and choose **Install package**.
+4. Confirm the plugin appears with compatible lifecycle information, then enable it.
+5. Restart the backend without deleting the database or configured plugin-package storage, return to the administration page, and confirm the plugin can still run.
+6. Open a Project, select an Engineering Asset, and locate **Plugin-provided metadata**.
+7. Confirm the Asset category selector contains the plugin's document, drawing, model and assembly options.
+8. Select a category, choose **Apply metadata**, and confirm `classification.category` and `classification.managed_by` appear.
+9. Disable the plugin and return to the Asset. Confirm it is no longer returned as a running Metadata Provider and its category control is unavailable.
+
+Expected result:
+
+* installation, enablement and disablement require Platform Administrator authority;
+* enabled and running provider capabilities are discovered through the public application API;
+* category labels and values are rendered as text, not executable plugin-provided UI;
+* plugin metadata is persisted through the Metadata Platform Module after authorization;
+* package storage survives an ordinary backend image or container replacement;
+* disabling the plugin removes it from provider discovery without removing previously authorized metadata.
+
 ## Quick Negative Checks
 
 Run these short checks after the main flow:
@@ -569,7 +594,7 @@ If something looks wrong, capture:
 
 ## Known Areas Worth Watching Closely
 
-These are the parts most likely to show visible prototype artifacts:
+These are the parts most likely to expose visible integration defects:
 
 * session restoration after reload
 * automatic selection after creating Organization, Project, or Asset
@@ -581,7 +606,7 @@ These are the parts most likely to show visible prototype artifacts:
 
 ## Suggested Smoke Test Pass Criteria
 
-Treat the prototype workflow as passing when all of the following are true:
+Treat the workflow as passing when all of the following are true:
 
 * a local user can register and sign in
 * the user can create an Organization
@@ -597,5 +622,8 @@ Treat the prototype workflow as passing when all of the following are true:
 * in-app collaboration notifications are visible and can be marked as read
 * Organization and Project members can be added, assigned roles and removed according to Owner safeguards
 * relationship and reference information remains distinct in the Asset Graph surface
+* a Platform Administrator can install, enable, invoke and disable the dummy categories plugin
+* running providers and declarative category options are discovered without executable UI injection
+* installed plugin packages remain available after an ordinary backend restart or replacement
 * the session survives a browser refresh
 * sign-out removes access to the protected workspace

@@ -5814,6 +5814,207 @@ roadmap:
               Complexity: L
               ADR: ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039
 
+      - title: "Phase 4 Epic: Web UI Demonstration Redesign"
+        closed: true
+        body: |
+          ## Objective
+          Deliver a dark-first responsive OpenPDM application shell with durable client-side routing.
+
+          ## Description
+          Replace the prototype layout with the approved reference-inspired navigation, route protection, project context and responsive shell while displaying only capabilities backed by public APIs.
+
+          ## Acceptance Criteria
+          - Home, Project and Plugin Administration views have durable URLs.
+          - Desktop sidebar and mobile navigation preserve authenticated Project context.
+          - Unsupported reference-only capabilities are not fabricated.
+          - Unauthenticated and unauthorized routes fail safely.
+
+          ## Suggested Labels
+          frontend, feature, P1
+        milestone: Reference Official Plugin and Phase Demonstration
+        labels: [frontend, feature, P1]
+        fields:
+          Phase: Plugin Platform
+          Epic: Web UI Demonstration Redesign
+          Platform Area: Frontend
+          Complexity: XL
+          ADR: ADR-0007, ADR-0035
+        sub_issues:
+          - title: "Phase 4 UI Task: Redesign Home and Project workspaces"
+            closed: true
+            body: |
+              ## Objective
+              Present delivered OpenPDM capabilities through focused Home and Project workspaces.
+
+              ## Description
+              Implement the greeting dashboard and routed Project tabs for Overview, Assets, Relationships, Collaboration and Members using existing public APIs.
+
+              ## Acceptance Criteria
+              - Home shows notifications, Organizations and Projects but no Asset content.
+              - Selecting a sidebar Project opens its routed workspace.
+              - Existing Asset, Revision, Blob, relationship, collaboration and membership workflows remain usable.
+
+              ## Dependencies
+              - Phase 4 Epic: Web UI Demonstration Redesign
+
+              ## Suggested Labels
+              frontend, feature, test, P1
+            labels: [frontend, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: XL
+              ADR: ADR-0007
+
+          - title: "Phase 4 UI Task: Redesign Plugin Administration"
+            closed: true
+            body: |
+              ## Objective
+              Provide a demonstrable Platform Administrator interface for governed plugins.
+
+              ## Description
+              Implement routed plugin installation, upgrade, configuration, lifecycle inspection, enable/disable and removal controls through the public application API.
+
+              ## Acceptance Criteria
+              - Ordinary users cannot access administrative controls.
+              - Plugin secrets are never rendered.
+              - Lifecycle diagnostics and mutation failures are actionable.
+              - Official Plugins and Community Plugins are presented without privileged shortcuts.
+
+              ## Dependencies
+              - Phase 4 Epic: Web UI Demonstration Redesign
+
+              ## Suggested Labels
+              frontend, plugin, feature, test, P1
+            labels: [frontend, plugin, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0035, ADR-0037, ADR-0038
+
+          - title: "Phase 4 UI Task: Complete responsive QA, accessibility and documentation"
+            closed: true
+            body: |
+              ## Objective
+              Verify the redesigned demonstration interface across supported layouts and workflows.
+
+              ## Description
+              Add route, authorization, responsive and regression coverage; perform browser visual QA; and reconcile Web UI documentation.
+
+              ## Acceptance Criteria
+              - Frontend type checking, tests and production build pass.
+              - Keyboard navigation, focus, landmarks and mobile navigation are verified.
+              - Backend and repository regressions remain green.
+              - Manual test and development documentation match the delivered UI.
+
+              ## Dependencies
+              - Phase 4 UI Task: Redesign Home and Project workspaces
+              - Phase 4 UI Task: Redesign Plugin Administration
+
+              ## Suggested Labels
+              frontend, documentation, test, P1
+            labels: [frontend, documentation, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0007
+
+          - title: "Phase 4 Plugin Task: Discover running providers and expose declarative options"
+            closed: true
+            body: |
+              ## Objective
+              Allow authenticated application clients to discover running provider capabilities without hard-coded plugin identities.
+
+              ## Description
+              Record and implement ADR-0040, add authenticated provider discovery, and expose bounded declarative Option Provider values through Extension API v1 without permitting executable UI injection.
+
+              ## Acceptance Criteria
+              - `GET /providers` returns only running providers and public capability metadata.
+              - Option Provider responses are bounded, schema-validated text values and labels.
+              - Official Plugins and Community Plugins use the same discovery and invocation contracts.
+              - Provider output cannot inject HTML, scripts, styles or application components.
+
+              ## Dependencies
+              - Phase 4 Epic: Web UI Demonstration Redesign
+              - ADR-0034
+              - ADR-0039
+              - ADR-0040
+
+              ## Suggested Labels
+              architecture, plugin, feature, test, P1
+            labels: [architecture, plugin, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0034, ADR-0039, ADR-0040
+
+          - title: "Phase 4 UI Task: Integrate discovered Metadata Providers with Engineering Assets"
+            closed: true
+            body: |
+              ## Objective
+              Make running Metadata Providers demonstrable through the Engineering Asset Web UI.
+
+              ## Description
+              Proxy provider routes, discover running providers, render declarative category options, invoke Metadata Providers for authorized Assets and display persisted generic metadata.
+
+              ## Acceptance Criteria
+              - A running Metadata Provider appears without hard-coded plugin identity.
+              - The Asset view renders safe declarative options returned by the provider.
+              - Applying an option persists and displays generic metadata through public APIs.
+              - Discovery failures are shown as actionable errors rather than empty-provider states.
+              - Frontend tests prove proxy coverage and running-provider visibility.
+
+              ## Dependencies
+              - Phase 4 Plugin Task: Discover running providers and expose declarative options
+
+              ## Suggested Labels
+              frontend, plugin, feature, test, P1
+            labels: [frontend, plugin, feature, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0007, ADR-0040
+
+          - title: "Phase 4 Deployment Task: Persist immutable plugin packages across container replacement"
+            closed: true
+            body: |
+              ## Objective
+              Preserve installed plugin packages across backend rebuilds and container replacement.
+
+              ## Description
+              Add deployment-owned persistent plugin package storage, return an actionable conflict when package evidence is unavailable, and verify installation, activation, discovery and invocation across backend restarts.
+
+              ## Acceptance Criteria
+              - Docker Compose mounts a named volume at the configured plugin package root.
+              - Installed immutable packages survive backend container restart and replacement.
+              - Missing package files return an actionable API conflict rather than HTTP 500.
+              - Automated tests cover deployment persistence and missing-package handling.
+              - The category Community Plugin remains running and invokable after backend restart.
+
+              ## Dependencies
+              - Phase 4 Plugin Task: Discover running providers and expose declarative options
+              - ADR-0034
+              - ADR-0037
+
+              ## Suggested Labels
+              deployment, plugin, bug, test, P1
+            labels: [deployment, plugin, bug, test, P1]
+            fields:
+              Phase: Plugin Platform
+              Epic: Web UI Demonstration Redesign
+              Platform Area: Infrastructure
+              Complexity: M
+              ADR: ADR-0034, ADR-0037
+
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.

@@ -1,5 +1,20 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
 import {
+  Activity,
+  Bell,
+  Boxes,
+  ChevronRight,
+  FolderKanban,
+  Home,
+  LogOut,
+  Menu,
+  Network,
+  Package,
+  Users,
+  X,
+} from "lucide-react";
+import { BrowserRouter, useLocation, useNavigate } from "react-router-dom";
+import {
   ApiError,
   addOrganizationMember,
   addProjectMember,
@@ -14,6 +29,7 @@ import {
   changeOrganizationMemberRole,
   changeProjectMemberRole,
   downloadBlob,
+  discoverProviders,
   fetchFoundationStatus,
   getAsset,
   getAssetGraph,
@@ -22,11 +38,13 @@ import {
   getCollaborationState,
   getCurrentSession,
   getPluginConfiguration,
+  getProviderOptions,
   installPluginPackage,
   listAssetReferences,
   listAssetRelationships,
   listAssets,
   listIncomingAssetRelationships,
+  listMetadata,
   listNotifications,
   listOrganizationProjects,
   listOrganizationMembers,
@@ -36,6 +54,7 @@ import {
   listProjectsForUser,
   listProjectMembers,
   markNotificationRead,
+  invokeMetadataProvider,
   registerUser,
   removeOrganizationMember,
   removeProjectMember,
@@ -55,10 +74,14 @@ import {
   type Project,
   type ProjectMembership,
   type PluginRecord,
+  type ProviderDescriptor,
+  type ProviderOptionSet,
+  type MetadataEntry,
   type Revision,
   type SessionInfo,
   type TimelineEntry,
   updatePluginConfiguration,
+  upgradePluginPackage,
 } from "./api";
 import "./styles.css";
 
@@ -68,7 +91,8 @@ const PROJECT_KEY = "openpdm.projectId";
 const ASSET_KEY = "openpdm.assetId";
 
 type AuthMode = "sign-in" | "register";
-type AppView = "home" | "project" | "plugin-administration";
+type AppView = "home" | "projects" | "project" | "plugin-administration";
+type ProjectTab = "overview" | "assets" | "relationships" | "collaboration" | "members";
 
 type Loadable<T> = {
   status: "idle" | "loading" | "ready" | "error";
@@ -203,7 +227,28 @@ function formatMetadataSummary(metadata: Record<string, unknown>): string | null
     .join(" • ");
 }
 
-export function App() {
+function OpenPdmApp() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routeParts = location.pathname.split("/").filter(Boolean);
+  const view: AppView =
+    routeParts[0] === "administration" && routeParts[1] === "plugins"
+      ? "plugin-administration"
+      : routeParts[0] === "projects"
+        ? routeParts.length >= 2
+          ? "project"
+          : "projects"
+        : "home";
+  const projectTab: ProjectTab = ([
+    "overview",
+    "assets",
+    "relationships",
+    "collaboration",
+    "members",
+  ] as ProjectTab[]).includes(routeParts[2] as ProjectTab)
+    ? (routeParts[2] as ProjectTab)
+    : "overview";
+  const routeProjectId = view === "project" ? routeParts[1] : null;
   const [foundation, setFoundation] = useState<Loadable<FoundationStatus | null>>(
     createLoadable<FoundationStatus | null>(null),
   );
@@ -252,9 +297,18 @@ export function App() {
     createLoadable<NotificationRecord[]>([]),
   );
   const [plugins, setPlugins] = useState<Loadable<PluginRecord[]>>(createLoadable<PluginRecord[]>([]));
-  const [view, setView] = useState<AppView>("home");
+  const [providers, setProviders] = useState<Loadable<ProviderDescriptor[]>>(
+    createLoadable<ProviderDescriptor[]>([]),
+  );
+  const [providerOptions, setProviderOptions] = useState<Record<string, ProviderOptionSet[]>>({});
+  const [providerSelections, setProviderSelections] = useState<Record<string, string>>({});
+  const [assetMetadata, setAssetMetadata] = useState<Loadable<MetadataEntry[]>>(
+    createLoadable<MetadataEntry[]>([]),
+  );
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [pluginPackage, setPluginPackage] = useState<File | null>(null);
   const [pluginConfiguration, setPluginConfiguration] = useState<Record<string, string>>({});
+  const [pluginUpgradePackages, setPluginUpgradePackages] = useState<Record<string, File | null>>({});
   const [collaborationError, setCollaborationError] = useState<ApiError | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [authError, setAuthError] = useState<string | null>(null);
@@ -283,6 +337,23 @@ export function App() {
   );
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(readStoredValue(PROJECT_KEY));
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(readStoredValue(ASSET_KEY));
+
+  useEffect(() => {
+    if (routeProjectId && routeProjectId !== selectedProjectId) {
+      setSelectedProjectId(routeProjectId);
+    }
+  }, [routeProjectId, selectedProjectId]);
+
+  useEffect(() => {
+    if (
+      view === "project" &&
+      routeProjectId &&
+      projects.status === "ready" &&
+      !projects.data.some((project) => project.id === routeProjectId)
+    ) {
+      navigate("/projects", { replace: true });
+    }
+  }, [navigate, projects.data, projects.status, routeProjectId, view]);
 
   useEffect(() => {
     setFoundation((current) => ({ ...current, status: "loading", error: null }));
@@ -373,7 +444,7 @@ export function App() {
 
   useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedOrganizationId) {
+    if (!token || !selectedOrganizationId || view !== "project" || projectTab !== "members") {
       setOrganizationMembers(createLoadable([]));
       return;
     }
@@ -387,11 +458,11 @@ export function App() {
           error: error instanceof Error ? error.message : "Organization members could not be loaded.",
         }),
       );
-  }, [session.data?.token, selectedOrganizationId]);
+  }, [projectTab, session.data?.token, selectedOrganizationId, view]);
 
   useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedProjectId) {
+    if (!token || !selectedProjectId || view !== "project") {
       setProjectMembers(createLoadable([]));
       return;
     }
@@ -405,7 +476,7 @@ export function App() {
           error: error instanceof Error ? error.message : "Project members could not be loaded.",
         }),
       );
-  }, [session.data?.token, selectedProjectId]);
+  }, [session.data?.token, selectedProjectId, view]);
 
   useEffect(() => {
     const token = session.data?.token;
@@ -444,6 +515,41 @@ export function App() {
         }),
       );
   }, [session.data?.token, session.data?.user.is_platform_admin, view]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token) {
+      setProviders(createLoadable([]));
+      return;
+    }
+    discoverProviders(token)
+      .then(async (result) => {
+        setProviders({ status: "ready", data: result, error: null });
+        if (!selectedProjectId || !selectedOrganizationId) return;
+        const optionProviders = result.filter((provider) =>
+          provider.capabilities.includes("option_provider"),
+        );
+        const entries = await Promise.all(
+          optionProviders.map(async (provider) => [
+            provider.id,
+            await getProviderOptions(
+              token,
+              provider.id,
+              selectedProjectId,
+              selectedOrganizationId,
+            ),
+          ] as const),
+        );
+        setProviderOptions(Object.fromEntries(entries));
+      })
+      .catch((error: unknown) =>
+        setProviders({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Providers could not be discovered.",
+        }),
+      );
+  }, [selectedOrganizationId, selectedProjectId, session.data?.token]);
 
   useEffect(() => {
     writeStoredValue(ORG_KEY, selectedOrganizationId);
@@ -494,9 +600,8 @@ export function App() {
 
   useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedProjectId) {
+    if (!token || !selectedProjectId || view !== "project") {
       setAssets(createLoadable([]));
-      setSelectedAssetId(null);
       return;
     }
     setAssets((current) => ({ ...current, status: "loading", error: null }));
@@ -515,11 +620,11 @@ export function App() {
           error: error instanceof Error ? error.message : "Assets could not be loaded.",
         });
       });
-  }, [selectedAssetId, selectedProjectId, session.data?.token]);
+  }, [selectedAssetId, selectedProjectId, session.data?.token, view]);
 
   useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedAssetId) {
+    if (!token || !selectedAssetId || view !== "project") {
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
       setAssetRelationships(createLoadable([]));
@@ -639,7 +744,16 @@ export function App() {
           error: error instanceof Error ? error.message : "Collaboration timeline could not be loaded.",
         });
       });
-  }, [selectedAssetId, session.data?.token]);
+    listMetadata(token, "asset", selectedAssetId)
+      .then((result) => setAssetMetadata({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setAssetMetadata({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Asset metadata could not be loaded.",
+        }),
+      );
+  }, [selectedAssetId, session.data?.token, view]);
 
   const isAuthenticated = Boolean(session.data?.token);
   const hasOrganizations = organizations.data.length > 0;
@@ -1149,6 +1263,34 @@ export function App() {
     setPlugins({ status: "ready", data: result, error: null });
   }
 
+  async function handleApplyMetadataProvider(provider: ProviderDescriptor): Promise<void> {
+    if (
+      !session.data?.token ||
+      !selectedAssetId ||
+      !selectedProjectId ||
+      !selectedOrganizationId
+    ) return;
+    setBusyAction(`provider-metadata-${provider.id}`);
+    setBanner(null);
+    try {
+      const category = providerSelections[provider.id];
+      await invokeMetadataProvider(session.data.token, provider.id, {
+        target_type: "asset",
+        target_id: selectedAssetId,
+        project_id: selectedProjectId,
+        organization_id: selectedOrganizationId,
+        parameters: category ? { category } : {},
+      });
+      const metadata = await listMetadata(session.data.token, "asset", selectedAssetId);
+      setAssetMetadata({ status: "ready", data: metadata, error: null });
+      setBanner(`${provider.name} metadata applied.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Metadata Provider invocation failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleInstallPlugin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!session.data?.token || !pluginPackage) return;
@@ -1215,6 +1357,7 @@ export function App() {
 
   async function handleRemovePlugin(plugin: PluginRecord): Promise<void> {
     if (!session.data?.token) return;
+    if (!window.confirm(`Remove ${plugin.name}? Immutable package evidence will be retained.`)) return;
     setBusyAction(`plugin-remove-${plugin.id}`);
     setBanner(null);
     try {
@@ -1228,33 +1371,68 @@ export function App() {
     }
   }
 
+  async function handleUpgradePlugin(plugin: PluginRecord): Promise<void> {
+    const packageFile = pluginUpgradePackages[plugin.id];
+    if (!session.data?.token || !packageFile) return;
+    setBusyAction(`plugin-upgrade-${plugin.id}`);
+    setBanner(null);
+    try {
+      await upgradePluginPackage(session.data.token, plugin.id, packageFile);
+      setPluginUpgradePackages((current) => ({ ...current, [plugin.id]: null }));
+      await refreshPlugins();
+      setBanner(`${plugin.name} upgraded and left disabled for review.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Plugin upgrade failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <main className="app-shell">
-      <section className="hero-panel">
-        <div>
-          <p className="eyebrow">Core Platform MVP</p>
-          <h1>OpenPDM Web UI Prototype</h1>
-          <p className="intro">
-            The Web UI is a normal public API consumer for the Phase 1 Platform Core. This prototype
-            covers sign-in, Organization and Project access, generic Engineering Asset browsing, immutable
-            Revision history, and Blob-backed upload and download.
-          </p>
-        </div>
-        <dl className="foundation-grid">
-          <div>
-            <dt>API Status</dt>
-            <dd>{foundation.data ? foundation.data.phase : foundation.error ?? "Loading..."}</dd>
+      {isAuthenticated ? (
+        <header className="app-topbar">
+          <button
+            aria-label="Open navigation"
+            className="icon-button mobile-menu-button"
+            onClick={() => setMobileNavigationOpen(true)}
+            type="button"
+          >
+            <Menu />
+          </button>
+          <button className="brand" onClick={() => navigate("/")} type="button">
+            <span className="brand-mark"><Boxes /></span>
+            <span><strong>OpenPDM</strong><small>Engineering collaboration</small></span>
+          </button>
+          <div className="topbar-status">
+            <span className="health-dot" />
+            {foundation.data?.phase ?? "Connecting to API"}
           </div>
-          <div>
-            <dt>Architecture</dt>
-            <dd>{foundation.data?.architecture ?? "Connecting..."}</dd>
+          <button className="icon-button" aria-label="Notifications" onClick={() => navigate("/")} type="button">
+            <Bell />
+            {unreadNotifications ? <span className="notification-count">{unreadNotifications}</span> : null}
+          </button>
+          <div className="user-avatar" title={session.data?.user.email}>
+            {session.data?.user.display_name.slice(0, 2).toUpperCase()}
           </div>
+          <button className="icon-button" aria-label="Sign out" onClick={() => void handleSignOut()} type="button">
+            <LogOut />
+          </button>
+        </header>
+      ) : (
+        <section className="hero-panel auth-hero">
           <div>
-            <dt>Version</dt>
-            <dd>{foundation.data?.version ?? "Unknown"}</dd>
+            <p className="eyebrow">Engineering Collaboration Platform</p>
+            <h1>OpenPDM</h1>
+            <p className="intro">Organize, version, relate and secure engineering assets through one open platform.</p>
           </div>
-        </dl>
-      </section>
+          <dl className="foundation-grid">
+            <div><dt>API Status</dt><dd>{foundation.data ? foundation.data.phase : foundation.error ?? "Loading..."}</dd></div>
+            <div><dt>Architecture</dt><dd>{foundation.data?.architecture ?? "Connecting..."}</dd></div>
+            <div><dt>Version</dt><dd>{foundation.data?.version ?? "Unknown"}</dd></div>
+          </dl>
+        </section>
+      )}
 
       {banner ? (
         <p className="banner" role="status">
@@ -1348,35 +1526,26 @@ export function App() {
         </section>
       ) : (
         <>
-          <section className="panel session-panel">
-            <header className="panel-header">
-              <div>
-                <p className="eyebrow">Session</p>
-                <h2>{session.data?.user.display_name}</h2>
-                <p className="muted-text">{session.data?.user.email}</p>
-              </div>
-              <button className="secondary-button" onClick={() => void handleSignOut()} type="button">
-                {busyAction === "sign-out" ? "Signing out..." : "Sign out"}
-              </button>
-            </header>
-          </section>
-
           <section className="workspace-grid">
-            <section className="panel nav-panel">
+            {mobileNavigationOpen ? <button aria-label="Close navigation overlay" className="nav-scrim" onClick={() => setMobileNavigationOpen(false)} type="button" /> : null}
+            <aside className={mobileNavigationOpen ? "nav-panel is-open" : "nav-panel"}>
               <header className="panel-header">
                 <div>
                   <p className="eyebrow">Workspace</p>
-                  <h2>Organizations and Projects</h2>
+                  <h2>Navigation</h2>
                 </div>
+                <button aria-label="Close navigation" className="icon-button close-nav-button" onClick={() => setMobileNavigationOpen(false)} type="button"><X /></button>
               </header>
 
               <button
                 className={view === "home" ? "sidebar-link is-active" : "sidebar-link"}
-                onClick={() => setView("home")}
+                onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
                 type="button"
               >
-                Home
+                <Home /> Home
               </button>
+
+              <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
 
               {organizations.status === "error" ? (
                 <p className="error-message" role="alert">
@@ -1499,7 +1668,8 @@ export function App() {
                           }
                           onClick={() => {
                             setSelectedProjectId(project.id);
-                            setView("project");
+                            setMobileNavigationOpen(false);
+                            navigate(`/projects/${project.id}/overview`);
                           }}
                           type="button"
                         >
@@ -1510,7 +1680,7 @@ export function App() {
                     </div>
                   ) : null}
 
-                  {selectedOrganizationId ? (
+                  {view === "project" && projectTab === "members" && selectedOrganizationId ? (
                     <section className="membership-panel" aria-labelledby="organization-members-heading">
                       <h3 id="organization-members-heading">Organization members</h3>
                       <p className="muted-text">
@@ -1587,7 +1757,7 @@ export function App() {
                     </section>
                   ) : null}
 
-                  {selectedProjectId ? (
+                  {view === "project" && projectTab === "members" && selectedProjectId ? (
                     <section className="membership-panel" aria-labelledby="project-members-heading">
                       <h3 id="project-members-heading">Project members</h3>
                       <p className="muted-text">
@@ -1681,8 +1851,7 @@ export function App() {
                       ? "sidebar-link is-active"
                       : "sidebar-link"
                   }
-                  disabled={!session.data?.user.is_platform_admin}
-                  onClick={() => setView("plugin-administration")}
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/administration/plugins"); }}
                   title={
                     session.data?.user.is_platform_admin
                       ? "Manage installed plugins"
@@ -1690,17 +1859,17 @@ export function App() {
                   }
                   type="button"
                 >
-                  Plugin administration
+                  <Package /> Plugin administration
                 </button>
               </div>
-            </section>
+            </aside>
 
-            {view === "home" ? (
+            {view === "home" || view === "projects" ? (
               <section className="panel home-panel content-span">
                 <header className="panel-header">
                   <div>
-                    <p className="eyebrow">Home</p>
-                    <h2>Welcome, {session.data?.user.display_name}</h2>
+                    <p className="eyebrow">{view === "home" ? "Home" : "Projects"}</p>
+                    <h2>{view === "home" ? `Welcome, ${session.data?.user.display_name}` : "Available Projects"}</h2>
                     <p className="muted-text">
                       Choose a Project from the sidebar when you are ready to work with Engineering
                       Assets.
@@ -1734,7 +1903,7 @@ export function App() {
                             className="text-button"
                             onClick={() => {
                               setSelectedProjectId(project.id);
-                              setView("project");
+                              navigate(`/projects/${project.id}/overview`);
                             }}
                             type="button"
                           >
@@ -1747,7 +1916,7 @@ export function App() {
                   </article>
                 </div>
 
-                <article className="detail-card notification-card">
+                {view === "home" ? <article className="detail-card notification-card">
                   <div className="detail-row">
                     <div>
                       <h3>Notifications</h3>
@@ -1797,7 +1966,7 @@ export function App() {
                   ) : (
                     <p className="empty-state">No notifications yet.</p>
                   )}
-                </article>
+                </article> : null}
               </section>
             ) : null}
 
@@ -1812,6 +1981,14 @@ export function App() {
                     </p>
                   </div>
                 </header>
+                {!session.data?.user.is_platform_admin ? (
+                  <div className="empty-state access-denied">
+                    <Package />
+                    <h3>Platform Administrator authority required</h3>
+                    <p>Organization and Project roles do not grant access to deployment-wide plugin administration.</p>
+                  </div>
+                ) : (
+                  <>
                 <form className="form-grid compact-form" onSubmit={handleInstallPlugin}>
                   <h3>Install Community Plugin</h3>
                   <label>
@@ -1873,6 +2050,34 @@ export function App() {
                           Remove
                         </button>
                       </div>
+                      <div className="plugin-upgrade-row">
+                        <label>
+                          Same-identity upgrade package
+                          <input
+                            accept=".openpdm-plugin,application/zip"
+                            disabled={plugin.enabled}
+                            type="file"
+                            onChange={(event) =>
+                              setPluginUpgradePackages((current) => ({
+                                ...current,
+                                [plugin.id]: event.target.files?.[0] ?? null,
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          className="secondary-button"
+                          disabled={
+                            plugin.enabled ||
+                            !pluginUpgradePackages[plugin.id] ||
+                            busyAction === `plugin-upgrade-${plugin.id}`
+                          }
+                          onClick={() => void handleUpgradePlugin(plugin)}
+                          type="button"
+                        >
+                          {busyAction === `plugin-upgrade-${plugin.id}` ? "Upgrading..." : "Upgrade"}
+                        </button>
+                      </div>
                       {pluginConfiguration[plugin.id] !== undefined ? (
                         <div className="form-grid plugin-configuration">
                           <label>
@@ -1899,11 +2104,109 @@ export function App() {
                     </article>
                   ))}
                 </div>
+                  </>
+                )}
               </section>
             ) : null}
 
             {view === "project" ? (
               <>
+                <section className="panel project-header content-span">
+                  <div className="project-heading-row">
+                    <div>
+                      <p className="breadcrumb">
+                        Projects <ChevronRight size={14} /> {projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project"}
+                      </p>
+                      <h2>{projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project workspace"}</h2>
+                      <p className="muted-text">
+                        {projects.data.find((item) => item.id === selectedProjectId)?.description || "Engineering collaboration workspace"}
+                      </p>
+                    </div>
+                    <span className="status-pill">{currentProjectRole ?? "Member"}</span>
+                  </div>
+                  <nav className="project-tabs" aria-label="Project sections">
+                    {([
+                      ["overview", "Overview"],
+                      ["assets", "Assets"],
+                      ["relationships", "Relationships"],
+                      ["collaboration", "Collaboration"],
+                      ["members", "Members"],
+                    ] as Array<[ProjectTab, string]>).map(([tab, label]) => (
+                      <button
+                        className={projectTab === tab ? "project-tab is-active" : "project-tab"}
+                        key={tab}
+                        onClick={() => navigate(`/projects/${selectedProjectId}/${tab}`)}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </nav>
+                </section>
+
+                {projectTab === "overview" ? (
+                  <section className="panel content-span project-overview">
+                    <div className="metric-grid">
+                      <article className="metric-card"><span>Assets</span><strong>{assets.data.length}</strong><small>Versioned Engineering Assets</small></article>
+                      <article className="metric-card"><span>Collaborators</span><strong>{projectMembers.data.length}</strong><small>Project members</small></article>
+                      <article className="metric-card"><span>Unread</span><strong>{notifications.data.filter((item) => !item.is_read && item.project_id === selectedProjectId).length}</strong><small>Project notifications</small></article>
+                      <article className="metric-card"><span>Your role</span><strong>{currentProjectRole ?? "Member"}</strong><small>Current Project authority</small></article>
+                    </div>
+                    <div className="overview-grid">
+                      <article className="detail-card">
+                        <h3>Recent Assets</h3>
+                        <div className="compact-list">
+                          {assets.data.slice(0, 6).map((asset) => (
+                            <button key={asset.id} onClick={() => { setSelectedAssetId(asset.id); navigate(`/projects/${selectedProjectId}/assets`); }} type="button">
+                              <span>{asset.name}</span><small>{asset.status}</small>
+                            </button>
+                          ))}
+                        </div>
+                      </article>
+                      <article className="detail-card">
+                        <h3>Collaboration feed</h3>
+                        <div className="compact-list">
+                          {notifications.data.filter((item) => item.project_id === selectedProjectId).slice(0, 6).map((item) => (
+                            <div key={item.id}><span>{formatNotificationEvent(item.event_type)}</span><small>{formatTimestamp(item.created_at)}</small></div>
+                          ))}
+                        </div>
+                      </article>
+                    </div>
+                  </section>
+                ) : null}
+
+                {projectTab === "relationships" ? (
+                  <section className="panel content-span focused-panel">
+                    <header className="panel-header"><div><p className="eyebrow">Asset Graph</p><h2>Relationships</h2></div><Network /></header>
+                    <p className="muted-text">Select an Asset in the Assets tab to inspect its bounded graph and references.</p>
+                    {assetDetail.data ? (
+                      <div className="overview-grid">
+                        <article className="detail-card"><h3>{assetDetail.data.name}</h3><p>{assetRelationships.data.length} relationships · {assetReferences.data.length} references</p><div className="compact-list">{assetRelationships.data.map((item) => <div key={item.id}><span>{formatRelationshipType(item.relationship_type)}</span><small>{assetNameById.get(item.target_asset_id) ?? item.target_asset_id}</small></div>)}</div></article>
+                        <article className="detail-card"><h3>Bounded graph</h3><p>{assetGraph.data?.nodes.length ?? 0} nodes · {assetGraph.data?.relationships.length ?? 0} links</p><div className="graph-node-list">{assetGraph.data?.nodes.map((node) => <span key={node.id}>{node.name}</span>)}</div></article>
+                      </div>
+                    ) : <p className="empty-state">No Asset selected.</p>}
+                  </section>
+                ) : null}
+
+                {projectTab === "collaboration" ? (
+                  <section className="panel content-span focused-panel">
+                    <header className="panel-header"><div><p className="eyebrow">Live context</p><h2>Collaboration</h2></div><Activity /></header>
+                    <div className="overview-grid">
+                      <article className="detail-card"><h3>Selected Asset state</h3><p>{assetDetail.data?.name ?? "No Asset selected"}</p><span className="status-pill">{collaborationState.data?.state ?? "unavailable"}</span></article>
+                      <article className="detail-card"><h3>Project notifications</h3><div className="compact-list">{notifications.data.filter((item) => item.project_id === selectedProjectId).slice(0, 8).map((item) => <div key={item.id}><span>{formatNotificationEvent(item.event_type)}</span><small>{formatTimestamp(item.created_at)}</small></div>)}</div></article>
+                    </div>
+                  </section>
+                ) : null}
+
+                {projectTab === "members" ? (
+                  <section className="panel content-span focused-panel">
+                    <header className="panel-header"><div><p className="eyebrow">Access</p><h2>Project members</h2></div><Users /></header>
+                    <p className="muted-text">Membership controls are available in the sidebar for the selected Organization and Project.</p>
+                  </section>
+                ) : null}
+
+                {projectTab === "assets" ? (
+                  <>
             <section className="panel asset-panel">
               <header className="panel-header">
                 <div>
@@ -2070,6 +2373,79 @@ export function App() {
                       Created {formatTimestamp(assetDetail.data.created_at)} and updated{" "}
                       {formatTimestamp(assetDetail.data.updated_at)}.
                     </p>
+                  </article>
+
+                  <article className="detail-card provider-card">
+                    <div className="detail-row">
+                      <div>
+                        <h3>Plugin-provided metadata</h3>
+                        <p>Apply capabilities discovered through the public provider API.</p>
+                      </div>
+                      <span className="status-pill">{assetMetadata.data.length} entries</span>
+                    </div>
+
+                    {providers.data.filter((provider) =>
+                      provider.capabilities.includes("metadata_provider"),
+                    ).map((provider) => {
+                      const optionSet = providerOptions[provider.id]?.find(
+                        (item) => item.key === "category",
+                      );
+                      return (
+                        <div className="provider-control" key={provider.id}>
+                          <div>
+                            <strong>{provider.name}</strong>
+                            <small>{provider.id}</small>
+                          </div>
+                          {optionSet ? (
+                            <label>
+                              {optionSet.label}
+                              <select
+                                value={providerSelections[provider.id] ?? optionSet.options[0]?.value ?? ""}
+                                onChange={(event) =>
+                                  setProviderSelections((current) => ({
+                                    ...current,
+                                    [provider.id]: event.target.value,
+                                  }))
+                                }
+                              >
+                                {optionSet.options.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+                          <button
+                            className="secondary-button"
+                            disabled={busyAction === `provider-metadata-${provider.id}`}
+                            onClick={() => void handleApplyMetadataProvider(provider)}
+                            type="button"
+                          >
+                            {busyAction === `provider-metadata-${provider.id}` ? "Applying..." : "Apply metadata"}
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {providers.data.every((provider) =>
+                      !provider.capabilities.includes("metadata_provider"),
+                    ) ? (
+                      <p className={providers.status === "error" ? "error-message" : "empty-state"}>
+                        {providers.status === "error"
+                          ? providers.error
+                          : "No running Metadata Provider is available."}
+                      </p>
+                    ) : null}
+
+                    {assetMetadata.data.length > 0 ? (
+                      <dl className="metadata-list">
+                        {assetMetadata.data.map((entry) => (
+                          <div key={entry.id}>
+                            <dt>{entry.key}</dt>
+                            <dd>{typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
                   </article>
 
                   <article className="detail-card relationship-card">
@@ -2511,12 +2887,22 @@ export function App() {
                 </p>
               )}
             </section>
+                  </>
+                ) : null}
               </>
             ) : null}
           </section>
         </>
       )}
     </main>
+  );
+}
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <OpenPdmApp />
+    </BrowserRouter>
   );
 }
 

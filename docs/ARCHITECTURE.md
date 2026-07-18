@@ -129,6 +129,8 @@ capabilities:
 
 Plugin packages are hostile input. The Platform Core validates and stores them immutably, then a separate worker executes their WebAssembly Components in a Wasmtime sandbox with no ambient host capabilities. Provider commands return through the Extension API and are reauthorized by the owning Platform Modules.
 
+Authenticated applications discover only running provider capabilities through the public application API. Option Providers may contribute bounded text values and labels for application controls, while engineering meaning remains inside the plugin and executable user-interface injection remains forbidden.
+
 ```mermaid
 flowchart LR
     Admin["Platform Administrator"] --> API["Public application API"]

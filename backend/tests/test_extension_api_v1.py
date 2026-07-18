@@ -143,6 +143,13 @@ def test_sdk_exposes_the_versioned_wit_contract() -> None:
     assert "export invoke" in contents
 
 
+def test_generic_audit_and_event_resources_accept_plugin_identities() -> None:
+    from openpdm.platform_core.modules.models import AuditRecord, DomainEvent
+
+    assert AuditRecord.__table__.c.resource_id.type.length == 255
+    assert DomainEvent.__table__.c.resource_id.type.length == 255
+
+
 def test_sdk_scaffolds_buildable_minimal_plugin(tmp_path: Path) -> None:
     project = scaffold_plugin(
         tmp_path / "sample-plugin",

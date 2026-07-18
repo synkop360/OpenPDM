@@ -45,6 +45,30 @@ export type PluginConfiguration = {
   updated_at: string | null;
 };
 
+export type ProviderDescriptor = {
+  id: string;
+  name: string;
+  capabilities: string[];
+};
+
+export type ProviderOptionSet = {
+  key: string;
+  label: string;
+  options: Array<{ value: string; label: string }>;
+};
+
+export type MetadataEntry = {
+  id: string;
+  asset_id: string | null;
+  revision_id: string | null;
+  representation_id: string | null;
+  key: string;
+  value: unknown;
+  value_type: string;
+  source: string;
+  created_at: string;
+};
+
 export type SessionInfo = {
   id: string;
   token: string;
@@ -590,6 +614,51 @@ export async function listPlugins(token: string): Promise<PluginRecord[]> {
   return request<PluginRecord[]>("/plugins", { token });
 }
 
+export async function discoverProviders(token: string): Promise<ProviderDescriptor[]> {
+  return request<ProviderDescriptor[]>("/providers", { token });
+}
+
+export async function getProviderOptions(
+  token: string,
+  pluginId: string,
+  projectId: string,
+  organizationId: string,
+): Promise<ProviderOptionSet[]> {
+  return request<ProviderOptionSet[]>(`/plugins/${pluginId}/providers/options`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ payload: { project_id: projectId }, organization_id: organizationId }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function invokeMetadataProvider(
+  token: string,
+  pluginId: string,
+  payload: {
+    target_type: "asset";
+    target_id: string;
+    project_id: string;
+    organization_id: string;
+    parameters: Record<string, unknown>;
+  },
+): Promise<MetadataEntry[]> {
+  return request<MetadataEntry[]>(`/plugins/${pluginId}/providers/metadata`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function listMetadata(
+  token: string,
+  targetType: "asset",
+  targetId: string,
+): Promise<MetadataEntry[]> {
+  return request<MetadataEntry[]>(`/metadata/${targetType}/${targetId}`, { token });
+}
+
 export async function installPluginPackage(
   token: string,
   packageFile: File,
@@ -614,6 +683,20 @@ export async function setPluginState(
     token,
     body: JSON.stringify({ enabled }),
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function upgradePluginPackage(
+  token: string,
+  pluginId: string,
+  packageFile: File,
+): Promise<PluginRecord> {
+  const formData = new FormData();
+  formData.append("package", packageFile);
+  return request<PluginRecord>(`/plugins/${pluginId}/package`, {
+    method: "PUT",
+    token,
+    body: formData,
   });
 }
 

@@ -19,6 +19,10 @@ The compose file configures PostgreSQL and MinIO as infrastructure dependencies,
 while the backend remains responsible for application logic and public API
 behavior.
 
+The `plugin-packages` volume preserves validated immutable plugin packages across
+backend image rebuilds and container replacement. PostgreSQL stores lifecycle
+records, but it is not a substitute for package storage; both must be retained.
+
 ```mermaid
 flowchart LR
     Backend[backend: FastAPI]

@@ -32,6 +32,7 @@ from openpdm.plugin_application import (
     PluginInvocationServices,
     invoke_asset_provider,
     invoke_metadata_provider,
+    invoke_option_provider,
 )
 from openpdm.plugin_runtime import WasmtimeWorkerSupervisor, dispatch_due_plugin_events
 
@@ -415,6 +416,7 @@ class InvokeMetadataProviderRequest(BaseModel):
     target_id: str
     project_id: str
     organization_id: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
 
 
 class InvokeAssetProviderRequest(BaseModel):
@@ -425,6 +427,23 @@ class InvokeAssetProviderRequest(BaseModel):
 class ProviderResourceResponse(BaseModel):
     resource_type: str
     id: str
+
+
+class ProviderDescriptorResponse(BaseModel):
+    id: str
+    name: str
+    capabilities: list[str]
+
+
+class ProviderOptionResponse(BaseModel):
+    value: str
+    label: str
+
+
+class ProviderOptionSetResponse(BaseModel):
+    key: str
+    label: str
+    options: list[ProviderOptionResponse]
 
 
 def _iso(value: object) -> str:
@@ -1811,10 +1830,65 @@ def run_metadata_provider(
             "organization_id": payload.organization_id,
             "project_id": payload.project_id,
         },
+        parameters=payload.parameters,
         services=plugin_invocation_services(),
     )
     db.commit()
     return [serialize_metadata(entry) for entry in entries]
+
+
+@router.get("/providers", response_model=list[ProviderDescriptorResponse])
+def discover_providers(
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[ProviderDescriptorResponse]:
+    provider_capabilities = {"asset_provider", "metadata_provider", "option_provider"}
+    return [
+        ProviderDescriptorResponse(
+            id=plugin.id,
+            name=plugin.name,
+            capabilities=sorted(set(plugin.capabilities) & provider_capabilities),
+        )
+        for plugin in PluginsModule.list_plugins(db, actor=context.user)
+        if plugin.enabled
+        and plugin.lifecycle_state == "running"
+        and provider_capabilities.intersection(plugin.capabilities)
+    ]
+
+
+@router.post(
+    "/plugins/{plugin_id}/providers/options",
+    response_model=list[ProviderOptionSetResponse],
+)
+def run_option_provider(
+    plugin_id: str,
+    payload: InvokeAssetProviderRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[ProviderOptionSetResponse]:
+    option_sets = invoke_option_provider(
+        db,
+        plugin_id=plugin_id,
+        actor=context.user,
+        context={
+            "request_id": get_request_id() or "unknown",
+            "actor_id": context.user.id,
+            "organization_id": payload.organization_id,
+            "project_id": payload.payload.get("project_id"),
+        },
+        services=plugin_invocation_services(),
+    )
+    return [
+        ProviderOptionSetResponse(
+            key=option_set.key,
+            label=option_set.label,
+            options=[
+                ProviderOptionResponse(value=item.value, label=item.label)
+                for item in option_set.options
+            ],
+        )
+        for option_set in option_sets
+    ]
 
 
 @router.post(
