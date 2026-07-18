@@ -1,6 +1,6 @@
 # ADR-0042 — Adopt Storage-Independent Resumable Blob Upload Sessions
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

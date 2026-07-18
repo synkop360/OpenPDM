@@ -1,6 +1,6 @@
 # ADR-0043 — Persist Private Per-User Project Views
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

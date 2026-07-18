@@ -1,6 +1,6 @@
 # ADR-0041 — Adopt Bounded Cursor-Based Collection Queries and Task-Specific Batch Commands
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 
