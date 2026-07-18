@@ -2171,6 +2171,10 @@ class BlobModule:
             BlobModule._upload_session_or_error(
                 db, session_id=session_id, actor=actor, storage=storage, lock=True
             )
+        if session_status == "expired":
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE, detail="Upload session has expired."
+            )
         require(
             session_status == "active",
             "Upload session is not active.",

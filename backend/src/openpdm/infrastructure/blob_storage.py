@@ -203,9 +203,9 @@ class S3CompatibleBlobStorage(BlobStorage):
 
     def _object_checksum(self, storage_key: str) -> str:
         digest = hashlib.sha256()
-        body = self._client.get_object(Bucket=self._bucket, Key=storage_key)["Body"]
-        for chunk in iter(lambda: body.read(1024 * 1024), b""):
-            digest.update(chunk)
+        with closing(self._client.get_object(Bucket=self._bucket, Key=storage_key)["Body"]) as body:
+            for chunk in iter(lambda: body.read(1024 * 1024), b""):
+                digest.update(chunk)
         return digest.hexdigest()
 
     def assemble_upload_session(

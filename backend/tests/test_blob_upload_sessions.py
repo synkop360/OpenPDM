@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -12,7 +15,7 @@ from alembic.config import Config
 from cryptography.fernet import Fernet
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import BigInteger, create_engine, inspect, select
+from sqlalchemy import BigInteger, create_engine, func, inspect, select
 
 from openpdm.infrastructure.blob_storage import (
     BlobStorage,
@@ -235,6 +238,27 @@ def test_expired_session_cleans_up_and_returns_gone(tmp_path: Path) -> None:
     assert not session_path.exists()
 
 
+def test_put_chunk_after_persisted_expiry_returns_gone(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    session_id = str(create_session(client, token)["id"])
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        upload_session.status = "expired"
+
+    response = upload_chunk(client, token, session_id, 0, b"ABCD")
+
+    assert response.status_code == 410
+    assert response.json()["detail"] == "Upload session has expired."
+    with session_scope() as db:
+        assert db.get(BlobUploadSession, session_id).status == "expired"
+        assert (
+            db.scalar(select(BlobUploadChunk).where(BlobUploadChunk.session_id == session_id))
+            is None
+        )
+
+
 def test_local_storage_contains_upload_session_paths(tmp_path: Path) -> None:
     storage = LocalFileBlobStorage(str(tmp_path), "bucket")
     try:
@@ -353,6 +377,34 @@ def test_s3_assembly_aborts_multipart_upload_when_a_part_fails() -> None:
     assert client.aborted
     assert client.completed is None
     assert all(body.closed for body in client.source_bodies)
+
+
+class DuplicateChunkS3Client:
+    def __init__(self, existing: bytes) -> None:
+        self.body = io.BytesIO(existing)
+
+    def get_object(self, **kwargs: object) -> dict[str, io.BytesIO]:
+        return {"Body": self.body}
+
+    def upload_fileobj(self, *args: object, **kwargs: object) -> None:
+        raise AssertionError("an identical duplicate chunk must not be uploaded again")
+
+
+def test_s3_duplicate_chunk_checksum_closes_provider_body() -> None:
+    content = b"duplicate"
+    client = DuplicateChunkS3Client(content)
+    storage = object.__new__(S3CompatibleBlobStorage)
+    storage._bucket = "bucket"
+    storage._client = client
+
+    storage.put_upload_chunk(
+        "session",
+        0,
+        io.BytesIO(content),
+        hashlib.sha256(content).hexdigest(),
+    )
+
+    assert client.body.closed
 
 
 class ControlledAssemblyStorage(BlobStorage):
@@ -483,6 +535,160 @@ def test_chunk_stream_rechecks_locked_session_after_concurrent_cancellation(tmp_
         )
         assert db.scalar(select(Blob)) is None
     assert not (tmp_path / "blobs" / "openpdm-blobs" / "upload-sessions" / session_id).exists()
+
+
+def test_competing_sessions_keep_identical_chunk_and_completion_idempotent(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    session_id = str(create_session(client, token)["id"])
+    storage = LocalFileBlobStorage(str(tmp_path / "blobs"), "openpdm-blobs")
+    session_factory = get_session_factory()
+
+    first_db = session_factory()
+    second_db = session_factory()
+    try:
+        first_actor = first_db.scalar(select(User).where(User.email == "owner@example.com"))
+        second_actor = second_db.scalar(select(User).where(User.email == "owner@example.com"))
+        assert first_actor is not None
+        assert second_actor is not None
+        BlobModule.get_upload_session(
+            first_db, session_id=session_id, actor=first_actor, storage=storage
+        )
+        BlobModule.get_upload_session(
+            second_db, session_id=session_id, actor=second_actor, storage=storage
+        )
+
+        checksum = hashlib.sha256(b"ABCD").hexdigest()
+        first = BlobModule.put_upload_chunk(
+            first_db,
+            session_id=session_id,
+            chunk_number=0,
+            content=io.BytesIO(b"ABCD"),
+            size_bytes=4,
+            checksum_sha256=checksum,
+            actor=first_actor,
+            storage=storage,
+        )
+        first_db.commit()
+        second = BlobModule.put_upload_chunk(
+            second_db,
+            session_id=session_id,
+            chunk_number=0,
+            content=io.BytesIO(b"ABCD"),
+            size_bytes=4,
+            checksum_sha256=checksum,
+            actor=second_actor,
+            storage=storage,
+        )
+        second_db.commit()
+        assert first.id == second.id == session_id
+    finally:
+        first_db.close()
+        second_db.close()
+
+    assert upload_chunk(client, token, session_id, 1, b"EFGH").status_code == 200
+    first_db = session_factory()
+    second_db = session_factory()
+    try:
+        first_actor = first_db.scalar(select(User).where(User.email == "owner@example.com"))
+        second_actor = second_db.scalar(select(User).where(User.email == "owner@example.com"))
+        assert first_actor is not None
+        assert second_actor is not None
+        BlobModule.get_upload_session(
+            first_db, session_id=session_id, actor=first_actor, storage=storage
+        )
+        BlobModule.get_upload_session(
+            second_db, session_id=session_id, actor=second_actor, storage=storage
+        )
+
+        first_completed = BlobModule.complete_upload_session(
+            first_db, session_id=session_id, actor=first_actor, storage=storage
+        )
+        first_db.commit()
+        second_completed = BlobModule.complete_upload_session(
+            second_db, session_id=session_id, actor=second_actor, storage=storage
+        )
+        second_db.commit()
+        assert first_completed.blob_id == second_completed.blob_id
+    finally:
+        first_db.close()
+        second_db.close()
+
+    with session_scope() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(BlobUploadChunk)
+                .where(BlobUploadChunk.session_id == session_id)
+            )
+            == 2
+        )
+        assert db.scalar(select(func.count()).select_from(Blob)) == 1
+    final_files = [
+        path
+        for path in (tmp_path / "blobs" / "openpdm-blobs").rglob("*")
+        if path.is_file() and "upload-sessions" not in path.parts
+    ]
+    assert len(final_files) == 1
+    assert final_files[0].read_bytes() == b"ABCDEFGH"
+
+
+POSTGRES_TEST_URL = os.environ.get("OPENPDM_TEST_POSTGRES_URL", "")
+
+
+@pytest.mark.skipif(
+    not POSTGRES_TEST_URL.startswith("postgresql"),
+    reason="set OPENPDM_TEST_POSTGRES_URL to an isolated PostgreSQL test database",
+)
+def test_postgres_simultaneous_identical_chunk_and_completion_are_idempotent(
+    tmp_path: Path,
+) -> None:
+    os.environ["OPENPDM_DATABASE_URL"] = POSTGRES_TEST_URL
+    os.environ["OPENPDM_S3_ENDPOINT_URL"] = "file://local"
+    os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
+    os.environ["OPENPDM_PLUGIN_PACKAGE_ROOT"] = str(tmp_path / "plugins")
+    os.environ["OPENPDM_PLUGIN_CONFIGURATION_KEY"] = Fernet.generate_key().decode()
+    os.environ["OPENPDM_BLOB_UPLOAD_CHUNK_SIZE_BYTES"] = "4"
+    os.environ["OPENPDM_BLOB_UPLOAD_MAX_SIZE_BYTES"] = "32"
+    reset_blob_storage_cache()
+    dispose_engines()
+    from openpdm.main import create_app
+
+    client = TestClient(create_app())
+    token = register(client, email=f"transfer-{uuid.uuid4()}@example.com")
+    session_id = str(create_session(client, token)["id"])
+
+    def run_together(operation):
+        barrier = threading.Barrier(2)
+
+        def invoke():
+            barrier.wait()
+            return operation()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(invoke), executor.submit(invoke)]
+            return [future.result() for future in futures]
+
+    chunk_results = run_together(lambda: upload_chunk(client, token, session_id, 0, b"ABCD"))
+    assert [response.status_code for response in chunk_results] == [200, 200]
+    assert upload_chunk(client, token, session_id, 1, b"EFGH").status_code == 200
+
+    completion_results = run_together(
+        lambda: client.post(f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token))
+    )
+    assert [response.status_code for response in completion_results] == [200, 200]
+    assert completion_results[0].json()["blob"] == completion_results[1].json()["blob"]
+    with session_scope() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(BlobUploadChunk)
+                .where(BlobUploadChunk.session_id == session_id)
+            )
+            == 2
+        )
+        blob_id = completion_results[0].json()["blob"]["id"]
+        assert db.scalar(select(func.count()).select_from(Blob).where(Blob.id == blob_id)) == 1
 
 
 class PaginatedS3Client:
