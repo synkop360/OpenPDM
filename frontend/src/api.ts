@@ -840,7 +840,7 @@ export async function listAssetsPage(
   projectId: string,
   options: PageOptions & { status?: string; query?: string } = {},
 ): Promise<Page<Asset>> {
-  return request<Page<Asset>>(
+  const result = await request<Page<Asset> | Asset[]>(
     collectionUrl("/projects/" + projectId + "/assets/page", {
       limit: options.limit,
       cursor: options.cursor,
@@ -851,13 +851,13 @@ export async function listAssetsPage(
     }),
     { token },
   );
+  return Array.isArray(result) ? { items: result, next_cursor: null } : result;
 }
-
 export async function listNotificationsPage(
   token: string,
   options: PageOptions & { projectId?: string; isRead?: boolean } = {},
 ): Promise<Page<NotificationRecord>> {
-  return request<Page<NotificationRecord>>(
+  const result = await request<Page<NotificationRecord> | NotificationRecord[]>(
     collectionUrl("/notifications/page", {
       limit: options.limit,
       cursor: options.cursor,
@@ -868,8 +868,8 @@ export async function listNotificationsPage(
     }),
     { token },
   );
+  return Array.isArray(result) ? { items: result, next_cursor: null } : result;
 }
-
 export async function markNotificationsRead(
   token: string,
   payload:

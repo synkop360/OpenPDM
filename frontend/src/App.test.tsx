@@ -117,7 +117,7 @@ describe("App", () => {
             },
           ]);
         }
-        if (path === "/projects/project-1/assets") {
+        if ((path === "/projects/project-1/assets" || path.startsWith("/projects/project-1/assets/page?"))) {
           return jsonResponse([
             {
               id: "asset-1",
@@ -304,7 +304,7 @@ describe("App", () => {
         if (path === "/metadata/asset/asset-1") {
           return jsonResponse([]);
         }
-        if (path === "/notifications") {
+        if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
           return jsonResponse([
             {
               id: "notification-1",
@@ -328,9 +328,8 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findAllByText("Owner")).not.toHaveLength(0);
     expect(await screen.findByRole("heading", { name: "Welcome, Owner" })).toBeInTheDocument();
-    expect(screen.queryByText("Wing Panel")).not.toBeInTheDocument();
+    expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Acme/i })).toBeInTheDocument();
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
@@ -449,7 +448,7 @@ describe("App", () => {
             },
           ]);
         }
-        if (path === "/projects/project-1/assets") {
+        if ((path === "/projects/project-1/assets" || path.startsWith("/projects/project-1/assets/page?"))) {
           return jsonResponse([assetsById["asset-1"], assetsById["asset-2"]]);
         }
         if (path === "/assets/asset-1") {
@@ -591,7 +590,7 @@ describe("App", () => {
         if (path === "/assets/asset-1/timeline" || path === "/assets/asset-2/timeline") {
           return jsonResponse([]);
         }
-        if (path === "/notifications") {
+        if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
           return jsonResponse([]);
         }
         throw new Error(`Unexpected request: ${path}`);
@@ -684,7 +683,7 @@ describe("App", () => {
             },
           ]);
         }
-        if (path === "/projects/project-1/assets") {
+        if ((path === "/projects/project-1/assets" || path.startsWith("/projects/project-1/assets/page?"))) {
           return jsonResponse([
             {
               id: "asset-1",
@@ -752,7 +751,7 @@ describe("App", () => {
         if (path === "/assets/asset-1/timeline") {
           return jsonResponse([]);
         }
-        if (path === "/notifications") {
+        if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
           return jsonResponse([]);
         }
         if (path === "/assets/asset-1/checkout") {
@@ -856,10 +855,10 @@ describe("App", () => {
           },
         ]);
       }
-      if (path === "/projects/project-1/assets") {
+      if ((path === "/projects/project-1/assets" || path.startsWith("/projects/project-1/assets/page?"))) {
         return jsonResponse([]);
       }
-      if (path === "/notifications") {
+      if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
         return jsonResponse([
           {
             id: "notification-1",
@@ -945,7 +944,7 @@ describe("App", () => {
         projectMembers = projectMembers.filter((item) => item.id !== "project-member-2");
         return jsonResponse(undefined, 204);
       }
-      if (path === "/projects/project-1/assets" || path === "/notifications") return jsonResponse([]);
+      if ((path === "/projects/project-1/assets" || path.startsWith("/projects/project-1/assets/page?")) || (path === "/notifications" || path.startsWith("/notifications/page?"))) return jsonResponse([]);
       throw new Error(`Unexpected request: ${method} ${path}`);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -1007,7 +1006,7 @@ describe("App", () => {
           },
         });
       }
-      if (path === "/organizations" || path === "/notifications") return jsonResponse([]);
+      if (path === "/organizations" || (path === "/notifications" || path.startsWith("/notifications/page?"))) return jsonResponse([]);
       if (path === "/plugins" && method === "GET") {
         return jsonResponse([
           {
@@ -1084,7 +1083,7 @@ describe("App", () => {
             },
           });
         }
-        if (path === "/organizations" || path === "/notifications") return jsonResponse([]);
+        if (path === "/organizations" || (path === "/notifications" || path.startsWith("/notifications/page?"))) return jsonResponse([]);
         throw new Error(`Unexpected request: ${path}`);
       }),
     );
@@ -1095,4 +1094,73 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Install package" })).not.toBeInTheDocument();
   });
-});
+
+  it("filters and acknowledges selected notifications in the dedicated queue", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === "/foundation") {
+        return jsonResponse({ name: "OpenPDM", version: "0.0.0", phase: "Core Platform", architecture: "Modular Monolith" });
+      }
+      if (path === "/auth/session") {
+        return jsonResponse({
+          id: "session-1",
+          token: "token-123",
+          user: {
+            id: "user-1",
+            email: "owner@example.com",
+            display_name: "Owner",
+            is_active: true,
+            is_platform_admin: false,
+            created_at: "2026-01-01T00:00:00",
+          },
+        });
+      }
+      if (path === "/organizations") return jsonResponse([]);
+      if (path.startsWith("/notifications/page?") && method === "GET") {
+        return jsonResponse({
+          items: [{
+            id: "notification-1",
+            recipient_user_id: "user-1",
+            actor_user_id: "user-2",
+            organization_id: null,
+            project_id: null,
+            asset_id: null,
+            revision_id: null,
+            event_type: "asset.checked_out",
+            is_read: false,
+            read_at: null,
+            details: {},
+            created_at: "2026-01-02T01:00:00",
+          }],
+          next_cursor: null,
+        });
+      }
+      if (path === "/notifications/read" && method === "POST") {
+        return jsonResponse({ updated_count: 1, notification_ids: ["notification-1"] });
+      }
+      if (path === "/providers") return jsonResponse([]);
+      throw new Error(`Unexpected request: ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await screen.findByRole("heading", { name: "Welcome, Owner" });
+    fireEvent.click(screen.getByLabelText("Notifications"));
+
+    expect(window.location.pathname).toBe("/notifications");
+    expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Select page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark selected read" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/notifications/read",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ notification_ids: ["notification-1"] }),
+      }),
+    ));
+    expect(await screen.findByText("1 notification marked as read.")).toBeInTheDocument();
+  });});

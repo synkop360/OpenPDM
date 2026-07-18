@@ -1,15 +1,22 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
 import {
   Activity,
+  ArrowLeft,
+  ArrowRight,
   Bell,
   Boxes,
   ChevronRight,
   FolderKanban,
+  Inbox,
   Home,
   LogOut,
   Menu,
   Network,
+  RefreshCw,
+  Save,
+  Search,
   Package,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -25,9 +32,11 @@ import {
   createAsset,
   createOrganization,
   createProject,
+  createProjectAssetView,
   createRevision,
   changeOrganizationMemberRole,
   changeProjectMemberRole,
+  deleteProjectAssetView,
   downloadBlob,
   discoverProviders,
   getAsset,
@@ -41,10 +50,10 @@ import {
   installPluginPackage,
   listAssetReferences,
   listAssetRelationships,
-  listAssets,
+  listAssetsPage,
   listIncomingAssetRelationships,
   listMetadata,
-  listNotifications,
+  listNotificationsPage,
   listOrganizationProjects,
   listOrganizationMembers,
   listOutgoingAssetRelationships,
@@ -52,7 +61,9 @@ import {
   listOrganizations,
   listProjectsForUser,
   listProjectMembers,
+  listProjectAssetViews,
   markNotificationRead,
+  markNotificationsRead,
   invokeMetadataProvider,
   registerUser,
   removeOrganizationMember,
@@ -70,6 +81,7 @@ import {
   type NotificationRecord,
   type OrganizationMembership,
   type Project,
+  type ProjectAssetView,
   type ProjectMembership,
   type PluginRecord,
   type ProviderDescriptor,
@@ -216,6 +228,11 @@ function OpenPdmApp() {
   const location = useLocation();
   const navigate = useNavigate();
   const { projectId: routeProjectId, projectTab, view } = parseAppRoute(location.pathname);
+  const assetSearchParams = new URLSearchParams(location.search);
+  const assetFilterQuery = assetSearchParams.get("q") ?? "";
+  const assetStatusFilter = assetSearchParams.get("status") ?? "";
+  const assetSort = assetSearchParams.get("sort") ?? "updated_at";
+  const assetDirection = assetSearchParams.get("direction") === "asc" ? "asc" : "desc";
   useRouteFocus();
   const foundation = useFoundationStatus();
   const [session, setSession] = useState<Loadable<SessionInfo | null>>(
@@ -232,6 +249,14 @@ function OpenPdmApp() {
     createLoadable<ProjectMembership[]>([]),
   );
   const [assets, setAssets] = useState<Loadable<Asset[]>>(createLoadable<Asset[]>([]));
+  const [assetNextCursor, setAssetNextCursor] = useState<string | null>(null);
+  const [assetCursor, setAssetCursor] = useState<string | null>(null);
+  const [assetCursorHistory, setAssetCursorHistory] = useState<string[]>([]);
+  const [assetReloadKey, setAssetReloadKey] = useState(0);
+  const [assetViews, setAssetViews] = useState<Loadable<ProjectAssetView[]>>(
+    createLoadable<ProjectAssetView[]>([]),
+  );
+  const [assetViewName, setAssetViewName] = useState("");
   const [assetDetail, setAssetDetail] = useState<Loadable<Asset | null>>(
     createLoadable<Asset | null>(null),
   );
@@ -262,6 +287,12 @@ function OpenPdmApp() {
   const [notifications, setNotifications] = useState<Loadable<NotificationRecord[]>>(
     createLoadable<NotificationRecord[]>([]),
   );
+  const [notificationNextCursor, setNotificationNextCursor] = useState<string | null>(null);
+  const [notificationCursor, setNotificationCursor] = useState<string | null>(null);
+  const [notificationCursorHistory, setNotificationCursorHistory] = useState<string[]>([]);
+  const [notificationFilter, setNotificationFilter] = useState<"all" | "unread">("unread");
+  const [notificationProjectFilter, setNotificationProjectFilter] = useState("");
+  const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [plugins, setPlugins] = useState<Loadable<PluginRecord[]>>(createLoadable<PluginRecord[]>([]));
   const [providers, setProviders] = useState<Loadable<ProviderDescriptor[]>>(
     createLoadable<ProviderDescriptor[]>([]),
@@ -409,11 +440,11 @@ function OpenPdmApp() {
           error: error instanceof Error ? error.message : "Organization members could not be loaded.",
         }),
       );
-  }, [projectTab, session.data?.token, selectedOrganizationId, view]);
+  }, [projectTab, selectedOrganizationId, session.data?.token, view]);
 
   useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedProjectId || view !== "project") {
+    if (!token || !selectedProjectId || view !== "project" || projectTab !== "members") {
       setProjectMembers(createLoadable([]));
       return;
     }
@@ -427,28 +458,36 @@ function OpenPdmApp() {
           error: error instanceof Error ? error.message : "Project members could not be loaded.",
         }),
       );
-  }, [session.data?.token, selectedProjectId, view]);
+  }, [projectTab, selectedProjectId, session.data?.token, view]);
 
   useEffect(() => {
     const token = session.data?.token;
     if (!token) {
       setNotifications(createLoadable([]));
+      setNotificationNextCursor(null);
       return;
     }
     setNotifications((current) => ({ ...current, status: "loading", error: null }));
-    listNotifications(token)
+    listNotificationsPage(token, {
+      limit: 50,
+      cursor: notificationCursor ?? undefined,
+      isRead: notificationFilter === "unread" ? false : undefined,
+      projectId: notificationProjectFilter || undefined,
+      sort: "created_at",
+      direction: "desc",
+    })
       .then((result) => {
-        setNotifications({ status: "ready", data: result, error: null });
+        setNotifications({ status: "ready", data: result.items, error: null });
+        setNotificationNextCursor(result.next_cursor);
       })
       .catch((error: unknown) => {
-        setNotifications({
+        setNotifications((current) => ({
           status: "error",
-          data: [],
+          data: current.data,
           error: error instanceof Error ? error.message : "Notifications could not be loaded.",
-        });
+        }));
       });
-  }, [session.data?.token]);
-
+  }, [notificationCursor, notificationFilter, notificationProjectFilter, session.data?.token]);
   useEffect(() => {
     const token = session.data?.token;
     if (!token || view !== "plugin-administration" || !session.data?.user.is_platform_admin) {
@@ -550,29 +589,69 @@ function OpenPdmApp() {
   }, [selectedOrganizationId, selectedProjectId, session.data?.token]);
 
   useEffect(() => {
+    setAssetCursor(null);
+    setAssetCursorHistory([]);
+    setSelectedAssetId(null);
+  }, [selectedProjectId]);
+
+  useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedProjectId || view !== "project") {
+    if (!token || !selectedProjectId || (view !== "project" && view !== "home")) {
       setAssets(createLoadable([]));
+      setAssetNextCursor(null);
       return;
     }
     setAssets((current) => ({ ...current, status: "loading", error: null }));
-    listAssets(token, selectedProjectId)
+    listAssetsPage(token, selectedProjectId, {
+      limit: 25,
+      cursor: assetCursor ?? undefined,
+      status: assetStatusFilter || undefined,
+      query: assetFilterQuery || undefined,
+      sort: assetSort,
+      direction: assetDirection,
+    })
       .then((result) => {
-        setAssets({ status: "ready", data: result, error: null });
-        const nextAssetId = result.find((asset) => asset.id === selectedAssetId)?.id ?? result[0]?.id ?? null;
-        startTransition(() => {
-          setSelectedAssetId(nextAssetId);
-        });
+        setAssets({ status: "ready", data: result.items, error: null });
+        setAssetNextCursor(result.next_cursor);
+        if ((!selectedAssetId || !result.items.some((item) => item.id === selectedAssetId)) && result.items[0]) {
+          startTransition(() => setSelectedAssetId(result.items[0].id));
+        }
       })
       .catch((error: unknown) => {
-        setAssets({
+        setAssets((current) => ({
           status: "error",
-          data: [],
+          data: current.data,
           error: error instanceof Error ? error.message : "Assets could not be loaded.",
-        });
+        }));
       });
-  }, [selectedAssetId, selectedProjectId, session.data?.token, view]);
+  }, [
+    assetCursor,
+    assetDirection,
+    assetFilterQuery,
+    assetSort,
+    assetStatusFilter,
+    selectedProjectId,
+    session.data?.token,
+    view,
+  ]);
 
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || !selectedProjectId || view !== "project") {
+      setAssetViews(createLoadable([]));
+      return;
+    }
+    setAssetViews((current) => ({ ...current, status: "loading", error: null }));
+    listProjectAssetViews(token, selectedProjectId)
+      .then((result) => setAssetViews({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setAssetViews((current) => ({
+          status: "error",
+          data: current.data,
+          error: error instanceof Error ? error.message : "Saved views could not be loaded.",
+        })),
+      );
+  }, [selectedProjectId, session.data?.token, view]);
   useEffect(() => {
     const token = session.data?.token;
     if (!token || !selectedAssetId || view !== "project") {
@@ -722,6 +801,130 @@ function OpenPdmApp() {
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
 
+  function updateAssetFilters(
+    patch: Partial<Record<"q" | "status" | "sort" | "direction", string>>,
+  ): void {
+    const next = new URLSearchParams(location.search);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    setAssetCursor(null);
+    setAssetCursorHistory([]);
+    navigate({ pathname: location.pathname, search: next.toString() ? `?${next}` : "" }, { replace: true });
+  }
+
+  function handleNextAssetPage(): void {
+    if (!assetNextCursor) return;
+    setAssetCursorHistory((current) => [...current, assetCursor ?? ""]);
+    setAssetCursor(assetNextCursor);
+  }
+
+  function handlePreviousAssetPage(): void {
+    const previous = assetCursorHistory.at(-1);
+    if (previous === undefined) return;
+    setAssetCursorHistory((current) => current.slice(0, -1));
+    setAssetCursor(previous || null);
+  }
+
+  async function handleSaveAssetView(): Promise<void> {
+    if (!session.data?.token || !selectedProjectId || !assetViewName.trim()) return;
+    setBusyAction("save-asset-view");
+    setBanner(null);
+    try {
+      const created = await createProjectAssetView(session.data.token, {
+        project_id: selectedProjectId,
+        name: assetViewName.trim(),
+        filters: { status: assetStatusFilter || null, query: assetFilterQuery || null },
+        sort: { field: assetSort, direction: assetDirection },
+        density: "compact",
+        selected_columns: ["name", "status", "updated_at"],
+      });
+      setAssetViews((current) => ({
+        status: "ready",
+        error: null,
+        data: [...current.data, created].sort((left, right) => left.name.localeCompare(right.name)),
+      }));
+      setAssetViewName("");
+      setBanner(`Saved view “${created.name}” created.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Saved view could not be created.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function handleApplyAssetView(savedView: ProjectAssetView): void {
+    updateAssetFilters({
+      q: typeof savedView.filters.query === "string" ? savedView.filters.query : "",
+      status: typeof savedView.filters.status === "string" ? savedView.filters.status : "",
+      sort: savedView.sort.field,
+      direction: savedView.sort.direction,
+    });
+    setBanner(`Saved view “${savedView.name}” applied.`);
+  }
+
+  async function handleDeleteAssetView(savedView: ProjectAssetView): Promise<void> {
+    if (!session.data?.token || !window.confirm(`Delete saved view “${savedView.name}”?`)) return;
+    setBusyAction(`delete-asset-view-${savedView.id}`);
+    try {
+      await deleteProjectAssetView(session.data.token, savedView.id);
+      setAssetViews((current) => ({
+        status: "ready",
+        error: null,
+        data: current.data.filter((item) => item.id !== savedView.id),
+      }));
+      setBanner(`Saved view “${savedView.name}” deleted.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Saved view could not be deleted.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function toggleNotificationSelection(notificationId: string): void {
+    setSelectedNotificationIds((current) =>
+      current.includes(notificationId)
+        ? current.filter((item) => item !== notificationId)
+        : [...current, notificationId],
+    );
+  }
+
+  function handleNextNotificationPage(): void {
+    if (!notificationNextCursor) return;
+    setNotificationCursorHistory((current) => [...current, notificationCursor ?? ""]);
+    setNotificationCursor(notificationNextCursor);
+  }
+
+  function handlePreviousNotificationPage(): void {
+    const previous = notificationCursorHistory.at(-1);
+    if (previous === undefined) return;
+    setNotificationCursorHistory((current) => current.slice(0, -1));
+    setNotificationCursor(previous || null);
+  }
+
+  async function handleBatchNotificationRead(allMatching: boolean): Promise<void> {
+    if (!session.data?.token || (!allMatching && selectedNotificationIds.length === 0)) return;
+    setBusyAction(allMatching ? "read-all-notifications" : "read-selected-notifications");
+    setBanner(null);
+    try {
+      const result = await markNotificationsRead(
+        session.data.token,
+        allMatching
+          ? { all_matching: true, is_read: false, project_id: notificationProjectFilter || undefined }
+          : { notification_ids: selectedNotificationIds },
+      );
+      setSelectedNotificationIds([]);
+      setNotificationCursor(null);
+      setNotificationCursorHistory([]);
+      await refreshNotifications(session.data.token);
+      setBanner(`${result.updated_count} notification${result.updated_count === 1 ? "" : "s"} marked as read.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Notifications could not be updated.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
   async function handleRegister(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setBusyAction("register");
@@ -976,6 +1179,19 @@ function OpenPdmApp() {
     }
   }
 
+  async function refreshAssetPage(token: string, projectId: string): Promise<void> {
+    const refreshed = await listAssetsPage(token, projectId, {
+      limit: 25,
+      cursor: assetCursor ?? undefined,
+      status: assetStatusFilter || undefined,
+      query: assetFilterQuery || undefined,
+      sort: assetSort,
+      direction: assetDirection,
+    });
+    setAssets({ status: "ready", data: refreshed.items, error: null });
+    setAssetNextCursor(refreshed.next_cursor);
+  }
+
   async function handleCreateAsset(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!session.data?.token || !selectedProjectId) {
@@ -988,8 +1204,7 @@ function OpenPdmApp() {
       setAssetForm({ name: "", description: "" });
       setSelectedAssetId(asset.id);
       setBanner("Engineering Asset created.");
-      const refreshed = await listAssets(session.data.token, selectedProjectId);
-      setAssets({ status: "ready", data: refreshed, error: null });
+      await refreshAssetPage(session.data.token, selectedProjectId);
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Asset could not be created.");
     } finally {
@@ -998,10 +1213,17 @@ function OpenPdmApp() {
   }
 
   async function refreshNotifications(token: string): Promise<void> {
-    const refreshed = await listNotifications(token);
-    setNotifications({ status: "ready", data: refreshed, error: null });
+    const refreshed = await listNotificationsPage(token, {
+      limit: 50,
+      cursor: notificationCursor ?? undefined,
+      isRead: notificationFilter === "unread" ? false : undefined,
+      projectId: notificationProjectFilter || undefined,
+      sort: "created_at",
+      direction: "desc",
+    });
+    setNotifications({ status: "ready", data: refreshed.items, error: null });
+    setNotificationNextCursor(refreshed.next_cursor);
   }
-
   async function handleMarkNotificationRead(notificationId: string): Promise<void> {
     if (!session.data?.token) {
       return;
@@ -1072,8 +1294,7 @@ function OpenPdmApp() {
       setAssetHistory({ status: "ready", data: nextHistory, error: null });
       setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
-      const refreshed = await listAssets(session.data.token, selectedProjectId!);
-      setAssets({ status: "ready", data: refreshed, error: null });
+      await refreshAssetPage(session.data.token, selectedProjectId!);
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         await refreshNotifications(session.data.token);
@@ -1170,7 +1391,14 @@ function OpenPdmApp() {
           getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
           getCollaborationState(session.data.token, selectedAssetId),
           getAssetTimeline(session.data.token, selectedAssetId),
-          listAssets(session.data.token, selectedProjectId),
+          listAssetsPage(session.data.token, selectedProjectId, {
+            limit: 25,
+            cursor: assetCursor ?? undefined,
+            status: assetStatusFilter || undefined,
+            query: assetFilterQuery || undefined,
+            sort: assetSort,
+            direction: assetDirection,
+          }),
         ]);
       await refreshNotifications(session.data.token);
       setAssetDetail({ status: "ready", data: nextAsset, error: null });
@@ -1182,7 +1410,8 @@ function OpenPdmApp() {
       setAssetGraph({ status: "ready", data: nextGraph, error: null });
       setCollaborationState({ status: "ready", data: nextCollaborationState, error: null });
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
-      setAssets({ status: "ready", data: refreshedAssets, error: null });
+      setAssets({ status: "ready", data: refreshedAssets.items, error: null });
+      setAssetNextCursor(refreshedAssets.next_cursor);
       setCollaborationError(null);
       setBanner("Collaboration state refreshed.");
     } catch (error: unknown) {
@@ -1351,7 +1580,7 @@ function OpenPdmApp() {
             displayName={session.data.user.display_name}
             email={session.data.user.email}
             onHome={() => navigate("/")}
-            onNotifications={() => navigate("/")}
+            onNotifications={() => navigate("/notifications")}
             onOpenNavigation={() => setMobileNavigationOpen(true)}
             onSignOut={() => void handleSignOut()}
             unreadNotifications={unreadNotifications}
@@ -1464,6 +1693,14 @@ function OpenPdmApp() {
                 type="button"
               >
                 <Home /> Home
+              </button>
+
+              <button
+                className={view === "notifications" ? "sidebar-link is-active" : "sidebar-link"}
+                onClick={() => { setMobileNavigationOpen(false); navigate("/notifications"); }}
+                type="button"
+              >
+                <Inbox /> Notifications <span>{unreadNotifications}</span>
               </button>
 
               <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
@@ -1674,8 +1911,43 @@ function OpenPdmApp() {
                       ))}
                     </ul>
                   </article>
-                </div>
+                  {view === "home" ? (
+                    <article className="detail-card">
+                      <h3>Recent Engineering Assets</h3>
+                      <p>{selectedProjectId ? "Updated in the selected Project" : "Select a Project to load recent Assets"}</p>
+                      <ul className="home-list">
+                        {assets.data.slice(0, 6).map((asset) => (
+                          <li key={asset.id}>
+                            <button
+                              className="text-button"
+                              onClick={() => {
+                                setSelectedAssetId(asset.id);
+                                navigate(`/projects/${asset.project_id}/assets`);
+                              }}
+                              type="button"
+                            >
+                              {asset.name}
+                            </button>
+                            <span>{asset.status} · {formatTimestamp(asset.updated_at)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ) : null}                </div>
 
+                {view === "home" && (organizations.status === "loading" || projects.status === "loading" || assets.status === "loading" || notifications.status === "loading") ? (
+                  <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> Refreshing operational context…</div>
+                ) : null}
+                {view === "home" && (organizations.status === "error" || projects.status === "error" || assets.status === "error" || notifications.status === "error") ? (
+                  <article className="detail-card recovery-card" role="alert">
+                    <h3>Some workspace data needs attention</h3>
+                    <p>{organizations.error ?? projects.error ?? assets.error ?? notifications.error}</p>
+                    <p className="muted-text">Available data remains visible. Retry the affected workspace or verify that your permissions have not changed.</p>
+                  </article>
+                ) : null}
+                {view === "home" && !selectedProjectId && projects.status === "ready" ? (
+                  <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>No recent Project context</h3><p>Create or select a Project to surface recent Engineering Assets here.</p></div>
+                ) : null}
                 {view === "home" ? <article className="detail-card notification-card">
                   <div className="detail-row">
                     <div>
@@ -1730,6 +2002,135 @@ function OpenPdmApp() {
               </section>
             ) : null}
 
+            {view === "notifications" ? (
+              <section aria-labelledby="notifications-workspace-title" className="panel notifications-workspace content-span">
+                <header className="panel-header operational-header">
+                  <div>
+                    <p className="eyebrow">Event inbox</p>
+                    <h2 id="notifications-workspace-title">Notifications</h2>
+                    <p className="muted-text">Review collaboration events, acknowledge a selected set, or clear the complete unread queue.</p>
+                  </div>
+                  <div className="filter-cluster" aria-label="Notification filters">
+                    <label className="inline-filter">
+                      Project
+                      <select
+                        value={notificationProjectFilter}
+                        onChange={(event) => {
+                          setNotificationProjectFilter(event.target.value);
+                          setNotificationCursor(null);
+                          setNotificationCursorHistory([]);
+                          setSelectedNotificationIds([]);
+                        }}
+                      >
+                        <option value="">All Projects</option>
+                        {projects.data.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="inline-filter">
+                      Show
+                      <select
+                        value={notificationFilter}
+                        onChange={(event) => {
+                          setNotificationFilter(event.target.value as "all" | "unread");
+                          setNotificationCursor(null);
+                          setNotificationCursorHistory([]);
+                          setSelectedNotificationIds([]);
+                        }}
+                      >
+                        <option value="unread">Unread</option>
+                        <option value="all">All events</option>
+                      </select>
+                    </label>
+                  </div>
+                </header>
+
+                <div className="selection-toolbar" aria-label="Notification batch actions">
+                  <span>{selectedNotificationIds.length} selected</span>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      setSelectedNotificationIds(
+                        selectedNotificationIds.length === notifications.data.filter((item) => !item.is_read).length
+                          ? []
+                          : notifications.data.filter((item) => !item.is_read).map((item) => item.id),
+                      )
+                    }
+                    type="button"
+                  >
+                    Select page
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={selectedNotificationIds.length === 0 || busyAction === "read-selected-notifications"}
+                    onClick={() => void handleBatchNotificationRead(false)}
+                    type="button"
+                  >
+                    Mark selected read
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={busyAction === "read-all-notifications" || unreadNotifications === 0}
+                    onClick={() => void handleBatchNotificationRead(true)}
+                    type="button"
+                  >
+                    Mark all matching read
+                  </button>
+                </div>
+
+                {notifications.status === "error" ? (
+                  <div className="state-banner state-error" role="alert">
+                    <strong>{notifications.data.length ? "Showing stale notifications" : "Notifications unavailable"}</strong>
+                    <span>{notifications.error}</span>
+                    <button className="secondary-button" onClick={() => void handleRefreshNotifications()} type="button">Retry</button>
+                  </div>
+                ) : null}
+                {notifications.status === "loading" ? (
+                  <div className="state-banner" role="status">
+                    <RefreshCw aria-hidden="true" />
+                    <span>{notifications.data.length ? "Refreshing while the current page stays available…" : "Loading notifications…"}</span>
+                  </div>
+                ) : null}
+
+                {notifications.data.length ? (
+                  <div className="notification-queue" aria-busy={notifications.status === "loading"}>
+                    {notifications.data.map((notification) => (
+                      <article className={notification.is_read ? "notification-row" : "notification-row is-unread"} key={notification.id}>
+                        <input
+                          aria-label={`Select ${formatNotificationEvent(notification.event_type)}`}
+                          checked={selectedNotificationIds.includes(notification.id)}
+                          disabled={notification.is_read}
+                          onChange={() => toggleNotificationSelection(notification.id)}
+                          type="checkbox"
+                        />
+                        <div className="notification-copy">
+                          <strong>{formatNotificationEvent(notification.event_type)}</strong>
+                          <span>{notificationSummary(notification)}</span>
+                          <small>{formatTimestamp(notification.created_at)}</small>
+                        </div>
+                        <span className={`status-pill notification-pill ${notification.is_read ? "notification-read" : "notification-unread"}`}>
+                          {notification.is_read ? "read" : "unread"}
+                        </span>
+                        {!notification.is_read ? (
+                          <button className="secondary-button" onClick={() => void handleMarkNotificationRead(notification.id)} type="button">Mark read</button>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : notifications.status === "ready" ? (
+                  <div className="empty-state operational-empty">
+                    <Bell aria-hidden="true" />
+                    <h3>{notificationFilter === "unread" ? "Unread queue is clear" : "No notifications yet"}</h3>
+                    <p>New collaboration and lifecycle events will appear here when they target your account.</p>
+                  </div>
+                ) : null}
+
+                <nav aria-label="Notification pages" className="pagination-bar">
+                  <button className="secondary-button" disabled={notificationCursorHistory.length === 0} onClick={handlePreviousNotificationPage} type="button"><ArrowLeft /> Previous</button>
+                  <span>Page {notificationCursorHistory.length + 1}</span>
+                  <button className="secondary-button" disabled={!notificationNextCursor} onClick={handleNextNotificationPage} type="button">Next <ArrowRight /></button>
+                </nav>
+              </section>
+            ) : null}
             {view === "plugin-administration" ? (
               <section className="panel admin-panel content-span">
                 <header className="panel-header">
@@ -1924,18 +2325,67 @@ function OpenPdmApp() {
                 ) : null}
 
                 {projectTab === "relationships" ? (
-                  <section className="panel content-span focused-panel">
-                    <header className="panel-header"><div><p className="eyebrow">Asset Graph</p><h2>Relationships</h2></div><Network /></header>
-                    <p className="muted-text">Select an Asset in the Assets tab to inspect its bounded graph and references.</p>
+                  <section className="panel content-span focused-panel relationships-workspace" aria-labelledby="relationships-title">
+                    <header className="panel-header operational-header">
+                      <div><p className="eyebrow">Asset graph</p><h2 id="relationships-title">Relationships and references</h2><p className="muted-text">Directional graph edges and unresolved or external references remain visibly distinct.</p></div>
+                      <label className="inline-filter">
+                        Engineering Asset
+                        <select value={selectedAssetId ?? ""} onChange={(event) => setSelectedAssetId(event.target.value || null)}>
+                          <option value="">Select an Asset</option>
+                          {assets.data.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                        </select>
+                      </label>
+                    </header>
+
+                    {assetRelationships.status === "loading" || assetReferences.status === "loading" ? (
+                      <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> Loading relationship context…</div>
+                    ) : null}
+                    {assetRelationships.status === "error" || incomingRelationships.status === "error" || outgoingRelationships.status === "error" || assetReferences.status === "error" ? (
+                      <div className="state-banner state-error" role="alert"><strong>Relationship context is partial</strong><span>{assetRelationships.error ?? incomingRelationships.error ?? outgoingRelationships.error ?? assetReferences.error}</span><button className="secondary-button" onClick={() => void handleRefreshAssetState()} type="button">Retry</button></div>
+                    ) : null}
+
                     {assetDetail.data ? (
-                      <div className="overview-grid">
-                        <article className="detail-card"><h3>{assetDetail.data.name}</h3><p>{assetRelationships.data.length} relationships · {assetReferences.data.length} references</p><div className="compact-list">{assetRelationships.data.map((item) => <div key={item.id}><span>{formatRelationshipType(item.relationship_type)}</span><small>{assetNameById.get(item.target_asset_id) ?? item.target_asset_id}</small></div>)}</div></article>
-                        <article className="detail-card"><h3>Bounded graph</h3><p>{assetGraph.data?.nodes.length ?? 0} nodes · {assetGraph.data?.relationships.length ?? 0} links</p><div className="graph-node-list">{assetGraph.data?.nodes.map((node) => <span key={node.id}>{node.name}</span>)}</div></article>
-                      </div>
-                    ) : <p className="empty-state">No Asset selected.</p>}
+                      <>
+                        <div className="relationship-context-line"><strong>{assetDetail.data.name}</strong><span>{assetGraph.data?.nodes.length ?? 0} bounded nodes · depth {assetGraph.data?.max_depth ?? 3}</span></div>
+                        <div className="relationship-direction-grid">
+                          <section className="relationship-column" aria-labelledby="incoming-title">
+                            <div className="relationship-column-header"><h3 id="incoming-title">Incoming</h3><span>{incomingRelationships.data.length}</span></div>
+                            <p className="muted-text">Other Assets pointing to this Asset.</p>
+                            <div className="relationship-list">
+                              {incomingRelationships.data.map((relationship) => (
+                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.source_asset_id) ?? relationship.source_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => setSelectedAssetId(relationship.source_asset_id)} type="button">Open source</button></article>
+                              ))}
+                              {!incomingRelationships.data.length ? <p className="empty-state">No incoming relationships.</p> : null}
+                            </div>
+                          </section>
+                          <section className="relationship-column" aria-labelledby="outgoing-title">
+                            <div className="relationship-column-header"><h3 id="outgoing-title">Outgoing</h3><span>{outgoingRelationships.data.length}</span></div>
+                            <p className="muted-text">This Asset pointing to other Assets.</p>
+                            <div className="relationship-list">
+                              {outgoingRelationships.data.map((relationship) => (
+                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.target_asset_id) ?? relationship.target_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => setSelectedAssetId(relationship.target_asset_id)} type="button">Open target</button></article>
+                              ))}
+                              {!outgoingRelationships.data.length ? <p className="empty-state">No outgoing relationships.</p> : null}
+                            </div>
+                          </section>
+                          <section className="relationship-column reference-column" aria-labelledby="references-title">
+                            <div className="relationship-column-header"><h3 id="references-title">References</h3><span>{assetReferences.data.length}</span></div>
+                            <p className="muted-text">External or unresolved pointers; never graph edges.</p>
+                            <div className="relationship-list">
+                              {assetReferences.data.map((reference) => (
+                                <article className="relationship-item reference-item" key={reference.id}><div><strong>{reference.label || reference.reference_type}</strong><p>{reference.target_uri}</p><small>{reference.reference_type}</small></div></article>
+                              ))}
+                              {!assetReferences.data.length ? <p className="empty-state">No references attached.</p> : null}
+                            </div>
+                          </section>
+                        </div>
+                        <p className="muted-text relationship-safety-note">This workspace is read-only by design. Relationship and reference mutation stays a deliberate single-record task.</p>
+                      </>
+                    ) : (
+                      <div className="empty-state operational-empty"><Network aria-hidden="true" /><h3>Select an Engineering Asset</h3><p>Choose an Asset to separate its incoming edges, outgoing edges and references.</p></div>
+                    )}
                   </section>
                 ) : null}
-
                 {projectTab === "collaboration" ? (
                   <section className="panel content-span focused-panel">
                     <header className="panel-header"><div><p className="eyebrow">Live context</p><h2>Collaboration</h2></div><Activity /></header>
@@ -2119,85 +2569,134 @@ function OpenPdmApp() {
 
                 {projectTab === "assets" ? (
                   <>
-            <section className="panel asset-panel">
-              <header className="panel-header">
+            <section className="panel asset-panel asset-collection" aria-labelledby="asset-collection-title">
+              <header className="panel-header operational-header">
                 <div>
                   <p className="eyebrow">Engineering Assets</p>
-                  <h2>Project content</h2>
+                  <h2 id="asset-collection-title">Project content</h2>
+                  <p className="muted-text">Filter, page and save private views without losing the selected Asset.</p>
                 </div>
+                <span className="status-pill">{assets.data.length} on page</span>
               </header>
 
               {selectedProjectId ? (
                 <>
-                  <form className="form-grid compact-form" onSubmit={handleCreateAsset}>
-                    <h3>Create a generic Engineering Asset</h3>
-                    <label>
-                      Asset name
+                  <div className="asset-toolbar" role="search">
+                    <label className="search-field">
+                      <Search aria-hidden="true" />
+                      <span className="sr-only">Search Engineering Assets</span>
                       <input
-                        required
-                        value={assetForm.name}
-                        onChange={(event) =>
-                          setAssetForm((current) => ({ ...current, name: event.target.value }))
-                        }
+                        placeholder="Search name or description"
+                        value={assetFilterQuery}
+                        onChange={(event) => updateAssetFilters({ q: event.target.value })}
                       />
                     </label>
                     <label>
-                      Description
-                      <textarea
-                        value={assetForm.description}
-                        onChange={(event) =>
-                          setAssetForm((current) => ({ ...current, description: event.target.value }))
-                        }
-                      />
+                      Status
+                      <select value={assetStatusFilter} onChange={(event) => updateAssetFilters({ status: event.target.value })}>
+                        <option value="">All statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                      </select>
                     </label>
-                    <button
-                      className="primary-button"
-                      disabled={busyAction === "create-asset"}
-                      type="submit"
-                    >
-                      {busyAction === "create-asset" ? "Creating..." : "Create Asset"}
-                    </button>
-                  </form>
+                    <label>
+                      Sort
+                      <select value={assetSort} onChange={(event) => updateAssetFilters({ sort: event.target.value })}>
+                        <option value="updated_at">Updated</option>
+                        <option value="created_at">Created</option>
+                        <option value="name">Name</option>
+                        <option value="status">Status</option>
+                      </select>
+                    </label>
+                    <label>
+                      Direction
+                      <select value={assetDirection} onChange={(event) => updateAssetFilters({ direction: event.target.value })}>
+                        <option value="desc">Descending</option>
+                        <option value="asc">Ascending</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="saved-view-bar">
+                    <div className="saved-view-list" aria-label="Private saved views">
+                      {assetViews.data.map((savedView) => (
+                        <span className="saved-view-chip" key={savedView.id}>
+                          <button className="text-button" onClick={() => handleApplyAssetView(savedView)} type="button">{savedView.name}</button>
+                          <button aria-label={`Delete saved view ${savedView.name}`} className="icon-button" disabled={busyAction === `delete-asset-view-${savedView.id}`} onClick={() => void handleDeleteAssetView(savedView)} type="button"><Trash2 /></button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="save-view-control">
+                      <input aria-label="Saved view name" placeholder="View name" value={assetViewName} onChange={(event) => setAssetViewName(event.target.value)} />
+                      <button className="secondary-button" disabled={!assetViewName.trim() || busyAction === "save-asset-view"} onClick={() => void handleSaveAssetView()} type="button"><Save /> Save view</button>
+                    </div>
+                  </div>
+
+                  {assetViews.status === "error" ? <p className="error-message" role="alert">Saved views unavailable: {assetViews.error}</p> : null}
+
+                  <details className="create-disclosure">
+                    <summary>Create Engineering Asset</summary>
+                    <form className="form-grid compact-form" onSubmit={handleCreateAsset}>
+                      <label>
+                        Asset name
+                        <input required value={assetForm.name} onChange={(event) => setAssetForm((current) => ({ ...current, name: event.target.value }))} />
+                      </label>
+                      <label>
+                        Description
+                        <textarea value={assetForm.description} onChange={(event) => setAssetForm((current) => ({ ...current, description: event.target.value }))} />
+                      </label>
+                      <button className="primary-button" disabled={busyAction === "create-asset"} type="submit">{busyAction === "create-asset" ? "Creating…" : "Create Asset"}</button>
+                    </form>
+                  </details>
 
                   {assets.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {assets.error}
-                    </p>
+                    <div className="state-banner state-error" role="alert">
+                      <strong>{assets.data.length ? "Showing stale Asset data" : "Engineering Assets unavailable"}</strong>
+                      <span>{assets.error}</span>
+                      <button className="secondary-button" onClick={() => { setAssetCursor(null); setAssetCursorHistory([]); setAssetReloadKey((current) => current + 1); }} type="button">Retry</button>
+                    </div>
+                  ) : null}
+                  {assets.status === "loading" ? (
+                    <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> {assets.data.length ? "Refreshing this page…" : "Loading Engineering Assets…"}</div>
                   ) : null}
 
                   {hasAssets ? (
-                    <div className="resource-list">
-                      <h3>Assets</h3>
-                      {assets.data.map((asset) => (
-                        <button
-                          key={asset.id}
-                          className={selectedAssetId === asset.id ? "resource-card is-selected" : "resource-card"}
-                          onClick={() => setSelectedAssetId(asset.id)}
-                          type="button"
-                        >
-                          <strong>{asset.name}</strong>
-                          <span>{asset.status}</span>
-                          <small>{asset.description || "No description"}</small>
-                        </button>
-                      ))}
+                    <div className="asset-table-region" aria-busy={assets.status === "loading"} tabIndex={0}>
+                      <table className="asset-table">
+                        <thead><tr><th>Name</th><th>Status</th><th>Updated</th></tr></thead>
+                        <tbody>
+                          {assets.data.map((asset) => (
+                            <tr className={selectedAssetId === asset.id ? "is-selected" : ""} key={asset.id}>
+                              <td><button aria-current={selectedAssetId === asset.id ? "true" : undefined} className="text-button asset-name-button" onClick={() => setSelectedAssetId(asset.id)} type="button"><strong>{asset.name}</strong><small>{asset.description || "No description"}</small></button></td>
+                              <td><span className="status-pill">{asset.status}</span></td>
+                              <td>{formatTimestamp(asset.updated_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ) : (
-                    <p className="empty-state">
-                      Create the first Engineering Asset to unlock immutable Revision history and file transfer.
-                    </p>
-                  )}
+                  ) : assets.status === "ready" ? (
+                    <div className="empty-state operational-empty"><Boxes aria-hidden="true" /><h3>No Engineering Assets match this view</h3><p>Clear the filters or create the first generic Engineering Asset for this Project.</p></div>
+                  ) : null}
+
+                  <nav aria-label="Engineering Asset pages" className="pagination-bar">
+                    <button className="secondary-button" disabled={assetCursorHistory.length === 0} onClick={handlePreviousAssetPage} type="button"><ArrowLeft /> Previous</button>
+                    <span>Page {assetCursorHistory.length + 1}</span>
+                    <button className="secondary-button" disabled={!assetNextCursor} onClick={handleNextAssetPage} type="button">Next <ArrowRight /></button>
+                  </nav>
                 </>
               ) : (
-                <p className="empty-state">Select a Project to browse or create Engineering Assets.</p>
+                <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>Select a Project</h3><p>Choose a Project before browsing or creating Engineering Assets.</p></div>
               )}
             </section>
-
-            <section className="panel detail-panel">
+            <section className={selectedAssetId ? "panel detail-panel asset-detail-sheet is-open" : "panel detail-panel asset-detail-sheet"}>
               <header className="panel-header">
                 <div>
                   <p className="eyebrow">Lifecycle</p>
                   <h2>Asset detail and Revision history</h2>
                 </div>
+                <button aria-label="Close Asset detail" className="icon-button close-detail-button" onClick={() => setSelectedAssetId(null)} type="button"><X /></button>
               </header>
 
               <article className="detail-card notification-card">
