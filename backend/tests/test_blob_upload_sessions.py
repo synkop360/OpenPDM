@@ -31,7 +31,14 @@ from openpdm.infrastructure.database import (
     session_scope,
 )
 from openpdm.infrastructure.settings import Settings
-from openpdm.platform_core.modules.models import Blob, BlobUploadChunk, BlobUploadSession, User
+from openpdm.platform_core.modules.models import (
+    AuditRecord,
+    Blob,
+    BlobUploadChunk,
+    BlobUploadSession,
+    DomainEvent,
+    User,
+)
 from openpdm.platform_core.modules.services import BlobModule
 
 
@@ -407,10 +414,30 @@ def test_s3_duplicate_chunk_checksum_closes_provider_body() -> None:
     assert client.body.closed
 
 
+class DiscardingS3Client:
+    def __init__(self) -> None:
+        self.deleted: list[dict[str, str]] = []
+
+    def delete_object(self, **kwargs: str) -> None:
+        self.deleted.append(kwargs)
+
+
+def test_s3_discard_removes_the_assembled_final_object() -> None:
+    client = DiscardingS3Client()
+    storage = object.__new__(S3CompatibleBlobStorage)
+    storage._bucket = "bucket"
+    storage._client = client
+
+    storage.discard_blob("completed/blob")
+
+    assert client.deleted == [{"Bucket": "bucket", "Key": "completed/blob"}]
+
+
 class ControlledAssemblyStorage(BlobStorage):
     def __init__(self, result: UploadAssemblyResult | None = None, *, fail: bool = False) -> None:
         self.result = result
         self.fail = fail
+        self.discarded: list[str] = []
 
     def put_bytes(self, storage_key: str, content: bytes, media_type: str | None = None) -> None:
         raise AssertionError("legacy method not expected")
@@ -436,6 +463,9 @@ class ControlledAssemblyStorage(BlobStorage):
 
     def cleanup_upload_session(self, session_id: str) -> None:
         return None
+
+    def discard_blob(self, storage_key: str) -> None:
+        self.discarded.append(storage_key)
 
 
 @pytest.mark.parametrize(
@@ -474,6 +504,66 @@ def test_assembly_size_or_storage_failure_keeps_session_recoverable_without_blob
     )
     with session_scope() as db:
         assert db.scalar(select(Blob)) is None
+    if not storage.fail:
+        assert len(storage.discarded) == 1
+
+
+def test_repeated_integrity_mismatch_does_not_accumulate_local_final_objects(
+    tmp_path: Path,
+) -> None:
+    client = build_client(tmp_path)
+    token = register(client, email="owner@example.com")
+    session_id = str(create_session(client, token, checksum_sha256="0" * 64)["id"])
+    assert upload_chunk(client, token, session_id, 0, b"ABCD").status_code == 200
+    assert upload_chunk(client, token, session_id, 1, b"EFGH").status_code == 200
+
+    for _ in range(2):
+        response = client.post(
+            f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token)
+        )
+        assert response.status_code == 409
+
+    bucket_root = tmp_path / "blobs" / "openpdm-blobs"
+    final_files = [
+        path
+        for path in bucket_root.rglob("*")
+        if path.is_file() and "upload-sessions" not in path.parts
+    ]
+    assert final_files == []
+
+
+class CleanupRevalidationSession:
+    """Model a candidate that becomes terminal between discovery and row locking."""
+
+    def __init__(self) -> None:
+        self.scalar_calls = 0
+
+    def scalars(self, statement: object) -> list[str]:
+        return ["session-id"]
+
+    def scalar(self, statement: object) -> None:
+        self.scalar_calls += 1
+        return None
+
+
+class CleanupSpyStorage(ControlledAssemblyStorage):
+    def __init__(self) -> None:
+        super().__init__(UploadAssemblyResult(0, hashlib.sha256(b"").hexdigest()))
+        self.cleaned: list[str] = []
+
+    def cleanup_upload_session(self, session_id: str) -> None:
+        self.cleaned.append(session_id)
+
+
+def test_cleanup_revalidates_each_candidate_after_acquiring_its_lock() -> None:
+    db = CleanupRevalidationSession()
+    storage = CleanupSpyStorage()
+
+    cleaned = BlobModule.cleanup_expired_upload_sessions(db, storage=storage)  # type: ignore[arg-type]
+
+    assert cleaned == 0
+    assert db.scalar_calls == 1
+    assert storage.cleaned == []
 
 
 def test_chunk_stream_rechecks_locked_session_after_concurrent_cancellation(tmp_path: Path) -> None:
@@ -726,6 +816,112 @@ def test_postgresql_simultaneous_upload_and_completion_is_idempotent(
     assert final_files[0].read_bytes() == b"ABCDEFGH"
 
 
+@pytest.mark.parametrize("terminal_command", ["complete", "cancel"])
+def test_postgresql_cleanup_race_preserves_one_terminal_transition(
+    tmp_path: Path, terminal_command: str
+) -> None:
+    if not POSTGRES_TEST_URL.startswith("postgresql"):
+        if os.environ.get("OPENPDM_REQUIRE_POSTGRES_TRANSFER_TEST") == "1":
+            pytest.fail("required PostgreSQL transfer test has no PostgreSQL database URL")
+        pytest.skip("set OPENPDM_TEST_POSTGRES_URL to an isolated PostgreSQL test database")
+
+    os.environ["OPENPDM_DATABASE_URL"] = POSTGRES_TEST_URL
+    os.environ["OPENPDM_S3_ENDPOINT_URL"] = "file://local"
+    os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
+    os.environ["OPENPDM_PLUGIN_PACKAGE_ROOT"] = str(tmp_path / "plugins")
+    os.environ["OPENPDM_PLUGIN_CONFIGURATION_KEY"] = Fernet.generate_key().decode()
+    os.environ["OPENPDM_BLOB_UPLOAD_CHUNK_SIZE_BYTES"] = "4"
+    os.environ["OPENPDM_BLOB_UPLOAD_MAX_SIZE_BYTES"] = "32"
+    reset_blob_storage_cache()
+    dispose_engines()
+    from openpdm.main import create_app
+
+    client = TestClient(create_app())
+    token = register(client, email=f"cleanup-race-{uuid.uuid4()}@example.com")
+    session_id = str(create_session(client, token)["id"])
+    assert upload_chunk(client, token, session_id, 0, b"ABCD").status_code == 200
+    assert upload_chunk(client, token, session_id, 1, b"EFGH").status_code == 200
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        upload_session.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        db.commit()
+
+    storage = LocalFileBlobStorage(str(tmp_path / "blobs"), "openpdm-blobs")
+    barrier = threading.Barrier(2)
+
+    def cleanup() -> int:
+        with session_scope() as db:
+            barrier.wait()
+            cleaned = BlobModule.cleanup_expired_upload_sessions(db, storage=storage)
+            db.commit()
+            return cleaned
+
+    def terminal_request():
+        with TestClient(create_app()) as concurrent_client:
+            barrier.wait()
+            if terminal_command == "complete":
+                return concurrent_client.post(
+                    f"/blobs/upload-sessions/{session_id}/complete", headers=headers(token)
+                )
+            return concurrent_client.delete(
+                f"/blobs/upload-sessions/{session_id}", headers=headers(token)
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        cleanup_future = executor.submit(cleanup)
+        terminal_future = executor.submit(terminal_request)
+        cleaned = cleanup_future.result()
+        terminal_response = terminal_future.result()
+
+    assert cleaned in {0, 1}
+    assert terminal_response.status_code == 410
+    with session_scope() as db:
+        upload_session = db.get(BlobUploadSession, session_id)
+        assert upload_session is not None
+        assert upload_session.status == "expired"
+        assert upload_session.blob_id is None
+        assert db.scalar(select(Blob).where(Blob.id == upload_session.blob_id)) is None
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(BlobUploadChunk)
+                .where(BlobUploadChunk.session_id == session_id)
+            )
+            == 0
+        )
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditRecord)
+                .where(
+                    AuditRecord.action == "blob.upload_session.expired",
+                    AuditRecord.resource_id == session_id,
+                )
+            )
+            == 1
+        )
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(DomainEvent)
+                .where(
+                    DomainEvent.event_type == "blob.upload_session.expired",
+                    DomainEvent.resource_id == session_id,
+                )
+            )
+            == 1
+        )
+    session_path = tmp_path / "blobs" / "openpdm-blobs" / "upload-sessions" / session_id
+    assert not session_path.exists()
+    final_files = [
+        path
+        for path in (tmp_path / "blobs" / "openpdm-blobs").rglob("*")
+        if path.is_file() and "upload-sessions" not in path.parts
+    ]
+    assert final_files == []
+
+
 class PaginatedS3Client:
     def __init__(self) -> None:
         self.deleted: list[str] = []
@@ -779,6 +975,9 @@ class FailingUploadStorage(BlobStorage):
         raise OSError("storage unavailable")
 
     def cleanup_upload_session(self, session_id: str) -> None:
+        return None
+
+    def discard_blob(self, storage_key: str) -> None:
         return None
 
 

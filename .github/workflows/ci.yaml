@@ -54,6 +54,7 @@ jobs:
         run: >-
           uv run pytest
           backend/tests/test_blob_upload_sessions.py::test_postgresql_simultaneous_upload_and_completion_is_idempotent
+          backend/tests/test_blob_upload_sessions.py::test_postgresql_cleanup_race_preserves_one_terminal_transition
           -q
 
       - name: Test backend and architecture boundaries

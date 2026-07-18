@@ -64,6 +64,10 @@ class BlobStorage(ABC):
     def cleanup_upload_session(self, session_id: str) -> None:
         """Remove provider-private temporary storage for a session."""
 
+    @abstractmethod
+    def discard_blob(self, storage_key: str) -> None:
+        """Remove an uncommitted final Blob object after failed completion."""
+
 
 class LocalFileBlobStorage(BlobStorage):
     """Local filesystem-backed blob storage used for tests and local runs."""
@@ -138,6 +142,11 @@ class LocalFileBlobStorage(BlobStorage):
         session_path = self._session_path(session_id)
         if session_path.exists():
             shutil.rmtree(session_path)
+
+    def discard_blob(self, storage_key: str) -> None:
+        target = self._resolve_target(storage_key)
+        if target.exists():
+            target.unlink()
 
 
 class S3CompatibleBlobStorage(BlobStorage):
@@ -290,6 +299,9 @@ class S3CompatibleBlobStorage(BlobStorage):
                 raise RuntimeError(
                     "S3 cleanup pagination response is missing a continuation token."
                 )
+
+    def discard_blob(self, storage_key: str) -> None:
+        self._client.delete_object(Bucket=self._bucket, Key=storage_key)
 
 
 _STORAGE_CACHE: dict[str, BlobStorage] = {}

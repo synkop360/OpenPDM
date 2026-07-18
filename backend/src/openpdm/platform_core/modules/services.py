@@ -2288,46 +2288,51 @@ class BlobModule:
                 upload_session.id, storage_key, expected_numbers
             )
         except (OSError, ValueError) as exc:
+            storage.discard_blob(storage_key)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Upload storage assembly failed."
             ) from exc
-        require(
-            assembled.size_bytes == upload_session.total_size_bytes,
-            "Assembled content size does not match the upload session.",
-            status.HTTP_409_CONFLICT,
-        )
-        require(
-            upload_session.checksum_sha256 is None
-            or assembled.checksum_sha256 == upload_session.checksum_sha256,
-            "Assembled content digest does not match the upload session.",
-            status.HTTP_409_CONFLICT,
-        )
-        blob = Blob(
-            storage_key=storage_key,
-            filename=upload_session.filename,
-            media_type=upload_session.media_type,
-            size_bytes=assembled.size_bytes,
-            checksum_sha256=assembled.checksum_sha256,
-            created_by_user_id=actor.id,
-        )
-        db.add(blob)
-        db.flush()
-        upload_session.blob_id = blob.id
-        upload_session.status = "completed"
-        upload_session.updated_at = utc_now()
-        record_audit(
-            db,
-            actor_user_id=actor.id,
-            action="blob.upload_session.completed",
-            resource_type="blob_upload_session",
-            resource_id=upload_session.id,
-        )
-        emit_event(
-            db,
-            event_type="blob.upload_session.completed",
-            resource_type="blob_upload_session",
-            resource_id=upload_session.id,
-        )
+        try:
+            require(
+                assembled.size_bytes == upload_session.total_size_bytes,
+                "Assembled content size does not match the upload session.",
+                status.HTTP_409_CONFLICT,
+            )
+            require(
+                upload_session.checksum_sha256 is None
+                or assembled.checksum_sha256 == upload_session.checksum_sha256,
+                "Assembled content digest does not match the upload session.",
+                status.HTTP_409_CONFLICT,
+            )
+            blob = Blob(
+                storage_key=storage_key,
+                filename=upload_session.filename,
+                media_type=upload_session.media_type,
+                size_bytes=assembled.size_bytes,
+                checksum_sha256=assembled.checksum_sha256,
+                created_by_user_id=actor.id,
+            )
+            db.add(blob)
+            db.flush()
+            upload_session.blob_id = blob.id
+            upload_session.status = "completed"
+            upload_session.updated_at = utc_now()
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="blob.upload_session.completed",
+                resource_type="blob_upload_session",
+                resource_id=upload_session.id,
+            )
+            emit_event(
+                db,
+                event_type="blob.upload_session.completed",
+                resource_type="blob_upload_session",
+                resource_id=upload_session.id,
+            )
+        except Exception:
+            storage.discard_blob(storage_key)
+            raise
         return upload_session
 
     @staticmethod
@@ -2364,17 +2369,33 @@ class BlobModule:
 
     @staticmethod
     def cleanup_expired_upload_sessions(db: Session, *, storage: BlobStorage) -> int:
-        sessions = list(
+        cutoff = utc_now()
+        candidate_ids = list(
             db.scalars(
-                select(BlobUploadSession).where(
+                select(BlobUploadSession.id).where(
                     and_(
                         BlobUploadSession.status == "active",
-                        BlobUploadSession.expires_at <= utc_now(),
+                        BlobUploadSession.expires_at <= cutoff,
                     )
                 )
             )
         )
-        for upload_session in sessions:
+        cleaned = 0
+        for session_id in candidate_ids:
+            upload_session = db.scalar(
+                select(BlobUploadSession)
+                .where(
+                    and_(
+                        BlobUploadSession.id == session_id,
+                        BlobUploadSession.status == "active",
+                        BlobUploadSession.expires_at <= cutoff,
+                    )
+                )
+                .with_for_update(skip_locked=True)
+                .execution_options(populate_existing=True)
+            )
+            if upload_session is None:
+                continue
             storage.cleanup_upload_session(upload_session.id)
             db.execute(
                 delete(BlobUploadChunk).where(BlobUploadChunk.session_id == upload_session.id)
@@ -2394,7 +2415,8 @@ class BlobModule:
                 resource_type="blob_upload_session",
                 resource_id=upload_session.id,
             )
-        return len(sessions)
+            cleaned += 1
+        return cleaned
 
 
 class AssetsModule:
