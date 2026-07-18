@@ -31,6 +31,7 @@ The scaffold validates the identity and manifest, generates Extension API v1 Pyt
 
 * `asset_provider` returns generic Asset lifecycle commands. The Platform Core reauthorizes and executes them through the Assets public interface.
 * `metadata_provider` returns generic metadata for the requested Asset, Revision or Representation. A provider cannot redirect a contribution to another target.
+* `option_provider` returns bounded, declarative option sets for a named context. Clients render the returned labels and values as untrusted text; plugins cannot inject markup, scripts or executable UI code.
 * `event_handler` acknowledges declared, committed domain events. Delivery is ordered per plugin, at least once and retried three times, so handlers must be idempotent.
 
 Plugins never receive database sessions, repositories, Platform Module interfaces, object-storage credentials or ambient host access.
@@ -52,7 +53,7 @@ The end-to-end test demonstrates the complete journey:
 uv run pytest backend/tests/test_reference_plugin_e2e.py -v
 ```
 
-For a Community Plugin API example with configurable generic Asset categories, see [`plugins/dummy-categories/`](../plugins/dummy-categories/README.md). It exercises Asset Provider, Metadata Provider and event-hook behavior without adding category semantics to the Platform Core.
+For a Community Plugin API example with configurable generic Asset categories, see [`plugins/dummy-categories/`](../plugins/dummy-categories/README.md). It exercises Asset Provider, Metadata Provider, Option Provider and event-hook behavior without adding category semantics to the Platform Core. The Web UI discovers its running providers through `GET /providers`, requests the `asset.category` option context, and submits the selected value as ordinary provider input.
 
 ## Administrator Journey
 
@@ -61,11 +62,13 @@ For a Community Plugin API example with configurable generic Asset categories, s
 3. Configure it through `PUT /plugins/{plugin_id}/configuration`.
 4. Enable it through `POST /plugins/{plugin_id}/state`.
 5. Inspect lifecycle diagnostics and event deliveries through the corresponding `GET` routes.
-6. Invoke approved providers through their public application API routes.
+6. Discover enabled, running public providers through `GET /providers`, then invoke only a returned capability through its public application API route. Option Providers use `POST /plugins/{plugin_id}/providers/options`; Metadata and Asset Providers have separate routes.
 7. Upgrade a disabled plugin through `PUT /plugins/{plugin_id}/package`. The package identity must match, configuration is cleared for revalidation, and the replacement remains disabled.
 8. Disable and remove a plugin through `DELETE /plugins/{plugin_id}`. Content-addressed package evidence remains in immutable storage.
 
 Use `/docs` on a running backend for exact request schemas. The legacy `POST /plugins` route never installs code.
+
+Validated packages must remain available at `OPENPDM_PLUGIN_PACKAGE_ROOT`. Docker Compose mounts the persistent `plugin-packages` volume at this location. If a lifecycle record exists but its approved package is missing, invocation fails with `409 Conflict`; restore the exact package or reinstall/upgrade it through the authenticated lifecycle API rather than placing unverified files into storage.
 
 ## Compatibility
 

@@ -46,6 +46,7 @@ flowchart TD
     PluginPackages[("Immutable plugin packages")]
     Worker["Sandboxed Wasmtime worker"]
     Extension["Extension API v1"]
+    ProviderDiscovery["Provider discovery and invocation API"]
 
     WebUI --> App
     Desktop --> App
@@ -63,6 +64,7 @@ flowchart TD
     Router --> Metadata
     Router --> Search
     Router --> Plugins
+    Router --> ProviderDiscovery
 
     Auth --> SQLA
     Org --> SQLA
@@ -76,6 +78,8 @@ flowchart TD
     Search --> SQLA
     Plugins --> SQLA
     Plugins --> PluginPackages
+    Plugins --> Worker
+    ProviderDiscovery --> Plugins
     PluginPackages --> Worker
     Worker --> Extension
     Extension --> Assets

@@ -17,6 +17,8 @@ flowchart LR
 
 Every invocation uses a fresh Wasmtime Store with bounded fuel, memory, tables, instances, request size, response size and wall-clock duration. The linker exposes no WASI filesystem, network, process, environment, clock or random capabilities. Unknown imports fail activation.
 
+Option Provider output is declarative data, not UI code. The Extension API bounds option-set and item counts and validates text lengths. Clients treat labels and values as untrusted text and never execute plugin-provided HTML, JavaScript, templates or component definitions.
+
 The separate worker protects Platform Core memory from ordinary guest failures. Wasmtime and `componentize-py` remain security-sensitive dependencies and must be updated deliberately. The sandbox does not replace operating-system hardening or guarantee the absence of runtime vulnerabilities.
 
 ## Administration And Secrets
@@ -33,9 +35,12 @@ Inspect `GET /plugins/{plugin_id}`:
 * `failed` with a fuel diagnostic: increase the bounded fuel setting only after reviewing the component;
 * `failed` with an import diagnostic: the component requests an unsupported host capability;
 * package-integrity failure: restore the originally approved immutable package or reinstall it;
+* `409 Conflict` reporting a missing package: restore the approved package storage volume, or reinstall/upgrade the same plugin through the authenticated package API;
 * configuration decryption failure: restore the deployment key; do not overwrite encrypted values blindly.
 
 Inspect `GET /plugins/{plugin_id}/event-deliveries` for attempt counts and sanitized errors. A failed event does not roll back the originating Platform Core transaction. Delivery is at least once, so duplicate handling is a plugin responsibility.
+
+Back up the package store together with PostgreSQL. The database contains lifecycle records and digests, while `OPENPDM_PLUGIN_PACKAGE_ROOT` contains the validated immutable components required to activate and invoke those records. Docker Compose provides the named `plugin-packages` volume; rebuilding an image must not replace that volume.
 
 ## Incident Response
 

@@ -116,7 +116,7 @@ flowchart LR
     Extension --> Core["Platform Core"]
 ```
 
-Official Plugins and Community Plugins use the same Extension API, WIT world, package validation and Wasmtime sandbox. The application layer reauthorizes provider results through owning Platform Module public interfaces. Plugins never receive privileged internal access.
+Official Plugins and Community Plugins use the same Extension API, WIT world, package validation and Wasmtime sandbox. Clients discover only enabled, running Asset, Metadata and Option Providers through the public application API. Option Providers contribute bounded declarative values, never executable UI. The application layer reauthorizes provider results through owning Platform Module public interfaces. Plugins never receive privileged internal access.
 
 ## Architectural Invariants
 
