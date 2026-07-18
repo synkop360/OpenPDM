@@ -1528,12 +1528,15 @@ function OpenPdmApp() {
     transferOperation.current += 1;
     activeTransferOperation.current?.controller.abort();
     activeTransferOperation.current = null;
-    if (session.data?.token && selectedAssetId) {
-      const recovery = loadTransferRecovery(session.data.user.id, selectedAssetId);
-      if (recovery) {
-        try { await cancelBlobUploadSession(session.data.token, recovery.sessionId); } catch { /* Expiry is terminal too. */ }
-        clearTransferRecovery(session.data.user.id, selectedAssetId);
-      }
+    const userId = session.data?.user.id;
+    const token = session.data?.token;
+    const assetId = selectedAssetId;
+    const recovery = userId && assetId ? loadTransferRecovery(userId, assetId) : null;
+    if (userId && assetId) clearTransferRecovery(userId, assetId);
+    if (token && recovery) {
+      void cancelBlobUploadSession(token, recovery.sessionId).catch(() => {
+        // Local cancellation is terminal; remote expiry or an already-finished session is equivalent.
+      });
     }
     setTransfer((current) => ({ ...current, phase: "cancelled", message: "The upload session was cancelled.",
       blob: null, recovery: null }));
@@ -1544,13 +1547,15 @@ function OpenPdmApp() {
     transferOperation.current += 1;
     activeTransferOperation.current?.controller.abort();
     activeTransferOperation.current = null;
-    if (selectedAssetId) {
-      const userId = session.data?.user.id;
-      const recovery = userId ? loadTransferRecovery(userId, selectedAssetId) : null;
-      if (recovery && session.data?.token) {
-        try { await cancelBlobUploadSession(session.data.token, recovery.sessionId); } catch { /* Terminal sessions only need local cleanup. */ }
-      }
-      if (userId) clearTransferRecovery(userId, selectedAssetId);
+    const userId = session.data?.user.id;
+    const token = session.data?.token;
+    const assetId = selectedAssetId;
+    const recovery = userId && assetId ? loadTransferRecovery(userId, assetId) : null;
+    if (userId && assetId) clearTransferRecovery(userId, assetId);
+    if (recovery && token) {
+      void cancelBlobUploadSession(token, recovery.sessionId).catch(() => {
+        // Discard is local and immediate; a delayed terminal response cannot own current UI state.
+      });
     }
     setUploadForm((current) => ({ ...current, file: null }));
     setTransfer({ phase: "idle", receivedBytes: 0, totalBytes: 0, message: null,

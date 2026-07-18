@@ -323,7 +323,7 @@ describe("App", () => {
             expires_at: "2026-07-19T00:00:00Z", created_at: "2026-07-18T00:00:00Z",
             updated_at: "2026-07-18T00:00:00Z",
             blob: { id: "blob-recovered", storage_key: "blob-recovered", filename: "native.fcstd",
-              media_type: "application/octet-stream", size_bytes: 1234, checksum_sha256: "abc",
+              media_type: "application/octet-stream", size_bytes: 1234, checksum_sha256: "a".repeat(64),
               created_at: "2026-07-18T00:00:00Z" },
           });
         }

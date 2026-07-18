@@ -32,6 +32,11 @@ function session(overrides: Partial<BlobUploadSession> = {}): BlobUploadSession 
   };
 }
 
+const completedBlob = {
+  id: "blob-1", storage_key: "blobs/blob-1", filename: file.name, media_type: file.type,
+  size_bytes: file.size, checksum_sha256: "a".repeat(64), created_at: "2026-07-18T00:00:00Z",
+};
+
 describe("resumableUpload", () => {
   beforeEach(() => window.sessionStorage.clear());
 
@@ -54,7 +59,8 @@ describe("resumableUpload", () => {
         createSession: vi.fn(),
         getSession: vi.fn().mockResolvedValue(session()),
         putChunk,
-        completeSession: vi.fn().mockResolvedValue(session({ status: "completed", blob: { id: "blob-1" } as never })),
+        completeSession: vi.fn().mockResolvedValue(session({ status: "completed", received_bytes: 10,
+          received_chunk_numbers: [0, 1, 2], blob: completedBlob })),
         cancelSession: vi.fn(),
       },
       onProgress: progress,
@@ -77,7 +83,7 @@ describe("resumableUpload", () => {
       })),
       getSession: vi.fn(), putChunk: networkPut,
       completeSession: vi.fn().mockResolvedValue(session({ chunk_size_bytes: file.size, status: "completed",
-        received_bytes: file.size, received_chunk_numbers: [0], blob: { id: "blob-1" } as never })),
+        received_bytes: file.size, received_chunk_numbers: [0], blob: completedBlob })),
       cancelSession: vi.fn(),
     };
     await resumableUpload({ token: "token", userId: "user-1", assetId: "asset-1", file, api });
@@ -94,7 +100,8 @@ describe("resumableUpload", () => {
       createSession: vi.fn(), getSession: vi.fn().mockResolvedValue(session({
         received_bytes: file.size, received_chunk_numbers: [0, 1, 2],
       })), putChunk: vi.fn(),
-      completeSession: vi.fn().mockResolvedValue(session({ status: "completed", blob: { id: "blob-1" } as never })),
+      completeSession: vi.fn().mockResolvedValue(session({ status: "completed", received_bytes: 10,
+        received_chunk_numbers: [0, 1, 2], blob: completedBlob })),
       cancelSession: vi.fn(),
     };
     await resumableUpload({ token: "token", userId: "user-1", assetId: "asset-1", file, api,
@@ -106,7 +113,7 @@ describe("resumableUpload", () => {
 
   it("reuses a completed recovered session without uploading or completing again", async () => {
     const completed = session({ status: "completed", received_bytes: file.size,
-      received_chunk_numbers: [0, 1, 2], blob: { id: "blob-1" } as never });
+      received_chunk_numbers: [0, 1, 2], blob: completedBlob });
     const api = { createSession: vi.fn(), getSession: vi.fn().mockResolvedValue(completed),
       putChunk: vi.fn(), completeSession: vi.fn(), cancelSession: vi.fn() };
     const result = await resumableUpload({ token: "token", userId: "user-1", assetId: "asset-1", file, api,
@@ -144,7 +151,7 @@ describe("resumableUpload", () => {
     await vi.waitFor(() => expect(api.completeSession).toHaveBeenCalledOnce());
     controller.abort();
     resolveCompletion(session({ status: "completed", received_bytes: file.size,
-      received_chunk_numbers: [0, 1, 2], blob: { id: "blob-1" } as never }));
+      received_chunk_numbers: [0, 1, 2], blob: completedBlob }));
     await expect(transfer).rejects.toMatchObject({ name: "AbortError" });
   });
 
@@ -180,5 +187,26 @@ describe("resumableUpload", () => {
         putChunk: vi.fn(), completeSession: vi.fn(), cancelSession: vi.fn() } }))
       .rejects.toThrow("Choose a non-empty file");
     expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["null chunk list", { received_chunk_numbers: null }],
+    ["unsafe session id", { id: "../session" }],
+    ["unknown status", { status: "unknown" }],
+    ["fractional index", { received_chunk_numbers: [0, 1.5] }],
+    ["duplicate indices", { received_bytes: 8, received_chunk_numbers: [0, 0] }],
+    ["fractional byte count", { received_bytes: 4.5 }],
+    ["partial completion", { status: "completed", blob: completedBlob }],
+    ["empty completed blob", { status: "completed", received_bytes: 10,
+      received_chunk_numbers: [0, 1, 2], blob: {} }],
+    ["unsafe completed blob id", { status: "completed", received_bytes: 10,
+      received_chunk_numbers: [0, 1, 2], blob: { ...completedBlob, id: "../blob" } }],
+  ])("rejects corrupt %s contracts with a controlled transfer error", async (_label, corrupt) => {
+    const api = { createSession: vi.fn().mockResolvedValue(corrupt === null ? corrupt : session(corrupt as never)),
+      getSession: vi.fn(), putChunk: vi.fn(), completeSession: vi.fn(), cancelSession: vi.fn() };
+    await expect(resumableUpload({ token: "token", userId: "user-1", assetId: "asset-1", file, api }))
+      .rejects.toMatchObject({ name: "NonResumableTransferError" });
+    expect(window.sessionStorage.length).toBe(0);
+    expect(api.putChunk).not.toHaveBeenCalled();
   });
 });

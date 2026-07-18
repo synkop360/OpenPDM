@@ -105,39 +105,65 @@ export class NonResumableTransferError extends Error {
 }
 
 function validateSession(
-  session: BlobUploadSession,
+  value: unknown,
   file: File,
   expected?: { id: string; chunkSize: number },
 ): BlobUploadSession {
+  if (!value || typeof value !== "object") {
+    throw new NonResumableTransferError("The upload session returned an invalid contract.");
+  }
+  const session = value as Record<string, unknown>;
+  const safeId = (candidate: unknown) => typeof candidate === "string" &&
+    /^[A-Za-z0-9_-]{1,128}$/.test(candidate);
+  const positiveSafeInteger = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) > 0;
+  const nonnegativeSafeInteger = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) >= 0;
+  if (!safeId(session.id) || typeof session.filename !== "string" || typeof session.media_type !== "string" ||
+      !positiveSafeInteger(session.total_size_bytes) || !positiveSafeInteger(session.chunk_size_bytes) ||
+      !nonnegativeSafeInteger(session.received_bytes) || !Array.isArray(session.received_chunk_numbers) ||
+      !["active", "completed", "cancelled", "expired"].includes(String(session.status))) {
+    throw new NonResumableTransferError("The upload session returned an invalid contract.");
+  }
+  const validated = session as unknown as BlobUploadSession;
   const mediaType = file.type || "application/octet-stream";
-  if (session.filename !== file.name || session.media_type !== mediaType || session.total_size_bytes !== file.size) {
+  if (validated.filename !== file.name || validated.media_type !== mediaType || validated.total_size_bytes !== file.size) {
     throw new NonResumableTransferError("The saved upload session does not match the selected file.");
   }
-  if (expected && (session.id !== expected.id || session.chunk_size_bytes !== expected.chunkSize)) {
+  if (expected && (validated.id !== expected.id || validated.chunk_size_bytes !== expected.chunkSize)) {
     throw new NonResumableTransferError("The upload session identity changed during transfer.");
   }
-  if (!Number.isFinite(session.chunk_size_bytes) || session.chunk_size_bytes <= 0 ||
-      !Number.isFinite(session.received_bytes) || session.received_bytes < 0 ||
-      session.received_bytes > session.total_size_bytes) {
+  if (validated.received_bytes > validated.total_size_bytes) {
     throw new NonResumableTransferError("The upload session returned invalid progress data.");
   }
-  const totalChunks = Math.ceil(session.total_size_bytes / session.chunk_size_bytes);
-  const indices = session.received_chunk_numbers;
+  const totalChunks = Math.ceil(validated.total_size_bytes / validated.chunk_size_bytes);
+  const indices = validated.received_chunk_numbers;
   if (new Set(indices).size !== indices.length || indices.some((value) =>
     !Number.isInteger(value) || value < 0 || value >= totalChunks)) {
     throw new NonResumableTransferError("The upload session returned invalid chunk data.");
   }
   const expectedReceivedBytes = indices.reduce((sum, number) => {
-    const start = number * session.chunk_size_bytes;
-    return sum + Math.min(session.chunk_size_bytes, session.total_size_bytes - start);
+    const start = number * validated.chunk_size_bytes;
+    return sum + Math.min(validated.chunk_size_bytes, validated.total_size_bytes - start);
   }, 0);
-  if (session.received_bytes !== expectedReceivedBytes) {
+  if (validated.received_bytes !== expectedReceivedBytes) {
     throw new NonResumableTransferError("The upload session returned invalid progress data.");
   }
-  if ((session.status === "completed") !== Boolean(session.blob)) {
+  if (validated.status === "completed") {
+    const blob = validated.blob;
+    const allChunks = indices.length === totalChunks && indices.every((_, index) => indices.includes(index));
+    if (validated.received_bytes !== validated.total_size_bytes || !allChunks || !blob || typeof blob !== "object") {
+      throw new NonResumableTransferError("The upload session returned an invalid completion state.");
+    }
+    const record = blob as Record<string, unknown>;
+    if (!safeId(record.id) || typeof record.storage_key !== "string" || !record.storage_key ||
+        record.filename !== file.name || record.media_type !== mediaType || record.size_bytes !== file.size ||
+        typeof record.checksum_sha256 !== "string" || !/^[a-fA-F0-9]{64}$/.test(record.checksum_sha256) ||
+        typeof record.created_at !== "string" || !record.created_at) {
+      throw new NonResumableTransferError("The upload session returned an invalid Blob contract.");
+    }
+  } else if (validated.blob !== null) {
     throw new NonResumableTransferError("The upload session returned an invalid completion state.");
   }
-  return session;
+  return validated;
 }
 
 async function putChunkWithRetry(
