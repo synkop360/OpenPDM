@@ -2110,14 +2110,14 @@ function OpenPdmApp() {
             ) : null}
 
             {view === "project" ? (
-              <>
-                <section className="panel project-header content-span">
+              <section aria-labelledby="project-workspace-title" className="panel project-workspace content-span">
+                <header className="project-header">
                   <div className="project-heading-row">
                     <div>
                       <p className="breadcrumb">
                         Projects <ChevronRight size={14} /> {projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project"}
                       </p>
-                      <h2>{projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project workspace"}</h2>
+                      <h2 id="project-workspace-title">{projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project workspace"}</h2>
                       <p className="muted-text">
                         {projects.data.find((item) => item.id === selectedProjectId)?.description || "Engineering collaboration workspace"}
                       </p>
@@ -2142,7 +2142,7 @@ function OpenPdmApp() {
                       </button>
                     ))}
                   </nav>
-                </section>
+                </header>
 
                 {projectTab === "overview" ? (
                   <section className="panel content-span project-overview">
@@ -2889,7 +2889,7 @@ function OpenPdmApp() {
             </section>
                   </>
                 ) : null}
-              </>
+              </section>
             ) : null}
           </section>
         </>

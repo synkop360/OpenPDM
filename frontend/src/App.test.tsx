@@ -335,6 +335,9 @@ describe("App", () => {
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
     expect(window.location.pathname).toBe("/projects/project-1/overview");
+    const projectWorkspace = await screen.findByRole("region", { name: "Rocket" });
+    expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Recent Assets" }));
+    expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Collaboration feed" }));
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     expect(window.location.pathname).toBe("/projects/project-1/assets");
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();

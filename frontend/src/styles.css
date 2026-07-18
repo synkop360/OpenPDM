@@ -899,7 +899,19 @@ select {
 }
 
 .project-header {
+  grid-column: 1 / -1;
   padding-bottom: 0;
+}
+
+.project-workspace {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.project-workspace > .content-span {
+  grid-column: 1 / -1;
 }
 
 .project-heading-row,
@@ -1038,6 +1050,16 @@ select {
   }
 
   .content-span {
+    grid-column: auto;
+  }
+
+  .project-workspace {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .project-workspace > .content-span,
+  .project-header {
     grid-column: auto;
   }
 
