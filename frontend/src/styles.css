@@ -506,6 +506,36 @@ textarea {
   gap: 10px;
 }
 
+.transfer-status {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.transfer-status [role="status"] {
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-status progress {
+  accent-color: var(--accent);
+  inline-size: 100%;
+}
+
+.transfer-status-failed,
+.transfer-status-permission {
+  background: var(--soft);
+  border-color: var(--warning);
+}
+
+.transfer-status-success {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .collaboration-pill {
   text-transform: uppercase;
 }

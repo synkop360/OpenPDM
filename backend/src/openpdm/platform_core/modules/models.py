@@ -5,7 +5,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openpdm.infrastructure.database import Base
@@ -152,7 +162,7 @@ class Blob(Base):
     storage_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     filename: Mapped[str] = mapped_column(String(255))
     media_type: Mapped[str] = mapped_column(String(255))
-    size_bytes: Mapped[int] = mapped_column(Integer)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
     checksum_sha256: Mapped[str] = mapped_column(String(64), index=True)
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -161,6 +171,57 @@ class Blob(Base):
 
     created_by: Mapped[User] = relationship()
     representations: Mapped[list["Representation"]] = relationship(back_populates="blob")
+
+
+class BlobUploadSession(Base):
+    """Resumable Blob transfer owned by the Blobs Platform Module."""
+
+    __tablename__ = "blob_upload_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    media_type: Mapped[str] = mapped_column(String(255))
+    total_size_bytes: Mapped[int] = mapped_column(BigInteger)
+    checksum_sha256: Mapped[str | None] = mapped_column(String(64))
+    chunk_size_bytes: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16), default="active", index=True)
+    blob_id: Mapped[str | None] = mapped_column(ForeignKey("blobs.id"), index=True)
+    cleanup_pending: Mapped[bool] = mapped_column(default=False, index=True)
+    cleanup_error: Mapped[str | None] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    owner: Mapped[User] = relationship()
+    asset: Mapped["Asset"] = relationship()
+    blob: Mapped[Blob | None] = relationship()
+    chunks: Mapped[list["BlobUploadChunk"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+
+
+class BlobUploadChunk(Base):
+    """Verified metadata for one persisted upload-session chunk."""
+
+    __tablename__ = "blob_upload_chunks"
+    __table_args__ = (UniqueConstraint("session_id", "chunk_number"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("blob_upload_sessions.id"), index=True)
+    chunk_number: Mapped[int] = mapped_column(Integer)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    checksum_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, nullable=False
+    )
+
+    session: Mapped[BlobUploadSession] = relationship(back_populates="chunks")
 
 
 class Asset(Base):

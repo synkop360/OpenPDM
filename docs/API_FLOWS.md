@@ -345,6 +345,39 @@ sequenceDiagram
     API-->>UI: new revision created
 ```
 
+## Resumable Blob Upload Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as Public API
+    participant Blob as Blobs Platform Module
+    participant DB as Upload-session metadata
+    participant Store as BlobStorage
+
+    Client->>API: POST /blobs/upload-sessions (asset_id + file contract)
+    API->>Blob: create_upload_session(actor, asset context, contract)
+    Blob->>DB: authorize current Asset/Project write access
+    Blob->>DB: persist active session
+    Blob->>Store: initialize provider-private session storage
+    API-->>Client: opaque session view and chunk size
+
+    loop Out-of-order chunks, including identical retries
+        Client->>API: PUT chunk(number, octet-stream)
+        API->>Blob: reauthorize and validate chunk contract
+        Blob->>Store: persist idempotent chunk
+        Blob->>DB: persist chunk checksum and size
+        API-->>Client: updated progress
+    end
+
+    Client->>API: POST complete
+    API->>Blob: reauthorize and verify all chunks
+    Blob->>Store: ordered assembly and integrity result
+    Blob->>DB: create Blob only after verification
+    API-->>Client: completed session with client-safe Blob metadata
+    API->>Store: delete provider-private chunks after DB commit
+```
+
 ## Collaboration State And Conflict Flow
 
 This sequence focuses on the lock-based collaboration rules currently enforced by the backend.

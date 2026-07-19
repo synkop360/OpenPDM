@@ -62,7 +62,7 @@ The backend now exposes a concrete API surface for:
 * Organizations, Projects, membership and role administration (`/organizations`, `/projects`)
 * Assets, Revisions, collaboration and notifications (`/assets/*`, `/notifications`)
 * paged operational collections and private saved Engineering Asset views (`*/page`, `/users/me/project-views`)
-* blob upload and download (`/blobs/*`)
+* legacy multipart and bounded resumable Blob transfer (`/blobs/*`)
 * relationships, references and bounded graph queries (`/relationships`, `/references`, `/assets/*/graph`)
 * metadata, search and the governed Plugin Platform (`/metadata`, `/search/assets`, `/plugins`)
 
@@ -73,6 +73,37 @@ audited. Successful graph reads are not audited by default. Set
 `OPENPDM_AUDIT_GRAPH_QUERIES=true` to persist `GraphQueryExecuted` audit records
 and domain events for successful graph queries. Security-sensitive denied reads
 remain audited regardless of this setting.
+
+## Resumable Blob Upload Limits
+
+The Blobs Platform Module owns resumable upload-session validation, progress,
+completion, expiry, and cleanup. Storage adapters keep their provider-private
+temporary object layout behind the BlobStorage interface.
+
+| Environment variable | Default | Meaning |
+| --- | --- | --- |
+| `OPENPDM_BLOB_UPLOAD_CHUNK_SIZE_BYTES` | `5242880` | Required non-final chunk size; must be greater than zero. |
+| `OPENPDM_BLOB_UPLOAD_MAX_SIZE_BYTES` | `5368709120` | Maximum total upload-session size; must be greater than zero. |
+| `OPENPDM_BLOB_UPLOAD_SESSION_TTL_SECONDS` | `86400` | Active-session lifetime before cleanup and expiry; must be greater than zero. |
+
+No Blob record is created until every chunk is present and the assembled content
+matches the declared size and optional SHA-256 digest.
+
+Upload sessions are bound to an Engineering Asset. Every operation checks the
+session owner and current Project permission again, so membership revocation
+takes effect during an in-progress transfer. Creating a session also performs
+bounded cleanup passes (up to 25 expired sessions and 25 completed sessions
+whose provider cleanup is pending), providing a production caller without adding
+a scheduler. Remaining candidates are handled by later session creation
+requests. Internal cleanup retries do not depend on the original user's current
+membership because they only remove provider-private temporary chunks.
+
+After completion commits the Blob, the backend deletes provider-private chunks.
+A provider cleanup failure is recorded as
+`blob.upload_session.cleanup_failed`, leaves the session marked for cleanup, and
+does not invalidate the committed Blob or change completion idempotency. A
+repeated completion request retries that cleanup. Provider object keys and
+cleanup diagnostics are never returned in public Blob responses.
 
 ## Local Backend-only Development
 

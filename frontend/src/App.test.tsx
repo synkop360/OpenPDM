@@ -21,6 +21,7 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     window.history.replaceState({}, "", "/");
     vi.restoreAllMocks();
   });
@@ -51,10 +52,20 @@ describe("App", () => {
 
   it("loads the authenticated workspace and revision history from the public API", async () => {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    window.localStorage.setItem("openpdm.assetId", "asset-1");
+    window.sessionStorage.setItem("openpdm.transfer.user-1.asset-1", JSON.stringify({
+      userId: "user-1", assetId: "asset-1", sessionId: "session-1", blobId: "blob-recovered",
+      fileName: "native.fcstd", fileSize: 1234, fileType: "application/octet-stream",
+      fileLastModified: 42,
+    }));
+    window.sessionStorage.setItem("openpdm.transfer.user-2.asset-1", JSON.stringify({
+      userId: "user-2", assetId: "asset-1", sessionId: "other-session", blobId: null,
+      fileName: "other.step", fileSize: 5, fileType: "application/step", fileLastModified: 1,
+    }));
 
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input);
         if (path === "/foundation") {
           return jsonResponse({
@@ -164,7 +175,6 @@ describe("App", () => {
                   created_at: "2026-01-02T00:00:00",
                   blob: {
                     id: "blob-1",
-                    storage_key: "blob-1",
                     filename: "native.fcstd",
                     media_type: "application/octet-stream",
                     size_bytes: 1234,
@@ -261,11 +271,11 @@ describe("App", () => {
         if (path === "/assets/asset-1/collaboration-state") {
           return jsonResponse({
             asset_id: "asset-1",
-            state: "available",
-            can_checkin: false,
+            state: "locked",
+            can_checkin: true,
             can_unlock: false,
             can_force_unlock: false,
-            lock: null,
+            lock: { owner_user_id: "user-1" },
           });
         }
         if (path === "/assets/asset-1/timeline") {
@@ -303,6 +313,23 @@ describe("App", () => {
         }
         if (path === "/metadata/asset/asset-1") {
           return jsonResponse([]);
+        }
+        if (path === "/blobs/upload-sessions/session-1") {
+          return jsonResponse({
+            id: "session-1", asset_id: "asset-1", filename: "native.fcstd", media_type: "application/octet-stream",
+            total_size_bytes: 1234, checksum_sha256: null, chunk_size_bytes: 512,
+            status: "completed", received_bytes: 1234, received_chunk_numbers: [0, 1, 2],
+            expires_at: "2026-07-19T00:00:00Z", created_at: "2026-07-18T00:00:00Z",
+            updated_at: "2026-07-18T00:00:00Z",
+            blob: { id: "blob-recovered", filename: "native.fcstd",
+              media_type: "application/octet-stream", size_bytes: 1234, checksum_sha256: "a".repeat(64),
+              created_at: "2026-07-18T00:00:00Z" },
+          });
+        }
+        if (path === "/assets/asset-1/checkin" && init?.method === "POST") {
+          return jsonResponse({ id: "revision-2", asset_id: "asset-1", number: 2,
+            comment: "Recovered transfer", created_by_user_id: "user-1",
+            created_at: "2026-07-18T00:00:00Z", representations: [] }, 201);
         }
         if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
           return jsonResponse([
@@ -353,10 +380,42 @@ describe("App", () => {
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(await screen.findByText("Resume transfer")).toBeInTheDocument();
+    const recoveredFile = new File([new Uint8Array(1234)], "native.fcstd", {
+      type: "application/octet-stream", lastModified: 42,
+    });
+    fireEvent.change(screen.getByLabelText("Revision comment"), { target: { value: "Recovered transfer" } });
+    fireEvent.change(screen.getByLabelText("File"), { target: { files: [recoveredFile] } });
+    fireEvent.submit(screen.getByRole("heading", { name: "Check in a new Revision" }).closest("form")!);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) =>
+      String(input) === "/assets/asset-1/checkin")).toBe(true));
+    expect(await screen.findByText("Check-in complete")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("openpdm.transfer.user-1.asset-1")).toBeNull();
+    expect(window.sessionStorage.getItem("openpdm.transfer.user-2.asset-1")).not.toBeNull();
+    const calls = vi.mocked(fetch).mock.calls.map(([input, init]) => [String(input), init?.method ?? "GET"]);
+    expect(calls).toContainEqual(["/blobs/upload-sessions/session-1", "GET"]);
+    expect(calls.some(([path]) => path.includes("/chunks/"))).toBe(false);
   });
 
-  it("navigates to a related asset through the relationship exploration surface", async () => {
+  async function exerciseRelationshipAndDiscardRace(
+    deleteOutcome: "resolve" | "reject", runDiscardRace = true,
+  ): Promise<void> {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    if (runDiscardRace) window.localStorage.setItem("openpdm.assetId", "asset-1");
+    if (runDiscardRace) {
+    window.sessionStorage.setItem("openpdm.transfer.user-1.asset-1", JSON.stringify({
+      userId: "user-1", assetId: "asset-1", sessionId: "old-session", blobId: null,
+      fileName: "wing.step", fileSize: 10, fileType: "application/step", fileLastModified: 1,
+    }));
+    window.sessionStorage.setItem("openpdm.transfer.user-1.asset-2", JSON.stringify({
+      userId: "user-1", assetId: "asset-2", sessionId: "new-session", blobId: null,
+      fileName: "spar.step", fileSize: 20, fileType: "application/step", fileLastModified: 2,
+    }));
+    }
+    let settleDelete!: () => void;
+    const pendingDelete = new Promise<JsonResponse>((resolve, reject) => {
+      settleDelete = () => deleteOutcome === "resolve" ? resolve(jsonResponse(undefined, 204)) : reject(new TypeError("offline"));
+    });
 
     const assetsById = {
       "asset-1": {
@@ -385,8 +444,9 @@ describe("App", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input);
+        if (path === "/blobs/upload-sessions/old-session" && init?.method === "DELETE") return pendingDelete;
         if (path === "/foundation") {
           return jsonResponse({
             name: "OpenPDM",
@@ -603,17 +663,40 @@ describe("App", () => {
     fireEvent.click(projectButtons[0]);
     fireEvent.click(await screen.findByRole("tab", { name: "Assets" }));
     expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
-    const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
-    fireEvent.click(openButtons[0]);
+    if (runDiscardRace) {
+      fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
+      expect(await screen.findByText("Select wing.step to resume the interrupted transfer.")).toBeInTheDocument();
+    } else {
+      const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
+      fireEvent.click(openButtons[0]);
+    }
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
-    expect(
-      await screen.findByText(
-        (_content, element) =>
-          element?.tagName.toLowerCase() === "p" && element.textContent === "Load-bearing support",
-      ),
-    ).toBeInTheDocument();
+    if (!runDiscardRace) {
+      expect(await screen.findByText((_content, element) =>
+        element?.tagName.toLowerCase() === "p" && element.textContent === "Load-bearing support"))
+        .toBeInTheDocument();
+      return;
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input, init]) =>
+      String(input) === "/blobs/upload-sessions/old-session" && init?.method === "DELETE")).toBe(true));
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[1]);
+    expect(await screen.findByText("Select spar.step to resume the interrupted transfer.")).toBeInTheDocument();
+    settleDelete();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText("Select spar.step to resume the interrupted transfer.")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("openpdm.transfer.user-1.asset-2")).toContain("new-session");
+  }
+
+  it("navigates to a related asset through the relationship exploration surface", async () => {
+    await exerciseRelationshipAndDiscardRace("resolve", false);
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
   });
+
+  it.each(["resolve", "reject"] as const)(
+    "keeps the new Asset recovery when an old discard DELETE later %s",
+    async (deleteOutcome) => exerciseRelationshipAndDiscardRace(deleteOutcome),
+  );
 
   it("shows collaboration recovery guidance when checkout is rejected", async () => {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");
