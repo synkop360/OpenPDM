@@ -72,7 +72,6 @@ project.yaml
 
 apply.py
 validate.py
-export.py
 
 requirements.txt
 ```
@@ -102,12 +101,6 @@ Synchronizes GitHub with `project.yaml`.
 The script is idempotent.
 
 Running it multiple times should converge to the same GitHub Project without creating duplicate configured resources.
-
-## export.py
-
-Reserved for future use.
-
-Its objective will be exporting an existing GitHub Project back into `project.yaml`.
 
 ---
 

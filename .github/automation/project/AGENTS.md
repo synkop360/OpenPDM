@@ -69,7 +69,6 @@ Each script has one responsibility.
 
 * validate.py validates.
 * apply.py synchronizes.
-* export.py exports.
 
 Do not merge responsibilities.
 

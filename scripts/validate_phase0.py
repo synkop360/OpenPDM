@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 REQUIRED_PATHS = [
-    ".agents/AGENTS.md",
     "README.md",
     "CONTRIBUTING.md",
     "docs/PROJECT_CHARTER.md",
