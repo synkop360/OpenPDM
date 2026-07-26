@@ -1,0 +1,679 @@
+# OpenPDM Web UI Manual Test Guide
+
+## Primary Navigation
+
+After sign-in, the dark-first responsive Home view greets the user and shows notifications plus available Organizations and Projects. It does not fetch or display Engineering Asset details. Selecting a Project opens `/projects/{project_id}/overview`; routed tabs expose Overview, Assets, Relationships, Collaboration and Members using delivered public APIs.
+
+The sidebar footer opens `/administration/plugins`. Platform Administrators can install or upgrade plugin packages, inspect lifecycle state and diagnostics, load or update deployment-scoped configuration, enable or disable compatible plugins, and remove disabled plugins. Ordinary users receive an explicit access-denied view because Organization and Project roles do not grant platform-wide plugin authority.
+
+At desktop widths, verify the persistent sidebar, compact top bar, Project list and two-column content area. Below the tablet breakpoint, verify that the menu button opens a keyboard-accessible drawer, the scrim and close button dismiss it, and Project tabs remain horizontally usable.
+
+This guide describes how to manually test the current Web UI across the delivered
+Platform Core workflow, membership administration, Phase 2 collaboration slice,
+Phase 3 Asset Graph surface and Phase 4 plugin journey.
+
+The Web UI is a normal consumer of the public application API. It exercises the
+Platform Core through the browser and does not bypass Platform Module
+boundaries.
+
+## Scope
+
+This guide covers the implemented workflow for:
+
+* local user registration
+* local sign-in and sign-out
+* Organization bootstrap
+* Project bootstrap
+* Organization and Project membership administration
+* role assignment and access revocation
+* Engineering Asset creation
+* immutable Revision creation through file upload
+* Blob-backed file download
+* Asset collaboration state visibility
+* Asset checkout and unlock
+* check-in with required revision comment
+* collaboration timeline visibility
+* collaboration conflict feedback in the Web UI
+* in-app collaboration notification visibility and read acknowledgment
+* relationship, reference and bounded graph exploration
+* Platform Administrator plugin lifecycle operations
+* running provider discovery, declarative Asset categories and plugin-provided metadata
+
+This guide does not cover:
+
+* detailed Web UI polish review
+* engineering-specific behavior
+* desktop client behavior
+* desktop synchronization or desktop notifications
+* future collaboration or workflow phases
+
+## Platform Modules Touched by This Workflow
+
+The current browser workflow exercises these Platform Modules:
+
+* Organization
+* Project
+* Assets
+* Blobs
+* Collaboration
+* Relationships
+* Notifications
+* Plugins
+
+It also relies on the public authentication and authorization capabilities
+defined for Phase 1.
+
+## Prerequisites
+
+You need:
+
+* Python 3.12+
+* `uv`
+* Node.js 22+
+* `pnpm`
+* one small local file to upload
+* two browser profiles or two different browsers for multi-user checks
+
+Optional but useful for the multi-user collaboration checks:
+
+* a second local user account
+
+## Verify Membership Administration
+
+1. Register two local users and sign in as the user who owns an Organization and Project.
+2. In **Organization members**, review the role permission summary, search for a member, then add the second registered user by email and assign a role.
+3. Confirm the user appears with their display name, email and selected role.
+4. In **Project members**, select that Organization member and assign a Project role.
+5. Change the Project role, review the current and proposed permission impact before confirming, and confirm the updated role remains after refresh.
+6. Sign in as the second user and confirm the Organization and Project are accessible according to the assigned role.
+7. Remove the user from the Organization and confirm their Project membership and access are revoked.
+8. Confirm a Maintainer cannot manage an Owner and that the final Owner controls are disabled with an explanation until another Owner is assigned.
+
+Expected result:
+
+* Owners and Maintainers can manage non-Owner memberships;
+* only Owners can grant or manage Owner roles;
+* Project candidates come from existing Organization members;
+* every Organization and Project retains at least one Owner;
+* member search and role-impact explanations remain usable at narrow viewport widths.
+
+Install dependencies:
+
+```bash
+python scripts/dev.py install
+```
+
+## Start the Backend
+
+From the repository root:
+
+```bash
+python scripts/dev.py run-backend
+```
+
+Expected result:
+
+* the backend starts on `http://127.0.0.1:8000`
+* `http://127.0.0.1:8000/foundation` returns JSON
+* `http://127.0.0.1:8000/docs` opens the API documentation
+
+## Start the Web UI
+
+In a second terminal:
+
+```bash
+cd frontend
+pnpm run dev
+```
+
+Expected result:
+
+* the Vite development server starts successfully
+* the browser can open the local frontend URL printed by Vite
+* the UI header shows the `OpenPDM` product name
+
+The frontend is configured to call the backend through `import.meta.env.VITE_API_BASE_URL` when that environment variable is set.
+
+When running the frontend separately from the backend, set:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+before starting the frontend.
+
+Without `VITE_API_BASE_URL`, the Vite development proxy forwards public API
+requests to `http://localhost:18000`, matching the Docker Compose host port. If
+the backend is started directly through the local command, start Vite with
+`VITE_API_PROXY_TARGET=http://localhost:8000` instead.
+
+## Test Data Recommendation
+
+Use clearly unique values for each run to avoid confusion.
+
+Suggested pattern:
+
+* user email: `manual-test-<timestamp>@example.com`
+* Organization name: `Manual Test Org <timestamp>`
+* Project name: `Manual Test Project <timestamp>`
+* Engineering Asset name: `Manual Test Asset <timestamp>`
+
+Prepare one small local file for upload, for example:
+
+* a `.txt`
+* a `.pdf`
+* a small image
+
+For the Phase 2 collaboration checks, prepare:
+
+* `sample-a.txt` for the first check-in
+* `sample-b.txt` for a second check-in
+
+## End-to-End Manual Test
+
+### 1. Confirm Initial Anonymous State
+
+1. Open the Web UI in a clean browser tab.
+2. If you already have a stored session, click `Sign out` first and reload.
+
+Expected result:
+
+* the page shows the access panel
+* `Sign in` and `Register` tabs are visible
+* no Organization, Project, or Engineering Asset content is shown yet
+
+Potential artifact to watch for:
+
+* stale session data briefly visible after reload
+
+### 2. Register a Local User
+
+1. Switch to the `Register` tab.
+2. Enter:
+   * display name
+   * email
+   * password
+3. Submit the form.
+
+Expected result:
+
+* registration succeeds
+* the UI signs in automatically
+* a status banner confirms account creation
+* the session card shows the new user name and email
+
+Potential artifacts to watch for:
+
+* duplicate submission creates confusing error feedback
+* the UI remains on the auth form after successful registration
+
+### 3. Create the First Organization
+
+1. In the workspace panel, use `Create your first Organization`.
+2. Enter:
+   * Organization name
+   * slug
+3. Submit the form.
+
+Expected result:
+
+* the Organization is created successfully
+* it becomes selected automatically
+* the Organization card appears in the Organizations list
+* the Project bootstrap form appears
+
+Potential artifacts to watch for:
+
+* slug not matching the entered Organization name intent
+* the new Organization exists but is not selected
+
+### 4. Create the First Project
+
+1. In the same workspace panel, use `Create the first Project`.
+2. Enter:
+   * project name
+   * optional description
+3. Submit the form.
+
+Expected result:
+
+* the Project is created successfully
+* it becomes selected automatically
+* the Project appears in the Projects list
+* the Engineering Asset creation form becomes usable
+
+Potential artifacts to watch for:
+
+* Project list appears empty until a manual refresh
+* wrong Project remains selected after creation
+
+### 5. Create a Generic Engineering Asset
+
+1. Open the Project `Assets` route, expand `Create Engineering Asset`, and use the focused creation form.
+2. Enter:
+   * asset name
+   * optional description
+3. Submit the form.
+
+Expected result:
+
+* the Engineering Asset is created successfully
+* it becomes selected automatically
+* the detail panel shows the Asset name, description, and status
+* the initial status is a generic Phase 1 status such as `draft`
+
+Potential artifacts to watch for:
+
+* asset list updates but detail panel still shows the previous selection
+* blank description renders poorly
+
+### 6. Upload a File Into a New Immutable Revision
+
+1. In the detail panel, use `Upload file into a new Revision`.
+2. Enter:
+   * optional revision comment
+   * optional representation name
+   * a local file
+3. Submit the form.
+
+Expected result:
+
+* the upload succeeds
+* a banner confirms a new immutable Revision was created
+* the revision timeline gains a new Revision entry
+* the Revision shows:
+  * revision number
+  * optional revision comment
+  * Representation name
+  * media type
+  * Blob filename
+* a `Download` button appears for the Representation
+
+Potential artifacts to watch for:
+
+* duplicate Revision cards after upload
+* representation name not defaulting correctly from the selected file
+* upload succeeds but the revision timeline does not refresh
+
+### 7. Download the Uploaded File
+
+1. Click the `Download` button on the uploaded Representation.
+
+Expected result:
+
+* the browser starts a file download
+* the downloaded file name matches the Blob filename shown in the UI
+* the UI shows a banner indicating the download started
+
+Potential artifacts to watch for:
+
+* click does nothing
+* browser opens a blank tab instead of downloading
+* the wrong file name is downloaded
+
+### 8. Verify Session Persistence
+
+1. Refresh the browser tab.
+
+Expected result:
+
+* the session is restored automatically
+* the previously selected Organization remains selected
+* the previously selected Project remains selected
+* the previously selected Engineering Asset remains selected
+* the revision timeline still shows the uploaded Revision
+
+Potential artifacts to watch for:
+
+* visible flicker back to the anonymous state before session restore
+* stored selections restored inconsistently
+
+### 9. Verify Collaboration State on a Fresh Asset
+
+1. Stay on the selected Engineering Asset detail view.
+2. Locate the collaboration state card.
+
+Expected result:
+
+* the collaboration state section is visible
+* the Asset shows `available` before checkout
+* a `Check out` action is available
+* the timeline section is visible even if it is initially short
+
+Potential artifacts to watch for:
+
+* collaboration state missing until a manual reload
+* state text visible but action buttons not synchronized with it
+
+### 10. Check Out the Asset
+
+1. Click `Check out`.
+
+Expected result:
+
+* the action succeeds without a page reload
+* the collaboration state changes to `locked`
+* the lock owner is shown by human display name with the lock timestamp and age
+* the check-in form remains available
+* the timeline gains a lock-related event
+
+Potential artifacts to watch for:
+
+* state stays `available` until a full refresh
+* owner identity or lock age is missing after checkout
+* duplicate lock events appear in the timeline
+
+### 11. Verify Required Comment on Check-In
+
+1. In the check-in form, choose a file but leave the revision comment empty.
+2. Submit the form.
+
+Expected result:
+
+* the check-in is rejected
+* the UI shows a clear error message
+* no partial or empty revision appears in revision history
+* the Asset remains locked by the current user
+
+Potential artifacts to watch for:
+
+* upload appears successful before the error is shown
+* a revision card appears despite the rejected submission
+
+### 12. Complete a Valid Check-In
+
+1. Enter a non-empty revision comment.
+2. Choose `sample-b.txt` or another small file.
+3. Submit the check-in form.
+
+Expected result:
+
+* the check-in succeeds
+* a new immutable Revision appears in revision history
+* the revision comment is visible in the history
+* the collaboration state returns to `available`
+* the timeline gains revision and check-in completion events
+
+Potential artifacts to watch for:
+
+* the new Revision appears but the lock is not released
+* the lock is released but the timeline does not refresh
+* the revision comment is missing from the created Revision
+
+### 13. Verify Lock Contention with a Second User
+
+This check uses two browser sessions. If the second user is not already a member
+of the same Project, add them through the Organization and Project member panels first.
+
+1. In browser A, sign in as user 1 and check out the Asset.
+2. In browser B, sign in as user 2 and open the same Asset.
+3. In browser B, attempt to check out the Asset.
+
+Expected result:
+
+* browser B shows the Asset as locked by another user
+* browser B cannot check in changes
+* the checkout attempt is rejected with clear conflict feedback
+* browser A remains the visible lock owner
+
+Potential artifacts to watch for:
+
+* browser B shows `available` until a manual refresh
+* conflict feedback is too generic to explain next steps
+* browser B is allowed to check out despite the existing lock
+
+### 14. Verify Unlock by the Lock Owner
+
+1. In browser A, while still owning the lock, click `Unlock`.
+
+Expected result:
+
+* the unlock succeeds
+* the collaboration state returns to `available`
+* browser B sees the refreshed available state after reloading the Asset view
+* the timeline gains an unlock event
+
+Potential artifacts to watch for:
+
+* unlock succeeds but browser B still sees a locked state after refresh
+* unlock removes the lock but no timeline event is recorded
+
+### 15. Verify In-App Collaboration Notifications
+
+This check uses the same two browser sessions from the collaboration checks.
+
+1. In browser A, perform a collaboration action that should notify other Project members, for example `Check out` or `Unlock`.
+2. In browser B, open the dedicated `Notifications` route.
+3. Confirm the unread event appears, then filter the queue by its Project.
+4. Select the event and use `Mark selected read`.
+5. Switch `Show` to `All events` and confirm the acknowledged event remains available as read.
+6. Generate another unread event and use `Mark all matching read` with the Project filter active.
+
+Expected result:
+
+* browser B can see the approved collaboration notification in the Web UI
+* the acting user does not receive a duplicate self-notification for the successful action
+* selected acknowledgment updates the queue atomically
+* all-matching acknowledgment affects only unread events in the selected Project
+* acknowledged events remain available when `All events` is selected
+
+Potential artifacts to watch for:
+
+* notifications appear for the acting user despite the approved actor-exclusion rule
+* Project or read filters reset without user action
+* the read action succeeds in the API but the UI does not update
+* notifications from another Project are acknowledged by a Project-scoped action
+
+### 16. Verify Archived-Asset Recovery Feedback
+This check is easiest through the public API docs or another admin surface that
+can set the Asset status to `archived`.
+
+1. Archive the selected Asset through the public API.
+2. Return to the Asset detail view in the Web UI.
+3. Attempt a collaboration action such as `Check out` or check-in.
+
+Expected result:
+
+* the action is rejected
+* the UI shows explicit archived-asset feedback
+* no new Revision is created
+* the user is not guided toward unsupported bypass behavior
+
+Potential artifacts to watch for:
+
+* a generic error hides the archived state
+* the UI still offers normal collaboration actions after the failure
+
+### 17. Sign Out
+
+1. Click `Sign out`.
+
+Expected result:
+
+* the session is cleared
+* the UI returns to the auth screen
+* a refresh does not restore the protected workspace
+
+Potential artifacts to watch for:
+
+* stale Organization or Asset cards remain visible after sign-out
+* refresh restores a revoked or signed-out session
+
+## Verify the Phase 4 Plugin Journey
+
+1. Build `plugins/dummy-categories/dist/asset-categories.openpdm-plugin` with `uv run python scripts/build_dummy_categories_plugin.py`.
+2. Sign in as a Platform Administrator and open **Administration** from the sidebar footer.
+3. Under **Install Community Plugin**, select the built package and choose **Install package**.
+4. Filter the plugin list by lifecycle state, review its manifest, declared capabilities, Extension API compatibility and package digest, then review and confirm enablement.
+5. Restart the backend without deleting the database or configured plugin-package storage, return to the administration page, and confirm the plugin can still run.
+6. Open a Project, select an Engineering Asset, and locate **Plugin-provided metadata**.
+7. Confirm the Asset category selector contains the plugin's document, drawing, model and assembly options.
+8. Select a category, choose **Apply metadata**, and confirm `classification.category` and `classification.managed_by` appear.
+9. Open configuration. Confirm public schema fields render as bounded controls, configured secrets show only a write-only status, and a replacement secret input starts blank. Save a valid change; for an unsupported schema, confirm malformed advanced JSON is rejected inline.
+10. Review and confirm plugin disablement, then return to the Asset. Confirm it is no longer returned as a running Metadata Provider and its category control is unavailable.
+
+Expected result:
+
+* installation, enablement and disablement require Platform Administrator authority and explicit review;
+* enabled and running provider capabilities are discovered through the public application API;
+* Official Plugins and Community Plugins use the same administration and Extension API paths;
+* configuration secrets are never read back and declarative labels and values render as text, not executable plugin-provided UI;
+* plugin metadata is persisted through the Metadata Platform Module after authorization;
+* package storage survives an ordinary backend image or container replacement;
+* disabling the plugin removes it from provider discovery without removing previously authorized metadata.
+
+## Quick Negative Checks
+
+Run these short checks after the main flow:
+
+### Invalid Sign-In
+
+1. Try signing in with the correct email and an incorrect password.
+
+Expected result:
+
+* sign-in is rejected
+* the UI stays on the auth screen
+* an error message is shown
+
+### Empty-State Recovery
+
+1. Sign in with a user that has no Organizations.
+
+Expected result:
+
+* the Organization bootstrap form is shown
+* no stale Project or Engineering Asset content is visible
+
+### Reload During Workspace Use
+
+1. While viewing an Engineering Asset, refresh the page.
+
+Expected result:
+
+* the app restores the session and current selection cleanly
+* no duplicate content or broken loading state appears
+
+### Collaboration State Refresh
+
+1. In browser A, check out or unlock the Asset.
+2. In browser B, refresh the Asset detail view.
+
+Expected result:
+
+* browser B reflects the latest lock state after refresh
+* ownership cues and action availability match the refreshed state
+
+### Stale Lock Recovery
+
+1. Open an Engineering Asset with a stale lock while signed in as a Project Maintainer or Owner.
+2. Confirm the lock owner display name, creation time, age and stale explanation are visible.
+3. Choose **Recover stale lock**, review the interruption and audit warning, then cancel.
+4. Repeat and confirm the recovery.
+
+Expected result:
+
+* cancellation leaves the lock unchanged;
+* confirmation force-unlocks the Engineering Asset and records the human actor in the collaboration timeline;
+* Contributors and Viewers cannot invoke force-unlock.
+### Notification Refresh
+
+1. In browser A, perform a collaboration action that should notify other Project members.
+2. In browser B, click `Refresh` in the notifications panel.
+
+Expected result:
+
+* browser B sees the new notification after refresh
+* notification event text matches the approved Phase 2 event scope
+* browser A does not receive a self-notification for the same successful action
+
+### Rejected Check-In Recovery
+
+1. Trigger a rejected check-in, for example by omitting the revision comment.
+2. Correct the input and submit again.
+
+Expected result:
+
+* the first attempt fails safely
+* the UI remains usable without a full workflow restart
+* the corrected retry succeeds without creating duplicate revisions
+
+## What to Capture if You See Artifacts
+
+If something looks wrong, capture:
+
+* the exact step number from this guide
+* a screenshot
+* the browser console errors
+* the backend terminal output
+* whether the issue happened after reload, sign-in, upload, or download
+* whether the issue reproduces consistently
+
+## Known Areas Worth Watching Closely
+
+These are the parts most likely to expose visible integration defects:
+
+* session restoration after reload
+* automatic selection after creating Organization, Project, or Asset
+* refresh of Asset detail and Revision history after upload
+* synchronization of collaboration state and action buttons after checkout or unlock
+* conflict feedback clarity during multi-user checks
+* browser download behavior across browsers
+* empty-state transitions between anonymous, first-use, and populated states
+
+## Suggested Smoke Test Pass Criteria
+
+Treat the workflow as passing when all of the following are true:
+
+* a local user can register and sign in
+* the user can create an Organization
+* the user can create a Project inside that Organization
+* the user can create a generic Engineering Asset inside that Project
+* the user can upload a file that creates a new immutable Revision
+* the user can download the uploaded Blob-backed file
+* the user can see collaboration state for the selected Asset
+* the user can check out and unlock the Asset through the Web UI
+* check-in requires a revision comment and succeeds when valid
+* collaboration conflicts are visible and understandable in the Web UI
+* collaboration timeline entries refresh after lock and check-in actions
+* in-app collaboration notifications are visible and can be marked as read
+* Organization and Project members can be added, assigned roles and removed according to Owner safeguards
+* relationship and reference information remains distinct in the Asset Graph surface
+* a Platform Administrator can install, enable, invoke and disable the dummy categories plugin
+* running providers and declarative category options are discovered without executable UI injection
+* installed plugin packages remain available after an ordinary backend restart or replacement
+* the session survives a browser refresh
+* sign-out removes access to the protected workspace
+
+## Operational Workspace Acceptance
+
+### Home priority surface
+
+* Confirm unread collaboration events, recent Projects, and recent Engineering Assets are visible without entering a Project route.
+* Simulate a failed collection request and confirm the scoped recovery panel offers a retry without hiding still-available data.
+
+### Engineering Asset master/detail workspace
+
+* Open a Project `Assets` route and change search, lifecycle status, sort field, and direction.
+* Confirm `q`, `status`, `sort`, and `direction` are reflected in the URL and survive reload and browser navigation.
+* Save the current setup as a private view, apply it, then delete it. Confirm another user cannot list or mutate that view.
+* Move forward and backward through bounded pages. Confirm selection stays stable while the selected Asset remains in the result and changes safely when it does not.
+* At narrow widths, confirm selecting an Asset opens the detail sheet and its close button restores the master list.
+
+### Relationship exploration
+
+* Open the Project `Relationships` route and select an Engineering Asset.
+* Confirm incoming edges, outgoing edges, and external or unresolved references are presented in separate labeled regions.
+* Confirm the workspace exposes no bulk relationship or reference mutation action.
+
+### Responsive containment
+
+Repeat Home, Assets, Notifications, and Relationships at 390px, 768px, and a desktop width.
+
+Expected result:
+
+* no page-level horizontal overflow occurs
+* bounded data tables scroll inside their own region when necessary
+* navigation remains navigation-only on mobile
+* Asset detail remains usable as a responsive sheet
+* all filters, selection actions, pagination, and recovery controls remain keyboard reachable

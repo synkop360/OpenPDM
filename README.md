@@ -1,44 +1,141 @@
-# OpenPDM
+﻿# OpenPDM
 
 OpenPDM is an open-source Engineering Collaboration Platform for organizing,
 versioning, relating and securing Engineering Assets.
 
-This repository snapshot is a lightweight project documentation and planning
-package. Historical implementation artifacts for the backend, frontend, desktop
-shell, deployment stack, plugins, generated bindings, tests and detailed docs
-package have been removed as project hygiene.
+The repository currently includes a working backend API, a Vite-based web UI,
+and a Tauri desktop shell skeleton. The implementation covers:
 
-## Current Contents
+* local authentication and session management
+* administrator-managed Organization and Project membership with role assignment
+* generic Assets, immutable Revisions, Representations, and Blobs
+* file upload and secure blob download
+* generic metadata and PostgreSQL-backed search
+* collaboration state, checkout/checkin, notifications and timeline
+* generic Asset Graph relationships, references and graph queries
+* a governed, sandboxed plugin platform with Extension API v1
 
-```text
-.gitignore          Project-local generated artifact ignores.
-AGENTS.md           Coding-agent and architecture guardrails.
-CONTRIBUTING.md     Contribution expectations for this cleaned package.
-ROADMAP.md          Product capability roadmap.
-TASK_TEMPLATE.md    Task planning template.
-LICENSE             Apache-2.0 license.
-pyproject.toml      Minimal tooling metadata.
-uv.lock             Locked tooling environment for the cleaned package.
-```
+## Quickstart
 
-## Project Direction
+Required tools:
 
-The project direction remains:
+* Python 3.12+
+* uv
+* Docker
+* Node.js 22+ and pnpm for frontend work
+* Rust and the Tauri prerequisites only if you are working on the desktop shell
 
-* keep the Platform Core domain-agnostic;
-* keep engineering knowledge in plugins;
-* expose extensions through the Extension API;
-* preserve clear Platform Module boundaries when implementation work resumes;
-* document architectural decisions before relying on them as accepted design.
-
-## Validation
-
-This cleaned package no longer contains the previous implementation test suite or
-developer scripts. Validate the remaining package with:
+Install dependencies:
 
 ```bash
-uv run ruff format --check .
-uv run ruff check .
+python scripts/dev.py install
 ```
 
-Implementation tests must be reintroduced with the implementation they exercise.
+Validate the repository:
+
+```bash
+python scripts/dev.py validate
+python scripts/dev.py lint
+python scripts/dev.py test
+```
+
+Run the backend API locally:
+
+```bash
+python scripts/dev.py run-backend
+```
+
+The backend is available at:
+
+* `http://localhost:8000/health`
+* `http://localhost:8000/foundation`
+* `http://localhost:8000/docs`
+
+Start the local deployment environment with PostgreSQL and MinIO:
+
+```bash
+python scripts/dev.py compose-up
+```
+
+The compose environment exposes the backend on `http://localhost:18000`.
+
+Start the Compose backend and Web UI together:
+
+```bash
+python scripts/start_all.py
+```
+
+Run the web UI locally:
+
+```bash
+cd frontend
+pnpm run dev
+```
+
+If the frontend is not served from the same origin as the backend, set
+`VITE_API_BASE_URL=http://localhost:8000` before starting Vite.
+
+## Repository Structure
+
+```text
+backend/      FastAPI public application API and Platform Core implementation.
+frontend/     React, TypeScript and Vite web UI.
+desktop/      Tauri desktop client shell.
+plugins/      Official Plugin source and generated Extension API bindings.
+deployment/   Docker Compose services for local development.
+docs/         Project documentation and ADRs.
+scripts/      Developer validation and command helpers.
+tests/        Repository-level architecture boundary tests.
+```
+
+Build and exercise the domain-neutral reference Official Plugin with:
+
+```bash
+uv run python scripts/build_reference_plugin.py
+uv run pytest backend/tests/test_reference_plugin_e2e.py -v
+```
+
+See [`docs/PLUGIN_DEVELOPMENT.md`](docs/PLUGIN_DEVELOPMENT.md) and [`docs/PLUGIN_SECURITY.md`](docs/PLUGIN_SECURITY.md).
+
+## Architecture
+
+```mermaid
+flowchart TD
+    WebUI[Web UI<br/>React + TypeScript + Vite]
+    Desktop[Desktop Client<br/>Tauri + React + TypeScript]
+    Backend[OpenPDM Backend<br/>FastAPI]
+    Postgres[(PostgreSQL)]
+    MinIO[(MinIO / S3)]
+
+    WebUI --> Backend
+    Desktop --> Backend
+    Backend --> Postgres
+    Backend --> MinIO
+```
+
+## Authoritative Documentation
+
+Before contributing, read these documents in order:
+
+1. `AGENTS.md`
+2. `docs/PROJECT_CHARTER.md`
+3. `docs/ARCHITECTURE.md`
+4. `docs/VISION.md`
+5. `ROADMAP.md`
+6. Accepted ADRs in `docs/adr/`
+
+Useful guides:
+
+* `docs/README.md`
+* `docs/DEVELOPMENT.md`
+* `docs/DEPLOYMENT.md`
+* `docs/INTERNAL_FUNCTIONING.md`
+* `docs/API_FLOWS.md`
+* `docs/API_REFERENCE.md`
+* `docs/PHASE_0_DEMO.md`
+* `docs/WEB_UI_MANUAL_TEST_GUIDE.md`
+
+Phase 3 Asset Graph implementation guide:
+
+* `docs/PHASE_3_ASSET_GRAPH_QUERY_LIMITS.md`
+

@@ -1,0 +1,14 @@
+﻿.venv/
+node_modules/
+frontend/node_modules/
+desktop/node_modules/
+frontend/dist/
+desktop/src-tauri/target/
+.git/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.env.*

@@ -1,0 +1,22 @@
+{
+  "id": "org.openpdm.reference",
+  "name": "OpenPDM Reference Plugin",
+  "version": "1.0.0",
+  "extension_api_versions": [1],
+  "component": "reference-plugin.wasm",
+  "capabilities": ["asset_provider", "metadata_provider", "event_handler"],
+  "event_subscriptions": ["asset.created"],
+  "configuration": {
+    "type": "object",
+    "properties": {
+      "metadata_key": {
+        "type": "string",
+        "title": "Metadata key",
+        "default": "reference.processed",
+        "secret": false
+      }
+    },
+    "required": ["metadata_key"],
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,6 @@
+package openpdm:extension@1.0.0;
+
+world plugin {
+    export activate: func();
+    export invoke: func(request: string) -> string;
+}

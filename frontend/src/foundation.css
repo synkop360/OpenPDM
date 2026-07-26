@@ -1,0 +1,263 @@
+:root {
+  color-scheme: dark;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --surface-canvas: #0d0f10;
+  --surface-panel: #181a1c;
+  --surface-raised: #202224;
+  --surface-muted: #292b2d;
+  --text-primary: #f3f5f4;
+  --text-secondary: #a3aaa7;
+  --border-default: #34383a;
+  --border-strong: #4b5250;
+  --action-primary: #4f8fe8;
+  --action-primary-muted: rgb(79 143 232 / 16%);
+  --status-success: #50b68c;
+  --status-warning: #e8aa55;
+  --status-danger: #ef806f;
+  --status-info: #73a9f2;
+  --focus-ring: #9cc5ff;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --motion-fast: 140ms;
+  --shadow-panel: 0 18px 60px rgb(0 0 0 / 28%);
+
+  /* Compatibility aliases while the existing screens migrate to semantic tokens. */
+  --bg: var(--surface-canvas);
+  --panel: var(--surface-panel);
+  --panel-strong: var(--surface-raised);
+  --soft: var(--surface-muted);
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --line: var(--border-default);
+  --line-strong: var(--border-strong);
+  --accent: var(--action-primary);
+  --accent-soft: var(--action-primary-muted);
+  --warning: var(--status-danger);
+  --shadow: var(--shadow-panel);
+}
+
+html {
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  background: var(--action-primary);
+  border-radius: var(--radius-control);
+  color: #08111f;
+  font-weight: 600;
+  left: 12px;
+  padding: 10px 14px;
+  position: fixed;
+  top: 12px;
+  transform: translateY(-180%);
+  transition: transform var(--motion-fast) ease;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.inline-alert {
+  align-items: start;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--status-info);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  display: flex;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 11px 13px;
+}
+
+.inline-alert__indicator {
+  background: var(--status-info);
+  border-radius: 50%;
+  flex: 0 0 8px;
+  height: 8px;
+  margin-top: 7px;
+}
+
+.inline-alert--success { border-left-color: var(--status-success); }
+.inline-alert--success .inline-alert__indicator { background: var(--status-success); }
+.inline-alert--warning { border-left-color: var(--status-warning); }
+.inline-alert--warning .inline-alert__indicator { background: var(--status-warning); }
+.inline-alert--danger { border-left-color: var(--status-danger); }
+.inline-alert--danger .inline-alert__indicator { background: var(--status-danger); }
+
+.project-tab[data-state="active"] {
+  border-bottom-color: var(--action-primary);
+  color: var(--text-primary);
+}
+
+@media (pointer: coarse) {
+  :where(button, input, select, .project-tab) {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.loadable-skeleton {
+  display: grid;
+  gap: 9px;
+  padding: 4px 0;
+}
+
+.loadable-skeleton span {
+  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
+  background: var(--surface-muted);
+  border-radius: var(--radius-control);
+  height: 44px;
+}
+
+.dialog-overlay {
+  background: rgb(0 0 0 / 72%);
+  inset: 0;
+  position: fixed;
+  z-index: 100;
+}
+
+.dialog-content {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 16px;
+  left: 50%;
+  max-height: calc(100vh - 32px);
+  max-width: 620px;
+  overflow: auto;
+  padding: 24px;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100vw - 32px), 620px);
+  z-index: 101;
+}
+
+.dialog-content > p { color: var(--text-secondary); margin: 0; }
+.dialog-actions { display: flex; gap: 10px; justify-content: end; }
+
+.danger-button {
+  background: var(--status-danger);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: #1d0906;
+  font-weight: 600;
+  padding: 10px 14px;
+}
+
+.action-menu {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-panel);
+  min-width: 190px;
+  padding: 5px;
+  z-index: 110;
+}
+
+.action-menu__item {
+  border-radius: 5px;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  padding: 9px 10px;
+}
+
+.action-menu__item[data-highlighted] { background: var(--action-primary-muted); }
+.action-menu__item[data-disabled] { color: var(--text-secondary); cursor: not-allowed; }
+
+.tooltip-content {
+  background: var(--text-primary);
+  border-radius: 5px;
+  color: var(--surface-canvas);
+  font-size: 0.78rem;
+  padding: 6px 8px;
+  z-index: 120;
+}
+
+.tooltip-arrow { fill: var(--text-primary); }
+
+.toast-viewport {
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  max-width: 420px;
+  outline: none;
+  padding: 20px;
+  position: fixed;
+  right: 0;
+  width: 100%;
+  z-index: 130;
+}
+
+.toast {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--status-success);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 5px;
+  grid-template-columns: 1fr auto;
+  padding: 13px;
+}
+
+.toast__close {
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  grid-column: 2;
+  grid-row: 1;
+}
+
+@keyframes skeleton-pulse {
+  from { opacity: 0.46; }
+  to { opacity: 0.86; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadable-skeleton span { animation: none; }
+}
+.topbar-status[data-status="loading"] .health-dot,
+.topbar-status[data-status="idle"] .health-dot {
+  background: var(--status-warning);
+  box-shadow: 0 0 0 4px rgb(232 170 85 / 12%);
+}
+
+.topbar-status[data-status="error"] .health-dot {
+  background: var(--status-danger);
+  box-shadow: 0 0 0 4px rgb(239 128 111 / 12%);
+}
+.members-workspace {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .members-workspace { grid-template-columns: 1fr; }
+}
