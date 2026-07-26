@@ -25,6 +25,65 @@ A capability should only be introduced when the Platform Core is ready to suppor
 
 ---
 
+# Near-Term Prototype Delivery Track
+
+The current implementation already contains working slices from Phases 1 through
+4: the public application API, Web UI, generic Engineering Asset lifecycle,
+collaboration, Asset Graph relationships, resumable Blob uploads, private
+Project views and the governed plugin platform.
+
+Before expanding into domain-specific engineering integrations, OpenPDM should
+convert these slices into a coherent usable prototype.
+
+**Objective**
+
+Deliver a prototype that a small team can run locally and use end-to-end for
+generic Engineering Asset collaboration.
+
+This track does not replace the long-term phases. It accelerates delivery by
+stabilizing the already implemented cross-phase foundation before adding more
+domain-specific scope.
+
+**Primary capabilities**
+
+* one reproducible local startup path for PostgreSQL, MinIO, backend and Web UI
+* first-run user, Organization, Project and Engineering Asset setup
+* generic file upload, download, check-out, check-in and revision history
+* Project member administration with role safeguards
+* in-app collaboration notifications and timeline visibility
+* relationship, reference and bounded graph exploration in the Web UI
+* one demonstrable plugin journey using the existing generic reference or dummy categories plugin
+* prototype documentation that names supported workflows, known limits and deferred production concerns
+
+**Prototype acceptance criteria**
+
+The prototype is considered usable when a fresh checkout can demonstrate all of
+the following without code edits:
+
+* start the local services and Web UI from documented commands;
+* register two local users;
+* create an Organization, Project and Engineering Asset;
+* upload and download an Engineering Asset file;
+* check out, check in and unlock an Engineering Asset with clear conflict feedback;
+* browse revision history, timeline events and notifications;
+* create and inspect generic Asset relationships and references;
+* install, enable, invoke and disable one example plugin through the public administration path;
+* pass the documented automated and manual smoke checks.
+
+**Explicit deferrals**
+
+The prototype does not need:
+
+* production hardening or high-availability deployment;
+* desktop synchronization;
+* desktop notifications;
+* custom workflow engines, approvals or release processes;
+* multiple CAD integrations;
+* organization-wide shared saved views;
+* domain-specific engineering semantics in the Platform Core.
+
+---
+
 # Phase 0 — Foundation
 
 **Objective**
@@ -170,18 +229,23 @@ Deliver the first official engineering domain.
 
 Mechanical engineering becomes the reference implementation of the plugin architecture.
 
+Phase 5 should start only after the usable prototype track is stable enough to
+exercise plugin installation, provider discovery and generic metadata
+contribution through the Web UI.
+
 **Primary capabilities**
 
-* SOLIDWORKS provider
-* FreeCAD provider
-* Assembly discovery
-* Dependency extraction
-* BOM extraction
-* Native metadata extraction
+* one minimal Official Plugin vertical slice for a mechanical engineering workflow
+* provider discovery and configuration through the existing plugin administration path
+* generic metadata extraction persisted through the Metadata Platform Module
+* dependency extraction represented through generic Asset relationships
+* documented import/export limits for the prototype provider
+* broader SOLIDWORKS, FreeCAD, BOM and native metadata coverage after the first vertical slice is demonstrably usable
 
 **Success criteria**
 
-Mechanical engineering teams can manage real CAD projects using OpenPDM.
+Mechanical engineering users can exercise one real, documented mechanical
+workflow without requiring Platform Core engineering semantics.
 
 ---
 
