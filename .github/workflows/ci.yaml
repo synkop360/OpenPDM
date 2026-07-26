@@ -7,24 +7,9 @@ on:
       - main
 
 jobs:
-  backend:
-    name: Backend and repository validation
+  validation:
+    name: Documentation package validation
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_DB: openpdm_transfer_test
-          POSTGRES_USER: openpdm
-          POSTGRES_PASSWORD: openpdm
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Check out repository
@@ -41,58 +26,11 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --all-groups
 
-      - name: Lint Python
-        run: |
-          uv run ruff format --check backend scripts tests
-          uv run ruff check backend scripts tests
+      - name: Check lockfile
+        run: uv lock --check
 
-      - name: Test PostgreSQL resumable-transfer concurrency
-        env:
-          OPENPDM_TEST_POSTGRES_URL: postgresql+psycopg://openpdm:openpdm@localhost:5432/openpdm_transfer_test
-          OPENPDM_REQUIRE_POSTGRES_TRANSFER_TEST: "1"
-        run: >-
-          uv run pytest
-          backend/tests/test_blob_upload_sessions.py::test_postgresql_simultaneous_upload_and_completion_is_idempotent
-          backend/tests/test_blob_upload_sessions.py::test_postgresql_cleanup_race_preserves_one_terminal_transition
-          -q
+      - name: Check formatting
+        run: uv run ruff format --check .
 
-      - name: Test backend and architecture boundaries
-        run: uv run pytest
-
-      - name: Validate documentation and project automation
-        run: |
-          uv run python scripts/validate_phase0.py
-          uv run python scripts/validate_documentation.py
-          uv run python .github/automation/project/validate.py .github/automation/project/project.yaml
-
-  frontend:
-    name: Frontend validation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.7.0
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint frontend
-        run: pnpm --dir frontend run lint
-
-      - name: Test frontend
-        run: pnpm --dir frontend run test
-
-      - name: Build frontend
-        run: pnpm --dir frontend run build
-
-
+      - name: Lint package
+        run: uv run ruff check .

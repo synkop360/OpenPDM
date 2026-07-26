@@ -10,14 +10,14 @@ coverage/
 .coverage
 .env
 .env.*
-!.env.example
 *.log
 .tmp/
+.gitnexus/
+.kilo/
 .memoire/
-
-frontend/dist/
-frontend/tsconfig.tsbuildinfo
-desktop/src-tauri/target/
-backend/.venv/
+.superpowers/
+.codex/
+.codex-token-benchmark/
+README.md.bak
 *.egg-info/
 

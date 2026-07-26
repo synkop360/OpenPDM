@@ -1,55 +1,44 @@
 # AGENTS.md
 
-> This is the authoritative instruction file for AI coding agents working on OpenPDM.
+> This is the authoritative instruction file for AI coding agents working on
+> OpenPDM.
 
 Before performing any task:
 
 1. Read this file completely.
-2. Read the project documentation in the following order:
-   - docs/PROJECT_CHARTER.md
-   - docs/ARCHITECTURE.md
-   - docs/VISION.md
-   - ROADMAP.md
-3. Follow all accepted ADRs.
-4. If documentation conflicts, the highest priority document wins.
-5. Never make architectural decisions without proposing a new ADR.
+2. Read the remaining project documentation:
+   - `README.md`
+   - `ROADMAP.md`
+   - `TASK_TEMPLATE.md`
+3. Preserve the project terminology and architectural intent below.
+4. Do not invent architectural decisions. If implementation work resumes, create
+   or restore ADR coverage before relying on new architecture as accepted.
 
-If any instruction is ambiguous, stop and ask for clarification rather than making assumptions.
-
----
-
-## Session Start Checklist
-
-At the beginning of every new session:
-
-- Read AGENTS.md.
-- Read accepted ADRs.
-- Identify the Platform Modules impacted by the task.
-- Verify that the requested change respects the Platform Core boundaries.
-- Explain any architectural concern before writing code.
+If any instruction is ambiguous, stop and ask for clarification rather than
+making assumptions.
 
 ---
 
-# Official Terminology
+## Official Terminology
 
 Always use the official project terminology.
 
-| Term              | Meaning                                     |
-| ----------------- | ------------------------------------------- |
-| Platform Core     | Generic business core of OpenPDM.           |
-| Platform Modules  | Internal capabilities of the Platform Core. |
-| Extension API     | Public extension contract.                  |
-| Official Plugins  | Plugins maintained by OpenPDM.              |
-| Community Plugins | Third-party plugins.                        |
-| Engineering Asset | user-facing meaning of the Core Asset       |
+| Term | Meaning |
+| --- | --- |
+| Platform Core | Generic business core of OpenPDM. |
+| Platform Modules | Internal capabilities of the Platform Core. |
+| Extension API | Public extension contract. |
+| Official Plugins | Plugins maintained by OpenPDM. |
+| Community Plugins | Third-party plugins. |
+| Engineering Asset | User-facing meaning of the Core Asset. |
 
 Do not invent alternative names.
 
 ---
 
-# Architectural Rules
+## Architectural Intent
 
-Always preserve the following principles.
+Preserve these principles when implementation work resumes:
 
 * The Platform Core is domain-agnostic.
 * Engineering knowledge belongs to plugins.
@@ -57,13 +46,11 @@ Always preserve the following principles.
 * Never access another Platform Module's internal implementation.
 * Never bypass the Extension API.
 * Infrastructure must remain replaceable.
-* Respect all accepted ADRs.
-
-When in doubt, prefer architectural consistency over implementation convenience.
+* Official Plugins and Community Plugins use the same Extension API.
 
 ---
 
-# Working Rules
+## Working Rules
 
 Before implementing a feature, determine whether it belongs to:
 
@@ -73,72 +60,20 @@ Before implementing a feature, determine whether it belongs to:
 
 If uncertain, stop and explain the ambiguity instead of making assumptions.
 
-Do not introduce architectural changes without proposing a new ADR.
+Do not introduce architectural changes without proposing documentation for the
+decision first.
 
 ---
 
-# Code Generation
+## Testing
 
-Generate production-ready code.
-
-Prefer:
-
-* simple solutions;
-* readable code;
-* small modules;
-* explicit interfaces;
-* low coupling;
-* high cohesion.
-
-Avoid unnecessary abstractions.
-
-Avoid premature optimization.
-
-Avoid placeholder implementations.
+Do not add placeholder tests. Tests should verify behavior that exists in the
+repository. If implementation code is absent, report that implementation tests
+are not applicable instead of creating tests that do nothing.
 
 ---
 
-# Module Boundaries
-
-A Platform Module:
-
-* owns a single business responsibility;
-* exposes a public interface;
-* never exposes its internal implementation.
-
-Communication between modules must always occur through their public interfaces.
-
----
-
-# Plugins
-
-Official Plugins and Community Plugins use the same Extension API.
-
-Do not introduce privileged APIs for Official Plugins.
-
-Plugins must never depend on another plugin's implementation.
-
----
-
-# Testing
-
-When appropriate:
-
-* write unit tests;
-* write integration tests for interactions between Platform Modules;
-* test behavior rather than implementation details.
-
----
-
-# Documentation
-
-Update documentation whenever a public capability changes.
-
-Do not duplicate information already documented elsewhere.
-
----
-
-# Pull Requests
+## Pull Requests
 
 Keep changes focused.
 
@@ -149,18 +84,5 @@ Separate:
 * refactoring;
 * new features;
 * dependency updates;
-* formatting.
-
----
-
-# If You Are Unsure
-
-Stop.
-
-Explain the uncertainty.
-
-Describe the available options.
-
-Recommend the simplest solution that respects the project architecture.
-
-Never invent architectural decisions.
+* formatting;
+* generated artifact cleanup.
