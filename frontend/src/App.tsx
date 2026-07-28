@@ -2817,7 +2817,7 @@ function OpenPdmApp() {
               <header className="panel-header operational-header">
                 <div>
                   <p className="eyebrow">Engineering Assets</p>
-                  <h2 id="asset-collection-title">Project content</h2>
+                  <h2 id="asset-collection-title">Engineering Assets</h2>
                   <p className="muted-text">Filter, page and save private views without losing the selected Asset.</p>
                 </div>
                 <span className="status-pill">{assets.data.length} on page</span>

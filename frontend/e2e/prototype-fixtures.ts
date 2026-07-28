@@ -25,9 +25,23 @@ export async function mockPrototypeApi(page: Page) {
       json: [{ id: "project-member-1", role: "Owner", user: { id: "user-owner", email: "owner@example.com", display_name: "Owner" }, project: { id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" } }],
     });
   });
-  await page.route("**/projects/project-1/assets**", (route) => route.fulfill({
-    json: { items: [{ id: "asset-1", project_id: "project-1", name: "Prototype Asset", description: "Generic Engineering Asset", status: "draft", metadata: {}, created_at: "2026-07-28T00:00:00Z" }], next_cursor: null },
-  }));
+  await page.route("**/projects/project-1/assets**", (route) => {
+    if (route.request().resourceType() !== "fetch") return route.fallback();
+    return route.fulfill({
+      json: {
+        items: [{
+          id: "asset-1",
+          project_id: "project-1",
+          name: "Prototype Asset",
+          description: "Generic Engineering Asset",
+          status: "draft",
+          metadata: {},
+          created_at: "2026-07-28T00:00:00Z",
+        }],
+        next_cursor: null,
+      },
+    });
+  });
   await page.route("**/assets/asset-1", (route) => route.fulfill({
     json: { id: "asset-1", project_id: "project-1", name: "Prototype Asset", description: "Generic Engineering Asset", status: "draft", metadata: {}, created_at: "2026-07-28T00:00:00Z" },
   }));
@@ -40,6 +54,115 @@ export async function mockPrototypeApi(page: Page) {
   await page.route("**/assets/asset-1/timeline", (route) => route.fulfill({ json: [] }));
   await page.route("**/notifications**", (route) => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/providers", (route) => route.fulfill({ json: [] }));
+}
+
+export async function mockPrototypeMutations(page: Page) {
+  await page.route("**/assets/asset-1/checkout", (route) => route.fulfill({
+    json: {
+      asset_id: "asset-1",
+      state: "locked",
+      can_checkout: false,
+      can_checkin: true,
+      can_unlock: true,
+      can_force_unlock: false,
+      lock: { owner_user_id: "user-owner", created_at: "2026-07-28T00:00:00Z" },
+    },
+  }));
+  await page.route("**/assets/asset-1/unlock", (route) => route.fulfill({
+    json: {
+      asset_id: "asset-1",
+      state: "available",
+      can_checkout: true,
+      can_checkin: false,
+      can_unlock: false,
+      can_force_unlock: false,
+      lock: null,
+    },
+  }));
+  await page.route("**/blobs/upload-sessions", (route) => route.fulfill({
+    json: {
+      id: "session-1",
+      asset_id: "asset-1",
+      owner_user_id: "user-owner",
+      filename: "sample.txt",
+      media_type: "text/plain",
+      total_size_bytes: 11,
+      chunk_size_bytes: 11,
+      checksum_sha256: null,
+      status: "active",
+      received_chunk_numbers: [],
+      received_bytes: 0,
+      blob: null,
+      expires_at: "2026-07-29T00:00:00Z",
+      created_at: "2026-07-28T00:00:00Z",
+      updated_at: "2026-07-28T00:00:00Z",
+    },
+  }));
+  await page.route("**/blobs/upload-sessions/session-1/chunks/0", (route) => route.fulfill({
+    json: {
+      id: "session-1",
+      asset_id: "asset-1",
+      owner_user_id: "user-owner",
+      filename: "sample.txt",
+      media_type: "text/plain",
+      total_size_bytes: 11,
+      chunk_size_bytes: 11,
+      checksum_sha256: null,
+      status: "active",
+      received_chunk_numbers: [0],
+      received_bytes: 11,
+      blob: null,
+      expires_at: "2026-07-29T00:00:00Z",
+      created_at: "2026-07-28T00:00:00Z",
+      updated_at: "2026-07-28T00:00:00Z",
+    },
+  }));
+  await page.route("**/blobs/upload-sessions/session-1/complete", (route) => route.fulfill({
+    json: {
+      id: "session-1",
+      asset_id: "asset-1",
+      owner_user_id: "user-owner",
+      filename: "sample.txt",
+      media_type: "text/plain",
+      total_size_bytes: 11,
+      chunk_size_bytes: 11,
+      checksum_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      status: "completed",
+      received_chunk_numbers: [0],
+      received_bytes: 11,
+      blob: {
+        id: "blob-1",
+        filename: "sample.txt",
+        media_type: "text/plain",
+        size_bytes: 11,
+        checksum_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        created_at: "2026-07-28T00:00:00Z",
+      },
+      expires_at: "2026-07-29T00:00:00Z",
+      created_at: "2026-07-28T00:00:00Z",
+      updated_at: "2026-07-28T00:00:00Z",
+    },
+  }));
+  await page.route("**/assets/asset-1/checkin", (route) => route.fulfill({
+    json: {
+      id: "rev-2",
+      asset_id: "asset-1",
+      revision_number: 2,
+      comment: "Prototype check-in",
+      representations: [{
+        id: "rep-1",
+        name: "sample.txt",
+        blobs: [{
+          id: "blob-1",
+          filename: "sample.txt",
+          media_type: "text/plain",
+          size_bytes: 11,
+          checksum_sha256: "abc",
+        }],
+      }],
+      created_at: "2026-07-28T00:05:00Z",
+    },
+  }));
 }
 
 export async function signInWithStoredSession(page: Page) {
