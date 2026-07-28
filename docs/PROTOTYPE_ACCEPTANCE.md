@@ -32,6 +32,10 @@ uv run python scripts/validate_phase0.py
 uv run python scripts/validate_documentation.py
 ```
 
+The browser gate covers first-run local user registration, Organization and
+Project creation, generic Engineering Asset creation, check-out/check-in,
+Revision history, and Blob-backed browser download.
+
 ## Required Manual Checks
 
 Run the browser workflow in [Web UI Manual Test Guide](WEB_UI_MANUAL_TEST_GUIDE.md) for:

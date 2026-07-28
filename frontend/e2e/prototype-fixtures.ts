@@ -141,7 +141,7 @@ export async function mockPrototypeApi(page: Page) {
     });
   });
   await page.route("**/projects/project-1/assets**", (route) => {
-    if (route.request().resourceType() !== "fetch") return route.fallback();
+    if (route.request().resourceType() === "document") return route.fallback();
     return route.fulfill({
       json: {
         items: [{
@@ -276,6 +276,10 @@ export async function mockPrototypeMutations(page: Page) {
     };
     return route.fulfill({ json: checkedInRevision, status: 201 });
   });
+  await page.route("**/blobs/blob-1/download", (route) => route.fulfill({
+    body: "hello world",
+    contentType: "text/plain",
+  }));
 }
 
 export async function signInWithStoredSession(page: Page) {
@@ -285,6 +289,109 @@ export async function signInWithStoredSession(page: Page) {
     window.localStorage.setItem("openpdm.projectId", "project-1");
     window.localStorage.setItem("openpdm.assetId", "asset-1");
   });
+}
+
+export async function mockFirstRunPrototypeApi(page: Page) {
+  const owner = {
+    id: "user-owner",
+    email: "prototype-owner@example.com",
+    display_name: "Prototype Owner",
+    is_active: true,
+    is_platform_admin: true,
+    created_at: "2026-07-28T00:00:00Z",
+  };
+  const organization = {
+    id: "org-1",
+    name: "Prototype Org",
+    slug: "prototype-org",
+  };
+  const project = {
+    id: "project-1",
+    organization_id: "org-1",
+    name: "Prototype Project",
+    description: "Local prototype",
+    created_at: "2026-07-28T00:00:00Z",
+  };
+  const asset = {
+    id: "asset-1",
+    project_id: "project-1",
+    name: "Prototype Asset",
+    description: "Generic Engineering Asset",
+    status: "draft",
+    metadata: {},
+    created_at: "2026-07-28T00:00:00Z",
+    updated_at: "2026-07-28T00:00:00Z",
+  };
+  const orgMembership = { id: "org-member-1", role: "Owner", user: owner, organization };
+  const projectMembership = { id: "project-member-1", role: "Owner", user: owner, project };
+  let hasOrganization = false;
+  let hasProject = false;
+  let hasAsset = false;
+
+  await page.route("**/foundation", (route) => route.fulfill({
+    json: { name: "OpenPDM", version: "0.0.0", phase: "Core Platform", architecture: "Modular Monolith" },
+  }));
+  await page.route("**/auth/register", (route) => route.fulfill({ json: owner, status: 201 }));
+  await page.route("**/auth/sign-in", (route) => route.fulfill({
+    json: { id: "session-1", token: "token", user: owner },
+  }));
+  await page.route("**/auth/session", (route) => route.fulfill({
+    json: { id: "session-1", token: "token", user: owner },
+  }));
+  await page.route("**/organizations", (route) => {
+    if (route.request().method() === "POST") {
+      hasOrganization = true;
+      return route.fulfill({ json: organization, status: 201 });
+    }
+    return route.fulfill({ json: hasOrganization ? [orgMembership] : [] });
+  });
+  await page.route("**/organizations/org-1/projects/me", (route) =>
+    route.fulfill({ json: hasProject ? [projectMembership] : [] }));
+  await page.route("**/organizations/org-1/projects", (route) =>
+    route.fulfill({ json: hasProject ? [project] : [] }));
+  await page.route("**/projects", (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    hasProject = true;
+    return route.fulfill({ json: project, status: 201 });
+  });
+  await page.route("**/projects/project-1/members", (route) => route.fulfill({
+    json: hasProject ? [projectMembership] : [],
+  }));
+  await page.route("**/projects/project-1/assets**", (route) => {
+    if (route.request().resourceType() === "document") return route.fallback();
+    if (route.request().method() === "POST") {
+      hasAsset = true;
+      return route.fulfill({ json: asset, status: 201 });
+    }
+    return route.fulfill({ json: { items: hasAsset ? [asset] : [], next_cursor: null } });
+  });
+  await page.route("**/assets/asset-1", (route) => route.fulfill({ json: asset }));
+  await page.route("**/assets/asset-1/history", (route) => route.fulfill({ json: [checkedInRevision, initialRevision] }));
+  await page.route("**/assets/asset-1/collaboration-state", (route) => route.fulfill({
+    json: {
+      asset_id: "asset-1",
+      state: "available",
+      can_checkout: true,
+      can_checkin: false,
+      can_unlock: false,
+      can_force_unlock: false,
+      lock: null,
+    },
+  }));
+  await page.route("**/assets/asset-1/timeline", (route) => route.fulfill({ json: [] }));
+  await page.route("**/notifications**", (route) => route.fulfill({ json: { items: [], next_cursor: null } }));
+  await page.route("**/providers", (route) => route.fulfill({ json: [] }));
+  await page.route("**/relationships**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/references**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/assets/asset-1/graph**", (route) => route.fulfill({
+    json: { root_asset_id: "asset-1", direction: "both", max_depth: 3, nodes: [], edges: [] },
+  }));
+  await page.route("**/metadata**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/users/me/project-views**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/blobs/blob-1/download", (route) => route.fulfill({
+    body: "hello world",
+    contentType: "text/plain",
+  }));
 }
 
 export async function expectNoPageOverflow(page: Page) {
