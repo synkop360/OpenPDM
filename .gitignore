@@ -14,6 +14,7 @@ coverage/
 *.log
 .tmp/
 .memoire/
+openpdm-graphify-run/
 openpdm-graphify-run-*/
 graphify-out/
 
