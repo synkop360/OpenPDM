@@ -1,6 +1,121 @@
 import { expect, type Page } from "@playwright/test";
 
+type PrototypeBlob = {
+  id: string;
+  filename: string;
+  media_type: string;
+  size_bytes: number;
+  checksum_sha256: string;
+  created_at: string;
+};
+
+type PrototypeRevision = {
+  id: string;
+  asset_id: string;
+  number: number;
+  comment: string;
+  created_by_user_id: string;
+  created_at: string;
+  representations: Array<{
+    id: string;
+    revision_id: string;
+    name: string;
+    media_type: string;
+    blob_id: string | null;
+    created_at: string;
+    blob: PrototypeBlob | null;
+  }>;
+};
+
+type PrototypeState = {
+  collaborationState: {
+    asset_id: string;
+    state: "available" | "locked";
+    can_checkout: boolean;
+    can_checkin: boolean;
+    can_unlock: boolean;
+    can_force_unlock: boolean;
+    lock: { id: string; asset_id: string; owner_user_id: string; created_at: string } | null;
+  };
+  history: PrototypeRevision[];
+  timeline: Array<{
+    event_type: string;
+    occurred_at: string;
+    actor_user_id: string | null;
+    asset_id: string;
+    revision_id: string | null;
+    details: Record<string, unknown>;
+  }>;
+};
+
+const revisionBlob: PrototypeBlob = {
+  id: "blob-1",
+  filename: "sample.txt",
+  media_type: "text/plain",
+  size_bytes: 11,
+  checksum_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  created_at: "2026-07-28T00:04:00Z",
+};
+
+const initialRevision: PrototypeRevision = {
+  id: "rev-1",
+  asset_id: "asset-1",
+  number: 1,
+  comment: "Initial revision",
+  created_by_user_id: "user-owner",
+  created_at: "2026-07-28T00:00:00Z",
+  representations: [],
+};
+
+const checkedInRevision: PrototypeRevision = {
+  id: "rev-2",
+  asset_id: "asset-1",
+  number: 2,
+  comment: "Prototype check-in",
+  created_by_user_id: "user-owner",
+  created_at: "2026-07-28T00:05:00Z",
+  representations: [{
+    id: "rep-1",
+    revision_id: "rev-2",
+    name: "sample.txt",
+    media_type: "text/plain",
+    blob_id: "blob-1",
+    created_at: "2026-07-28T00:05:00Z",
+    blob: revisionBlob,
+  }],
+};
+
+const prototypeStates = new WeakMap<Page, PrototypeState>();
+
+function createPrototypeState(): PrototypeState {
+  return {
+    collaborationState: {
+      asset_id: "asset-1",
+      state: "available",
+      can_checkout: true,
+      can_checkin: false,
+      can_unlock: false,
+      can_force_unlock: false,
+      lock: null,
+    },
+    history: [initialRevision],
+    timeline: [],
+  };
+}
+
+function getPrototypeState(page: Page): PrototypeState {
+  let state = prototypeStates.get(page);
+  if (!state) {
+    state = createPrototypeState();
+    prototypeStates.set(page, state);
+  }
+  return state;
+}
+
 export async function mockPrototypeApi(page: Page) {
+  const state = createPrototypeState();
+  prototypeStates.set(page, state);
+
   await page.route("**/foundation", (route) => route.fulfill({
     json: { name: "OpenPDM", version: "0.0.0", phase: "Core Platform", architecture: "Modular Monolith" },
   }));
@@ -46,30 +161,33 @@ export async function mockPrototypeApi(page: Page) {
     json: { id: "asset-1", project_id: "project-1", name: "Prototype Asset", description: "Generic Engineering Asset", status: "draft", metadata: {}, created_at: "2026-07-28T00:00:00Z" },
   }));
   await page.route("**/assets/asset-1/history", (route) => route.fulfill({
-    json: [{ id: "rev-1", asset_id: "asset-1", revision_number: 1, comment: "Initial revision", representations: [], created_at: "2026-07-28T00:00:00Z" }],
+    json: state.history,
   }));
   await page.route("**/assets/asset-1/collaboration-state", (route) => route.fulfill({
-    json: { asset_id: "asset-1", state: "available", can_checkout: true, can_checkin: false, can_unlock: false, can_force_unlock: false, lock: null },
+    json: state.collaborationState,
   }));
-  await page.route("**/assets/asset-1/timeline", (route) => route.fulfill({ json: [] }));
+  await page.route("**/assets/asset-1/timeline", (route) => route.fulfill({ json: state.timeline }));
   await page.route("**/notifications**", (route) => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/providers", (route) => route.fulfill({ json: [] }));
 }
 
 export async function mockPrototypeMutations(page: Page) {
-  await page.route("**/assets/asset-1/checkout", (route) => route.fulfill({
-    json: {
+  const state = getPrototypeState(page);
+
+  await page.route("**/assets/asset-1/checkout", (route) => {
+    state.collaborationState = {
       asset_id: "asset-1",
       state: "locked",
       can_checkout: false,
       can_checkin: true,
       can_unlock: true,
       can_force_unlock: false,
-      lock: { owner_user_id: "user-owner", created_at: "2026-07-28T00:00:00Z" },
-    },
-  }));
-  await page.route("**/assets/asset-1/unlock", (route) => route.fulfill({
-    json: {
+      lock: { id: "lock-1", asset_id: "asset-1", owner_user_id: "user-owner", created_at: "2026-07-28T00:00:00Z" },
+    };
+    return route.fulfill({ json: state.collaborationState });
+  });
+  await page.route("**/assets/asset-1/unlock", (route) => {
+    state.collaborationState = {
       asset_id: "asset-1",
       state: "available",
       can_checkout: true,
@@ -77,8 +195,9 @@ export async function mockPrototypeMutations(page: Page) {
       can_unlock: false,
       can_force_unlock: false,
       lock: null,
-    },
-  }));
+    };
+    return route.fulfill({ json: state.collaborationState });
+  });
   await page.route("**/blobs/upload-sessions", (route) => route.fulfill({
     json: {
       id: "session-1",
@@ -130,39 +249,33 @@ export async function mockPrototypeMutations(page: Page) {
       status: "completed",
       received_chunk_numbers: [0],
       received_bytes: 11,
-      blob: {
-        id: "blob-1",
-        filename: "sample.txt",
-        media_type: "text/plain",
-        size_bytes: 11,
-        checksum_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        created_at: "2026-07-28T00:00:00Z",
-      },
+      blob: revisionBlob,
       expires_at: "2026-07-29T00:00:00Z",
       created_at: "2026-07-28T00:00:00Z",
       updated_at: "2026-07-28T00:00:00Z",
     },
   }));
-  await page.route("**/assets/asset-1/checkin", (route) => route.fulfill({
-    json: {
-      id: "rev-2",
+  await page.route("**/assets/asset-1/checkin", (route) => {
+    state.history = [checkedInRevision, initialRevision];
+    state.timeline = [{
+      event_type: "revision.created",
+      occurred_at: "2026-07-28T00:05:00Z",
+      actor_user_id: "user-owner",
       asset_id: "asset-1",
-      revision_number: 2,
-      comment: "Prototype check-in",
-      representations: [{
-        id: "rep-1",
-        name: "sample.txt",
-        blobs: [{
-          id: "blob-1",
-          filename: "sample.txt",
-          media_type: "text/plain",
-          size_bytes: 11,
-          checksum_sha256: "abc",
-        }],
-      }],
-      created_at: "2026-07-28T00:05:00Z",
-    },
-  }));
+      revision_id: "rev-2",
+      details: { revision_number: 2, representation_name: "sample.txt" },
+    }];
+    state.collaborationState = {
+      asset_id: "asset-1",
+      state: "available",
+      can_checkout: true,
+      can_checkin: false,
+      can_unlock: false,
+      can_force_unlock: false,
+      lock: null,
+    };
+    return route.fulfill({ json: checkedInRevision, status: 201 });
+  });
 }
 
 export async function signInWithStoredSession(page: Page) {

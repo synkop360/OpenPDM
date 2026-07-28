@@ -31,5 +31,14 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   });
   await page.getByRole("button", { name: /check in revision/i }).click();
   await expect(page.getByText(/Check-in complete/i)).toBeVisible();
+
+  const createdRevision = page.locator(".timeline-card").filter({
+    has: page.getByRole("heading", { name: /^Revision 2$/i }),
+  });
+  await expect(createdRevision).toBeVisible();
+  await expect(createdRevision.getByText("Prototype check-in")).toBeVisible();
+  await expect(createdRevision.locator("strong", { hasText: "sample.txt" })).toBeVisible();
+  await expect(createdRevision.getByText("text/plain")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "revision.created" })).toBeVisible();
   await expectNoPageOverflow(page);
 });
