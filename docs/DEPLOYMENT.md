@@ -36,6 +36,17 @@ flowchart LR
 ## Start the Environment
 
 ```bash
+python scripts/dev.py install
+python scripts/start_all.py
+```
+
+This is the usable prototype startup path for a fresh checkout. Docker Compose
+starts PostgreSQL, MinIO and the backend, while the Web UI runs from the Vite
+development server on `http://localhost:5173`.
+
+For backend-only local deployment work, run:
+
+```bash
 python scripts/dev.py compose-up
 ```
 
@@ -55,6 +66,17 @@ After startup:
 * PostgreSQL: `localhost:5432`
 * MinIO API: `http://localhost:9000`
 * MinIO console: `http://localhost:9001`
+
+When using the combined startup command, also check:
+
+* Web UI: `http://localhost:5173`
+* Foundation API: `http://localhost:18000/foundation`
+
+If the backend is started directly with `python scripts/dev.py run-backend`, use
+`http://127.0.0.1:8000/health`, `http://127.0.0.1:8000/foundation` and
+`http://127.0.0.1:8000/docs`. Start Vite with
+`VITE_API_PROXY_TARGET=http://localhost:8000` so browser requests use that
+direct backend port.
 
 The backend now exposes a concrete API surface for:
 
@@ -127,7 +149,9 @@ pnpm run dev
 If the UI is not served from the same origin as the backend, set
 `VITE_API_BASE_URL=http://localhost:8000` before starting Vite.
 
-To start the Compose backend and frontend development server together, run `python scripts/start_all.py` from the repository root.
+To start the Compose backend and frontend development server together, run
+`python scripts/start_all.py` from the repository root. The command prints
+readiness checks and prerequisite warnings for Docker, uv, Node.js and pnpm/npm.
 
 ## Configuration Notes
 

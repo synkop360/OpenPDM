@@ -17,6 +17,31 @@ from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 
+COMPOSE_BACKEND_URL = "http://localhost:18000"
+DIRECT_BACKEND_URL = "http://127.0.0.1:8000"
+FRONTEND_URL = "http://localhost:5173"
+FRONTEND_PROXY_TARGET = "VITE_API_PROXY_TARGET=http://localhost:8000"
+
+READINESS_CHECKS = [
+    ("Backend health", "http://localhost:18000/health"),
+    ("Foundation API", "http://localhost:18000/foundation"),
+    ("API docs", "http://localhost:18000/docs"),
+    ("Web UI", FRONTEND_URL),
+]
+
+DIRECT_BACKEND_READINESS_CHECKS = [
+    ("Direct backend health", "http://127.0.0.1:8000/health"),
+    ("Direct Foundation API", "http://127.0.0.1:8000/foundation"),
+    ("Direct API docs", "http://127.0.0.1:8000/docs"),
+]
+
+PREREQUISITE_HINTS = {
+    "docker": "Docker is required for the Compose stack that starts PostgreSQL, MinIO and the backend.",
+    "uv": "uv is required to install Python dependencies and run backend development commands.",
+    "node": "Node.js is required for the Vite Web UI.",
+    "pnpm": "pnpm is preferred for Web UI dependency and development commands; npm is accepted as a fallback.",
+}
+
 
 def wait_for_backend(url: str, timeout: int = 60) -> bool:
     deadline = time.time() + timeout
@@ -64,6 +89,41 @@ def resolve_executable(command: str) -> str | None:
             if resolved is not None:
                 return resolved
     return None
+
+
+def available_tool_names() -> set[str]:
+    available = {name for name in ("docker", "uv", "node") if resolve_executable(name)}
+    if resolve_executable("pnpm") or resolve_executable("npm"):
+        available.add("pnpm")
+    return available
+
+
+def missing_prerequisite_messages(tool_names: set[str] | None = None) -> list[str]:
+    available = available_tool_names() if tool_names is None else tool_names
+    messages: list[str] = []
+    for name in ("docker", "uv", "node", "pnpm"):
+        if name not in available:
+            messages.append(f"{name}: {PREREQUISITE_HINTS[name]}")
+    return messages
+
+
+def print_prerequisite_warnings() -> None:
+    messages = missing_prerequisite_messages()
+    if not messages:
+        return
+    print("Startup prerequisite warnings:", file=sys.stderr)
+    for message in messages:
+        print(f"- {message}", file=sys.stderr)
+
+
+def print_readiness_checks() -> None:
+    print("\nReadiness checks:")
+    for label, url in READINESS_CHECKS:
+        print(f"- {label}: {url}")
+    print("\nBackend-only checks for python scripts/dev.py run-backend:")
+    for label, url in DIRECT_BACKEND_READINESS_CHECKS:
+        print(f"- {label}: {url}")
+    print(f"\nWhen using the direct backend with Vite, set {FRONTEND_PROXY_TARGET}.")
 
 
 def resolve_frontend_runner() -> tuple[list[str], bool]:
@@ -162,6 +222,7 @@ def main() -> int:
         )
         return 2
 
+    print_prerequisite_warnings()
     frontend_command, frontend_available = resolve_frontend_runner()
 
     if args.dry_run:
@@ -175,6 +236,7 @@ def main() -> int:
                 print(
                     "  Warning: pnpm/npm was not found on PATH; install Node.js tooling before starting the frontend."
                 )
+        print_readiness_checks()
         return 0
 
     processes: list[tuple[str, subprocess.Popen[str]]] = []
@@ -191,7 +253,7 @@ def main() -> int:
                 )
             )
             print("Waiting for backend to become healthy...")
-            ok = wait_for_backend("http://localhost:18000/health", timeout=300)
+            ok = wait_for_backend(f"{COMPOSE_BACKEND_URL}/health", timeout=300)
             if not ok:
                 raise RuntimeError("Backend did not become healthy within timeout")
         if not args.skip_frontend:
@@ -217,11 +279,12 @@ def main() -> int:
                 )
 
         print("\nOpenPDM services are running.")
-        print("- Backend/API: http://localhost:18000")
+        print(f"- Backend/API: {COMPOSE_BACKEND_URL}")
         if frontend_available and not args.skip_frontend:
-            print("- Frontend dev server: http://localhost:5173")
+            print(f"- Frontend dev server: {FRONTEND_URL}")
         elif not args.skip_frontend:
             print("- Frontend dev server: not started (pnpm/npm unavailable)")
+        print_readiness_checks()
         print("Press Ctrl+C to stop everything.\n")
 
         while True:
