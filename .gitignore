@@ -16,6 +16,8 @@ coverage/
 .memoire/
 
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 frontend/tsconfig.tsbuildinfo
 desktop/src-tauri/target/
 backend/.venv/
