@@ -1,4 +1,3 @@
-import * as Tabs from "@radix-ui/react-tabs";
 import { projectTabs, type ProjectTab } from "../../app/routes";
 
 const labels: Record<ProjectTab, string> = {
@@ -16,21 +15,20 @@ type ProjectTabsProps = {
 
 export function ProjectTabs({ onValueChange, value }: ProjectTabsProps) {
   return (
-    <Tabs.Root value={value} onValueChange={(next) => onValueChange(next as ProjectTab)}>
-      <Tabs.List aria-label="Project sections" className="project-tabs">
-        {projectTabs.map((tab) => (
-          <Tabs.Trigger
-            className="project-tab"
-            key={tab}
-            onClick={() => {
-              if (tab !== value) onValueChange(tab);
-            }}
-            value={tab}
-          >
-            {labels[tab]}
-          </Tabs.Trigger>
-        ))}
-      </Tabs.List>
-    </Tabs.Root>
+    <nav aria-label="Project sections" className="project-tabs">
+      {projectTabs.map((tab) => (
+        <button
+          aria-current={tab === value ? "page" : undefined}
+          className={tab === value ? "project-tab is-active" : "project-tab"}
+          key={tab}
+          onClick={() => {
+            if (tab !== value) onValueChange(tab);
+          }}
+          type="button"
+        >
+          {labels[tab]}
+        </button>
+      ))}
+    </nav>
   );
 }
