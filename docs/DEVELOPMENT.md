@@ -54,6 +54,9 @@ Validation includes:
 * pytest backend and architecture tests;
 * frontend TypeScript and Vitest checks when JavaScript dependencies are installed.
 
+For the complete usable prototype acceptance gate, including browser checks and
+known limits, see [Usable Prototype Acceptance](PROTOTYPE_ACCEPTANCE.md).
+
 Build the Web UI production bundle after changing frontend behavior:
 
 ```bash

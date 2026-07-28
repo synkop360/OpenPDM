@@ -16,6 +16,9 @@ The Web UI is a normal consumer of the public application API. It exercises the
 Platform Core through the browser and does not bypass Platform Module
 boundaries.
 
+This browser workflow is a required manual check in the [Usable Prototype
+Acceptance](PROTOTYPE_ACCEPTANCE.md) gate.
+
 ## Scope
 
 This guide covers the implemented workflow for:
