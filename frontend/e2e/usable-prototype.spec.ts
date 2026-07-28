@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import {
+  createSharedPrototypeState,
   expectNoPageOverflow,
   mockFirstRunPrototypeApi,
   mockPrototypeApi,
@@ -48,6 +49,63 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   const downloadedPath = await download.path();
   expect(downloadedPath).not.toBeNull();
   expect(await readFile(downloadedPath!, "utf-8")).toBe("hello world");
+  await expectNoPageOverflow(page);
+});
+
+test("two users see lock conflict and collaboration notifications", async ({ browser }) => {
+  const sharedState = createSharedPrototypeState();
+  const owner = await browser.newContext();
+  const member = await browser.newContext();
+  const ownerPage = await owner.newPage();
+  const memberPage = await member.newPage();
+
+  await mockPrototypeApi(ownerPage, { state: sharedState, user: "owner" });
+  await mockPrototypeMutations(ownerPage, { user: "owner" });
+  await signInWithStoredSession(ownerPage);
+  await mockPrototypeApi(memberPage, { state: sharedState, user: "member" });
+  await mockPrototypeMutations(memberPage, { user: "member" });
+  await signInWithStoredSession(memberPage);
+
+  await memberPage.goto("/projects/project-1/collaboration");
+  await expect(memberPage.getByRole("heading", { name: /Collaboration/i })).toBeVisible();
+  await expect(memberPage.getByText("available", { exact: true })).toBeVisible();
+
+  await ownerPage.goto("/projects/project-1/assets");
+  await expect(ownerPage.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await ownerPage.getByRole("button", { name: /^Check out$/i }).click();
+  await expect(ownerPage.getByText("locked", { exact: true })).toBeVisible();
+
+  await memberPage.goto("/projects/project-1/assets");
+  await expect(memberPage.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await expect(memberPage.getByText("locked", { exact: true })).toBeVisible();
+  await expect(memberPage.getByRole("button", { name: /^Check out$/i })).toBeDisabled();
+
+  await memberPage.goto("/notifications");
+  await expect(memberPage.locator("article").filter({ hasText: "Asset locked" })).toBeVisible();
+  await memberPage.getByRole("button", { name: /Mark read/i }).first().click();
+  await expect(memberPage.getByText(/Notification marked as read/i)).toBeVisible();
+
+  await expectNoPageOverflow(ownerPage);
+  await expectNoPageOverflow(memberPage);
+  await owner.close();
+  await member.close();
+});
+
+test("Asset Graph separates incoming, outgoing and references without bulk controls", async ({ page }) => {
+  await mockPrototypeApi(page);
+  await signInWithStoredSession(page);
+
+  await page.goto("/projects/project-1/relationships");
+  await expect(page.getByRole("heading", { name: /Relationships and references/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Incoming$/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Outgoing$/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^References$/i })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Incoming" }).getByText(/Incoming Asset/i)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Outgoing" }).getByText(/Referenced Asset/i)).toBeVisible();
+  await expect(page.getByText(/Supplier specification/i)).toBeVisible();
+  await expect(page.getByText(/bounded nodes/i)).toBeVisible();
+  await expect(page.getByText(/read-only by design/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /bulk/i })).toHaveCount(0);
   await expectNoPageOverflow(page);
 });
 

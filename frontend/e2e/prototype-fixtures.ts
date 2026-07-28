@@ -46,6 +46,20 @@ type PrototypeState = {
     revision_id: string | null;
     details: Record<string, unknown>;
   }>;
+  notifications: Record<string, Array<{
+    id: string;
+    recipient_user_id: string;
+    actor_user_id: string | null;
+    organization_id: string | null;
+    project_id: string;
+    asset_id: string | null;
+    revision_id: string | null;
+    event_type: string;
+    is_read: boolean;
+    read_at: string | null;
+    details: Record<string, unknown>;
+    created_at: string;
+  }>>;
 };
 
 const revisionBlob: PrototypeBlob = {
@@ -87,6 +101,24 @@ const checkedInRevision: PrototypeRevision = {
 
 const prototypeStates = new WeakMap<Page, PrototypeState>();
 
+const ownerUser = {
+  id: "user-owner",
+  email: "owner@example.com",
+  display_name: "Owner",
+  is_active: true,
+  is_platform_admin: true,
+  created_at: "2026-07-28T00:00:00Z",
+};
+
+const memberUser = {
+  id: "user-member",
+  email: "member@example.com",
+  display_name: "Member",
+  is_active: true,
+  is_platform_admin: false,
+  created_at: "2026-07-28T00:00:00Z",
+};
+
 function createPrototypeState(): PrototypeState {
   return {
     collaborationState: {
@@ -100,6 +132,10 @@ function createPrototypeState(): PrototypeState {
     },
     history: [initialRevision],
     timeline: [],
+    notifications: {
+      "user-owner": [],
+      "user-member": [],
+    },
   };
 }
 
@@ -112,32 +148,46 @@ function getPrototypeState(page: Page): PrototypeState {
   return state;
 }
 
-export async function mockPrototypeApi(page: Page) {
-  const state = createPrototypeState();
+export function createSharedPrototypeState(): PrototypeState {
+  return createPrototypeState();
+}
+
+export async function mockPrototypeApi(
+  page: Page,
+  options: { state?: PrototypeState; user?: "owner" | "member" } = {},
+) {
+  const state = options.state ?? createPrototypeState();
+  const currentUser = options.user === "member" ? memberUser : ownerUser;
   prototypeStates.set(page, state);
 
   await page.route("**/foundation", (route) => route.fulfill({
     json: { name: "OpenPDM", version: "0.0.0", phase: "Core Platform", architecture: "Modular Monolith" },
   }));
   await page.route("**/auth/session", (route) => route.fulfill({
-    json: { id: "session-1", token: "token", user: { id: "user-owner", email: "owner@example.com", display_name: "Owner", is_active: true, is_platform_admin: true, created_at: "2026-07-28T00:00:00Z" } },
+    json: { id: `session-${currentUser.id}`, token: "token", user: currentUser },
   }));
   await page.route("**/organizations", (route) => route.fulfill({
-    json: [{ id: "org-member-1", role: "Owner", user: { id: "user-owner", email: "owner@example.com", display_name: "Owner" }, organization: { id: "org-1", name: "Prototype Org", slug: "prototype-org" } }],
+    json: [{ id: `org-member-${currentUser.id}`, role: options.user === "member" ? "Member" : "Owner", user: currentUser, organization: { id: "org-1", name: "Prototype Org", slug: "prototype-org" } }],
   }));
   await page.route("**/organizations/org-1/projects/me", (route) => route.fulfill({
-    json: [{ id: "project-member-1", role: "Owner", user: { id: "user-owner", email: "owner@example.com", display_name: "Owner" }, project: { id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" } }],
+    json: [{ id: `project-member-${currentUser.id}`, role: options.user === "member" ? "Member" : "Owner", user: currentUser, project: { id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" } }],
   }));
   await page.route("**/organizations/org-1/projects", (route) => route.fulfill({
     json: [{ id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" }],
   }));
   await page.route("**/organizations/org-1/members", (route) => route.fulfill({
-    json: [{ id: "org-member-1", role: "Owner", user: { id: "user-owner", email: "owner@example.com", display_name: "Owner" }, organization: { id: "org-1", name: "Prototype Org", slug: "prototype-org" } }],
+    json: [
+      { id: "org-member-owner", role: "Owner", user: ownerUser, organization: { id: "org-1", name: "Prototype Org", slug: "prototype-org" } },
+      { id: "org-member-member", role: "Member", user: memberUser, organization: { id: "org-1", name: "Prototype Org", slug: "prototype-org" } },
+    ],
   }));
   await page.route("**/projects/project-1/members", (route) => {
     if (route.request().resourceType() !== "fetch") return route.fallback();
     return route.fulfill({
-      json: [{ id: "project-member-1", role: "Owner", user: { id: "user-owner", email: "owner@example.com", display_name: "Owner" }, project: { id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" } }],
+      json: [
+        { id: "project-member-owner", role: "Owner", user: ownerUser, project: { id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" } },
+        { id: "project-member-member", role: "Member", user: memberUser, project: { id: "project-1", organization_id: "org-1", name: "Prototype Project", description: "Local prototype", created_at: "2026-07-28T00:00:00Z" } },
+      ],
     });
   });
   await page.route("**/projects/project-1/assets**", (route) => {
@@ -152,6 +202,22 @@ export async function mockPrototypeApi(page: Page) {
           status: "draft",
           metadata: {},
           created_at: "2026-07-28T00:00:00Z",
+        }, {
+          id: "asset-2",
+          project_id: "project-1",
+          name: "Referenced Asset",
+          description: "Outgoing graph neighbor",
+          status: "draft",
+          metadata: {},
+          created_at: "2026-07-28T00:01:00Z",
+        }, {
+          id: "asset-3",
+          project_id: "project-1",
+          name: "Incoming Asset",
+          description: "Incoming graph neighbor",
+          status: "draft",
+          metadata: {},
+          created_at: "2026-07-28T00:02:00Z",
         }],
         next_cursor: null,
       },
@@ -167,14 +233,132 @@ export async function mockPrototypeApi(page: Page) {
     json: state.collaborationState,
   }));
   await page.route("**/assets/asset-1/timeline", (route) => route.fulfill({ json: state.timeline }));
-  await page.route("**/notifications**", (route) => route.fulfill({ json: { items: [], next_cursor: null } }));
+  await page.route("**/notifications**", (route) => {
+    if (route.request().resourceType() === "document") return route.fallback();
+    if (route.request().url().includes("/read")) return route.fallback();
+    const unreadOnly = route.request().url().includes("is_read=false");
+    const items = state.notifications[currentUser.id] ?? [];
+    return route.fulfill({
+      json: {
+        items: unreadOnly ? items.filter((item) => !item.is_read) : items,
+        next_cursor: null,
+      },
+    });
+  });
   await page.route("**/providers", (route) => route.fulfill({ json: [] }));
+  await page.route("**/notifications/*/read", (route) => {
+    const notificationId = route.request().url().split("/").at(-2);
+    const items = state.notifications[currentUser.id] ?? [];
+    const item = items.find((candidate) => candidate.id === notificationId);
+    if (!item) {
+      return route.fulfill({ status: 404, json: { detail: "Notification not found." } });
+    }
+    item.is_read = true;
+    item.read_at = "2026-07-28T00:10:00Z";
+    return route.fulfill({ json: item });
+  });
+  await page.route("**/assets/asset-1/relationships", (route) => route.fulfill({
+    json: [{
+      id: "rel-1",
+      source_asset_id: "asset-1",
+      target_asset_id: "asset-2",
+      relationship_type: "depends_on",
+      direction: "outgoing",
+      metadata: { note: "Prototype dependency" },
+      created_by_user_id: "user-owner",
+      created_at: "2026-07-28T00:06:00Z",
+    }],
+  }));
+  await page.route("**/assets/asset-1/relationships/incoming", (route) => route.fulfill({
+    json: [{
+      id: "rel-2",
+      source_asset_id: "asset-3",
+      target_asset_id: "asset-1",
+      relationship_type: "references",
+      direction: "incoming",
+      metadata: {},
+      created_by_user_id: "user-member",
+      created_at: "2026-07-28T00:07:00Z",
+    }],
+  }));
+  await page.route("**/assets/asset-1/relationships/outgoing", (route) => route.fulfill({
+    json: [{
+      id: "rel-1",
+      source_asset_id: "asset-1",
+      target_asset_id: "asset-2",
+      relationship_type: "depends_on",
+      direction: "outgoing",
+      metadata: { note: "Prototype dependency" },
+      created_by_user_id: "user-owner",
+      created_at: "2026-07-28T00:06:00Z",
+    }],
+  }));
+  await page.route("**/assets/asset-1/references", (route) => route.fulfill({
+    json: [{
+      id: "ref-1",
+      source_asset_id: "asset-1",
+      reference_type: "external_url",
+      target_uri: "https://example.test/specification",
+      label: "Supplier specification",
+      metadata: {},
+      created_by_user_id: "user-owner",
+      created_at: "2026-07-28T00:08:00Z",
+    }],
+  }));
+  await page.route("**/assets/asset-1/graph**", (route) => route.fulfill({
+    json: {
+      asset_id: "asset-1",
+      direction: "both",
+      max_depth: 3,
+      target_asset_id: null,
+      path_exists: null,
+      has_cycle: false,
+      nodes: [
+        { id: "asset-1", project_id: "project-1", name: "Prototype Asset", status: "draft" },
+        { id: "asset-2", project_id: "project-1", name: "Referenced Asset", status: "draft" },
+        { id: "asset-3", project_id: "project-1", name: "Incoming Asset", status: "draft" },
+      ],
+      relationships: [],
+    },
+  }));
 }
 
-export async function mockPrototypeMutations(page: Page) {
+export async function mockPrototypeMutations(
+  page: Page,
+  options: { user?: "owner" | "member" } = {},
+) {
   const state = getPrototypeState(page);
+  const currentUserId = options.user === "member" ? "user-member" : "user-owner";
+  const otherUserId = options.user === "member" ? "user-owner" : "user-member";
 
   await page.route("**/assets/asset-1/checkout", (route) => {
+    if (state.collaborationState.lock && state.collaborationState.lock.owner_user_id !== currentUserId) {
+      state.notifications[currentUserId].unshift({
+        id: `notification-conflict-${currentUserId}`,
+        recipient_user_id: currentUserId,
+        actor_user_id: currentUserId,
+        organization_id: "org-1",
+        project_id: "project-1",
+        asset_id: "asset-1",
+        revision_id: null,
+        event_type: "collaboration.conflict_detected",
+        is_read: false,
+        read_at: null,
+        details: { user_guidance: "Refresh the Asset state before trying again." },
+        created_at: "2026-07-28T00:03:00Z",
+      });
+      return route.fulfill({
+        status: 409,
+        json: {
+          detail: {
+            code: "asset_locked",
+            message: "Asset is already locked.",
+            user_guidance: "Refresh the Asset state before trying again.",
+            recovery_action: "refresh_state",
+          },
+        },
+      });
+    }
     state.collaborationState = {
       asset_id: "asset-1",
       state: "locked",
@@ -182,8 +366,22 @@ export async function mockPrototypeMutations(page: Page) {
       can_checkin: true,
       can_unlock: true,
       can_force_unlock: false,
-      lock: { id: "lock-1", asset_id: "asset-1", owner_user_id: "user-owner", created_at: "2026-07-28T00:00:00Z" },
+      lock: { id: "lock-1", asset_id: "asset-1", owner_user_id: currentUserId, created_at: "2026-07-28T00:00:00Z" },
     };
+    state.notifications[otherUserId].unshift({
+      id: `notification-asset-locked-${otherUserId}`,
+      recipient_user_id: otherUserId,
+      actor_user_id: currentUserId,
+      organization_id: "org-1",
+      project_id: "project-1",
+      asset_id: "asset-1",
+      revision_id: null,
+      event_type: "asset.checked_out",
+      is_read: false,
+      read_at: null,
+      details: { asset_name: "Prototype Asset" },
+      created_at: "2026-07-28T00:01:00Z",
+    });
     return route.fulfill({ json: state.collaborationState });
   });
   await page.route("**/assets/asset-1/unlock", (route) => {
@@ -379,7 +577,10 @@ export async function mockFirstRunPrototypeApi(page: Page) {
     },
   }));
   await page.route("**/assets/asset-1/timeline", (route) => route.fulfill({ json: [] }));
-  await page.route("**/notifications**", (route) => route.fulfill({ json: { items: [], next_cursor: null } }));
+  await page.route("**/notifications**", (route) => {
+    if (route.request().resourceType() === "document") return route.fallback();
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
   await page.route("**/providers", (route) => route.fulfill({ json: [] }));
   await page.route("**/relationships**", (route) => route.fulfill({ json: [] }));
   await page.route("**/references**", (route) => route.fulfill({ json: [] }));

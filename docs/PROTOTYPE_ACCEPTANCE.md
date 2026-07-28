@@ -34,7 +34,9 @@ uv run python scripts/validate_documentation.py
 
 The browser gate covers first-run local user registration, Organization and
 Project creation, generic Engineering Asset creation, check-out/check-in,
-Revision history, and Blob-backed browser download.
+Revision history, Blob-backed browser download, two-user collaboration conflict
+feedback, in-app notification acknowledgment, and distinct Incoming, Outgoing
+and References Asset Graph inspection without bulk mutation controls.
 
 ## Required Manual Checks
 
