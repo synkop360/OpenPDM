@@ -60,6 +60,18 @@ type PrototypeState = {
     details: Record<string, unknown>;
     created_at: string;
   }>>;
+  pluginEnabled: boolean;
+  metadata: Array<{
+    id: string;
+    asset_id: string | null;
+    revision_id: string | null;
+    representation_id: string | null;
+    key: string;
+    value: unknown;
+    value_type: string;
+    source: string;
+    created_at: string;
+  }>;
 };
 
 const revisionBlob: PrototypeBlob = {
@@ -119,6 +131,23 @@ const memberUser = {
   created_at: "2026-07-28T00:00:00Z",
 };
 
+function buildDummyCategoriesPlugin(enabled: boolean) {
+  return {
+    id: "asset-categories",
+    name: "Asset Categories",
+    version: "0.1.0",
+    plugin_type: "community",
+    capabilities: ["asset_provider", "metadata_provider", "option_provider"],
+    extension_api_versions: [1],
+    lifecycle_state: "running",
+    diagnostic_reason: null,
+    enabled,
+    package_digest: "sha256:prototype-dummy-categories",
+    created_at: "2026-07-28T00:09:00Z",
+    updated_at: enabled ? "2026-07-28T00:10:00Z" : "2026-07-28T00:12:00Z",
+  };
+}
+
 function createPrototypeState(): PrototypeState {
   return {
     collaborationState: {
@@ -136,6 +165,8 @@ function createPrototypeState(): PrototypeState {
       "user-owner": [],
       "user-member": [],
     },
+    pluginEnabled: true,
+    metadata: [],
   };
 }
 
@@ -245,7 +276,65 @@ export async function mockPrototypeApi(
       },
     });
   });
-  await page.route("**/providers", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plugins", (route) => {
+    if (route.request().resourceType() === "document") return route.fallback();
+    const pathname = new URL(route.request().url()).pathname;
+    if (!pathname.endsWith("/plugins")) return route.fallback();
+    return route.fulfill({ json: [buildDummyCategoriesPlugin(state.pluginEnabled)] });
+  });
+  await page.route("**/plugins/asset-categories/state", async (route) => {
+    const payload = await route.request().postDataJSON() as { enabled?: boolean };
+    state.pluginEnabled = Boolean(payload.enabled);
+    return route.fulfill({ json: buildDummyCategoriesPlugin(state.pluginEnabled) });
+  });
+  await page.route("**/plugins/asset-categories/providers/options", (route) => route.fulfill({
+    json: [{
+      key: "category",
+      label: "Engineering Asset category",
+      options: [
+        { value: "document", label: "Document" },
+        { value: "drawing", label: "Drawing" },
+        { value: "model", label: "Model" },
+        { value: "assembly", label: "Assembly" },
+      ],
+    }],
+  }));
+  await page.route("**/plugins/asset-categories/providers/metadata", async (route) => {
+    const payload = await route.request().postDataJSON() as { parameters?: { category?: string } };
+    const category = payload.parameters?.category ?? "document";
+    const contributed = [{
+      id: "metadata-category",
+      asset_id: "asset-1",
+      revision_id: null,
+      representation_id: null,
+      key: "classification.category",
+      value: category,
+      value_type: "string",
+      source: "plugin:asset-categories",
+      created_at: "2026-07-28T00:11:00Z",
+    }, {
+      id: "metadata-managed-by",
+      asset_id: "asset-1",
+      revision_id: null,
+      representation_id: null,
+      key: "classification.managed_by",
+      value: "dummy-categories",
+      value_type: "string",
+      source: "plugin:asset-categories",
+      created_at: "2026-07-28T00:11:00Z",
+    }];
+    state.metadata = contributed;
+    return route.fulfill({ json: contributed });
+  });
+  await page.route("**/providers", (route) => route.fulfill({
+    json: state.pluginEnabled
+      ? [{
+        id: "asset-categories",
+        name: "Asset Categories",
+        capabilities: ["asset_provider", "metadata_provider", "option_provider"],
+      }]
+      : [],
+  }));
   await page.route("**/notifications/*/read", (route) => {
     const notificationId = route.request().url().split("/").at(-2);
     const items = state.notifications[currentUser.id] ?? [];
@@ -321,6 +410,7 @@ export async function mockPrototypeApi(
       relationships: [],
     },
   }));
+  await page.route("**/metadata/asset/asset-1", (route) => route.fulfill({ json: state.metadata }));
 }
 
 export async function mockPrototypeMutations(

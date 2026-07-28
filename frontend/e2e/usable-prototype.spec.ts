@@ -109,6 +109,47 @@ test("Asset Graph separates incoming, outgoing and references without bulk contr
   await expectNoPageOverflow(page);
 });
 
+test("Platform Administrator can demonstrate the generic plugin provider path", async ({ page }) => {
+  await mockPrototypeApi(page);
+  await signInWithStoredSession(page);
+
+  await page.goto("/administration/plugins");
+  await expect(page.getByRole("heading", { name: /Plugin administration/i })).toBeVisible();
+  await expect(page.getByText(/Install Community Plugin/i)).toBeVisible();
+  await expect(page.getByText(/Asset Categories/i)).toBeVisible();
+  await expect(page.getByText(/metadata_provider/i)).toBeVisible();
+  await page.getByText(/Review manifest and package evidence/i).click();
+  await expect(page.getByText(/Extension API/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /^Disable$/i }).click();
+  await page.getByRole("button", { name: /^Disable plugin$/i }).click();
+  await expect(page.getByText(/Asset Categories disabled/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Enable$/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /^Enable$/i }).click();
+  await page.getByRole("button", { name: /^Enable plugin$/i }).click();
+  await expect(page.getByText(/Asset Categories enabled/i)).toBeVisible();
+
+  await page.goto("/projects/project-1/assets");
+  await expect(page.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await expect(page.getByText(/Asset Categories/i)).toBeVisible();
+  await page.getByLabel(/Engineering Asset category/i).selectOption("assembly");
+  await page.getByRole("button", { name: /Apply metadata/i }).click();
+  await expect(page.getByText(/Asset Categories metadata applied/i)).toBeVisible();
+  await expect(page.getByText("classification.category")).toBeVisible();
+  await expect(page.locator(".metadata-list").getByText("assembly", { exact: true })).toBeVisible();
+
+  await page.goto("/administration/plugins");
+  await page.getByRole("button", { name: /^Disable$/i }).click();
+  await page.getByRole("button", { name: /^Disable plugin$/i }).click();
+  await expect(page.getByText(/Asset Categories disabled/i)).toBeVisible();
+  await page.goto("/projects/project-1/assets");
+  await expect(page.getByText(/No running Metadata Provider is available/i)).toBeVisible();
+  await expect(page.getByText("classification.category")).toBeVisible();
+  await expect(page.locator(".metadata-list").getByText("assembly", { exact: true })).toBeVisible();
+  await expectNoPageOverflow(page);
+});
+
 test("first-run user can create Organization, Project and Engineering Asset", async ({ page }) => {
   await mockFirstRunPrototypeApi(page);
 

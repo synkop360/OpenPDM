@@ -36,7 +36,11 @@ The browser gate covers first-run local user registration, Organization and
 Project creation, generic Engineering Asset creation, check-out/check-in,
 Revision history, Blob-backed browser download, two-user collaboration conflict
 feedback, in-app notification acknowledgment, and distinct Incoming, Outgoing
-and References Asset Graph inspection without bulk mutation controls.
+and References Asset Graph inspection without bulk mutation controls. It also
+covers the generic dummy categories plugin demonstration: Platform Administrator
+review, lifecycle enable/disable, provider discovery, text-only options,
+metadata contribution, and provider disappearance after disablement while prior
+metadata remains.
 
 ## Required Manual Checks
 
