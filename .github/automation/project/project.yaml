@@ -28,6 +28,10 @@ labels:
     color: "0075CA"
     description: Documentation.
 
+  - name: prototype
+    color: "BFD4F2"
+    description: Usable prototype delivery and stabilization.
+
   - name: decision
     color: "D4C5F9"
     description: Decision record or unresolved design choice.
@@ -101,6 +105,7 @@ fields:
       - Collaboration
       - Asset Graph
       - Plugin Platform
+      - Usable Prototype
       - Mechanical Engineering
       - Engineering Workflows
       - Multi-Domain Engineering
@@ -209,8 +214,29 @@ milestones:
   - title: Web UI Operational Experience
     description: Replace the demonstration-style Web UI with an accessible, responsive operational workspace backed only by public APIs.
 
+  - title: Usable Prototype Delivery
+    description: Stabilize the implemented Phase 1-4 slices into a coherent local prototype for generic Engineering Asset collaboration.
+
+  - title: Prototype Local Startup
+    description: Provide one reproducible startup path for PostgreSQL, MinIO, backend and Web UI.
+
+  - title: Prototype First-Run Workspace
+    description: Make the first user, Organization, Project and Engineering Asset workflow demonstrable from a fresh checkout.
+
+  - title: Prototype Collaboration and Asset Graph
+    description: Prove the collaboration, timeline, notifications, relationships, references and graph surfaces work together.
+
+  - title: Prototype Plugin Demonstration
+    description: Demonstrate the generic plugin journey through public administration and provider APIs.
+
+  - title: Prototype Acceptance and Limits
+    description: Document supported prototype workflows, known limits, deferrals and smoke checks.
+
   - title: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
+
+  - title: Mechanical Prototype Vertical Slice
+    description: Deliver one minimal mechanical Official Plugin workflow before broader CAD/provider scope.
 
   - title: Engineering Workflows
     description: Introduce configurable engineering workflows.
@@ -6188,10 +6214,440 @@ roadmap:
               Complexity: M
               ADR: ADR-0034, ADR-0037
 
+  - phase: Usable Prototype
+    milestone: Usable Prototype Delivery
+    description: Stabilize the implemented Phase 1-4 slices into a coherent local prototype before expanding domain-specific scope.
+    epics:
+      - title: "Prototype Epic: Reproducible local startup"
+        body: |
+          ## Objective
+          Make a fresh checkout start PostgreSQL, MinIO, backend and Web UI through one documented prototype path.
+
+          ## Description
+          Reconcile the existing Compose, backend, Web UI and helper scripts into a contributor-friendly startup path that requires no code edits and produces clear readiness feedback.
+
+          ## Acceptance Criteria
+          - A fresh checkout starts the local services and Web UI from documented commands.
+          - Health and foundation endpoints are reachable after startup.
+          - The Web UI points at the running backend without manual source edits.
+          - Startup failures explain which service or prerequisite is missing.
+
+          ## Dependencies
+          - ROADMAP Near-Term Prototype Delivery Track
+          - docs/DEVELOPMENT.md
+          - docs/DEPLOYMENT.md
+
+          ## Suggested Labels
+          prototype, deployment, documentation, test, P0
+        milestone: Prototype Local Startup
+        labels: [prototype, deployment, documentation, test, P0]
+        fields:
+          Phase: Usable Prototype
+          Epic: Reproducible Local Startup
+          Platform Area: Infrastructure
+          Complexity: M
+          ADR: ADR-0004, ADR-0005, ADR-0006, ADR-0007
+        sub_issues:
+          - title: "Prototype Task: Verify one-command local startup path"
+            body: |
+              ## Objective
+              Confirm the documented prototype startup path works from a fresh checkout.
+
+              ## Acceptance Criteria
+              - PostgreSQL, MinIO, backend and Web UI start from the documented commands.
+              - Backend `/health`, `/foundation` and API docs are reachable.
+              - The Web UI loads against the intended backend origin.
+              - Any required environment variables are documented in one place.
+            labels: [prototype, deployment, documentation, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Reproducible Local Startup
+              Platform Area: Infrastructure
+              Complexity: M
+              ADR: ADR-0004, ADR-0005, ADR-0006, ADR-0007
+
+          - title: "Prototype Task: Add startup readiness and failure notes"
+            body: |
+              ## Objective
+              Make prototype startup failures actionable for contributors.
+
+              ## Acceptance Criteria
+              - Missing Docker, uv, Node.js or pnpm prerequisites are documented.
+              - Service readiness checks identify backend, database, object storage and Web UI separately.
+              - Recovery steps do not require editing source files.
+            labels: [prototype, deployment, documentation, P1]
+            fields:
+              Phase: Usable Prototype
+              Epic: Reproducible Local Startup
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0004, ADR-0005, ADR-0006, ADR-0007
+
+      - title: "Prototype Epic: First-run Engineering Asset workspace"
+        body: |
+          ## Objective
+          Make the first user, Organization, Project and Engineering Asset path usable as the core prototype workflow.
+
+          ## Description
+          Exercise the implemented Platform Core and Web UI through a fresh local team setup, generic Engineering Asset creation, file upload/download and revision history.
+
+          ## Acceptance Criteria
+          - Two local users can be registered and signed in.
+          - A user can create an Organization, Project and Engineering Asset from first-run state.
+          - Project member administration works with Owner safeguards.
+          - A file upload creates an immutable Revision and downloadable Blob.
+          - The workflow is covered by documented smoke checks.
+
+          ## Dependencies
+          - Prototype Epic: Reproducible local startup
+
+          ## Suggested Labels
+          prototype, feature, frontend, core, test, P0
+        milestone: Prototype First-Run Workspace
+        labels: [prototype, feature, frontend, core, test, P0]
+        fields:
+          Phase: Usable Prototype
+          Epic: First-Run Engineering Asset Workspace
+          Platform Area: Frontend
+          Complexity: L
+          ADR: ADR-0009, ADR-0012, ADR-0015, ADR-0016, ADR-0033, ADR-0042
+        sub_issues:
+          - title: "Prototype Task: Verify first-run user Organization and Project setup"
+            body: |
+              ## Objective
+              Prove that a fresh user can reach a usable Project workspace without seeded data.
+
+              ## Acceptance Criteria
+              - Registration signs the first user into the protected workspace.
+              - Organization and Project creation select the new records automatically.
+              - A second user can be added through Organization and Project membership flows.
+              - Owner safeguards prevent removing the final Owner.
+            labels: [prototype, frontend, core, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: First-Run Engineering Asset Workspace
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0009, ADR-0012, ADR-0015, ADR-0033
+
+          - title: "Prototype Task: Verify generic file revision upload and download"
+            body: |
+              ## Objective
+              Confirm that a generic Engineering Asset can carry real file revisions in the prototype.
+
+              ## Acceptance Criteria
+              - A user can create an Engineering Asset from the Web UI.
+              - Upload creates a Blob-backed immutable Revision with visible history.
+              - Download returns the uploaded Blob with a correct filename.
+              - Resumable transfer failures show actionable recovery feedback.
+            labels: [prototype, frontend, core, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: First-Run Engineering Asset Workspace
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0003, ADR-0016, ADR-0042
+
+      - title: "Prototype Epic: Collaboration and Asset Graph smoke path"
+        body: |
+          ## Objective
+          Demonstrate that multi-user collaboration and generic Asset Graph exploration work together in the prototype.
+
+          ## Description
+          Tie together checkout, check-in, unlock, conflict feedback, timeline entries, notifications, relationships, references and bounded graph traversal through the Web UI.
+
+          ## Acceptance Criteria
+          - Check-out, check-in and unlock work for authorized Project members.
+          - Lock conflicts and archived-Asset recovery are understandable.
+          - Timeline entries and in-app notifications are visible and acknowledgeable.
+          - Relationships, references and bounded graph queries are inspectable without bulk mutation.
+
+          ## Dependencies
+          - Prototype Epic: First-run Engineering Asset workspace
+
+          ## Suggested Labels
+          prototype, feature, frontend, core, test, P0
+        milestone: Prototype Collaboration and Asset Graph
+        labels: [prototype, feature, frontend, core, test, P0]
+        fields:
+          Phase: Usable Prototype
+          Epic: Collaboration and Asset Graph Smoke Path
+          Platform Area: Frontend
+          Complexity: L
+          ADR: ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022, ADR-0027, ADR-0029, ADR-0030, ADR-0031
+        sub_issues:
+          - title: "Prototype Task: Verify multi-user collaboration smoke path"
+            body: |
+              ## Objective
+              Prove the prototype supports safe multi-user collaboration on one Engineering Asset.
+
+              ## Acceptance Criteria
+              - User A can check out and check in an Engineering Asset with a required revision comment.
+              - User B receives clear conflict feedback while User A owns the lock.
+              - Unlock and stale-lock recovery behavior follows Project role rules.
+              - Timeline entries explain the actions taken.
+            labels: [prototype, frontend, core, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Collaboration and Asset Graph Smoke Path
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0022, ADR-0024
+
+          - title: "Prototype Task: Verify notifications and graph exploration smoke path"
+            body: |
+              ## Objective
+              Prove collaboration events and generic Asset Graph surfaces are visible in the prototype.
+
+              ## Acceptance Criteria
+              - Collaboration notifications appear for other Project members and can be marked read.
+              - Relationship and reference regions stay distinct in the Web UI.
+              - Bounded graph traversal works without exposing bulk mutation.
+              - Authorization failures remain scoped and understandable.
+            labels: [prototype, frontend, core, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Collaboration and Asset Graph Smoke Path
+              Platform Area: Platform Module
+              Complexity: M
+              ADR: ADR-0021, ADR-0025, ADR-0027, ADR-0029, ADR-0030, ADR-0031, ADR-0041
+
+      - title: "Prototype Epic: Generic plugin demonstration"
+        body: |
+          ## Objective
+          Make one end-to-end plugin journey demonstrable through public administration and provider APIs.
+
+          ## Description
+          Use the existing generic reference or dummy categories plugin to prove package build, installation, enablement, provider discovery, metadata contribution, disablement and persistence across restart.
+
+          ## Acceptance Criteria
+          - A Platform Administrator can install, enable, invoke and disable one example plugin.
+          - Running providers are discovered through the public application API.
+          - Plugin metadata is persisted through the Metadata Platform Module after authorization.
+          - Plugin package storage survives ordinary backend restart or container replacement.
+          - Official Plugins and Community Plugins use the same Extension API path.
+
+          ## Dependencies
+          - Prototype Epic: First-run Engineering Asset workspace
+          - Prototype Epic: Collaboration and Asset Graph smoke path
+
+          ## Suggested Labels
+          prototype, plugin, frontend, test, P0
+        milestone: Prototype Plugin Demonstration
+        labels: [prototype, plugin, frontend, test, P0]
+        fields:
+          Phase: Usable Prototype
+          Epic: Generic Plugin Demonstration
+          Platform Area: Extension API
+          Complexity: L
+          ADR: ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039, ADR-0040
+        sub_issues:
+          - title: "Prototype Task: Verify example plugin administration journey"
+            body: |
+              ## Objective
+              Confirm that plugin administration is usable through the prototype Web UI.
+
+              ## Acceptance Criteria
+              - The example package builds from documented commands.
+              - Installation, enablement, configuration and disablement require Platform Administrator authority.
+              - Lifecycle diagnostics are visible and actionable.
+              - No privileged Official Plugin path is introduced.
+            labels: [prototype, plugin, frontend, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Generic Plugin Demonstration
+              Platform Area: Frontend
+              Complexity: M
+              ADR: ADR-0034, ADR-0035, ADR-0037, ADR-0038
+
+          - title: "Prototype Task: Verify provider discovery and metadata contribution"
+            body: |
+              ## Objective
+              Confirm that the prototype can discover and invoke generic providers without engineering semantics in the Platform Core.
+
+              ## Acceptance Criteria
+              - `GET /providers` returns the running example provider.
+              - Declarative options render as text-only values.
+              - Metadata contribution is reauthorized and persisted through the Metadata Platform Module.
+              - Disabling the plugin removes it from discovery without deleting prior metadata.
+            labels: [prototype, plugin, frontend, core, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Generic Plugin Demonstration
+              Platform Area: Extension API
+              Complexity: M
+              ADR: ADR-0039, ADR-0040
+
+      - title: "Prototype Epic: Acceptance documentation and known limits"
+        body: |
+          ## Objective
+          Make the usable prototype boundary explicit so contributors know what is supported, deferred and intentionally not production-hardened.
+
+          ## Description
+          Reconcile the README, development guide, deployment guide, API docs and manual Web UI guide around one prototype acceptance path and its limits.
+
+          ## Acceptance Criteria
+          - Prototype startup, smoke test and manual verification steps are documented.
+          - Known deferrals match ROADMAP.md and do not imply production readiness.
+          - API and Web UI docs match implemented behavior.
+          - CI and manual smoke checks are named as the prototype acceptance gate.
+
+          ## Dependencies
+          - Prototype Epic: Reproducible local startup
+          - Prototype Epic: First-run Engineering Asset workspace
+          - Prototype Epic: Collaboration and Asset Graph smoke path
+          - Prototype Epic: Generic plugin demonstration
+
+          ## Suggested Labels
+          prototype, documentation, test, P0
+        milestone: Prototype Acceptance and Limits
+        labels: [prototype, documentation, test, P0]
+        fields:
+          Phase: Usable Prototype
+          Epic: Acceptance Documentation and Known Limits
+          Platform Area: Documentation
+          Complexity: M
+          ADR: ADR-0001, ADR-0002, ADR-0041, ADR-0042, ADR-0043
+        sub_issues:
+          - title: "Prototype Task: Publish supported workflow and known-limits guide"
+            body: |
+              ## Objective
+              Describe exactly what the prototype supports and what remains deferred.
+
+              ## Acceptance Criteria
+              - The guide names supported local startup, first-run, collaboration, graph and plugin workflows.
+              - Production hardening, desktop synchronization, custom workflows and broad CAD integrations remain explicit deferrals.
+              - No documentation claims Platform Core engineering semantics.
+            labels: [prototype, documentation, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Acceptance Documentation and Known Limits
+              Platform Area: Documentation
+              Complexity: S
+              ADR: ADR-0001, ADR-0002
+
+          - title: "Prototype Task: Convert manual smoke checks into prototype acceptance gate"
+            body: |
+              ## Objective
+              Make prototype acceptance repeatable before Phase 5 mechanical work begins.
+
+              ## Acceptance Criteria
+              - Automated CI checks and manual smoke checks are listed together.
+              - Each roadmap acceptance criterion maps to at least one check.
+              - Failing checks produce issue-ready reproduction guidance.
+            labels: [prototype, documentation, test, P0]
+            fields:
+              Phase: Usable Prototype
+              Epic: Acceptance Documentation and Known Limits
+              Platform Area: Documentation
+              Complexity: M
+              ADR: ADR-0041, ADR-0042, ADR-0043
+
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
-    epics: []
+    epics:
+      - title: "Phase 5 Epic: Mechanical Official Plugin vertical slice"
+        body: |
+          ## Objective
+          Deliver one minimal mechanical engineering workflow through an Official Plugin without adding engineering semantics to the Platform Core.
+
+          ## Description
+          Use the stabilized prototype plugin, metadata and relationship paths to prove one real mechanical workflow before broad SOLIDWORKS, FreeCAD, BOM or native metadata scope.
+
+          ## Acceptance Criteria
+          - The selected mechanical workflow is documented before implementation.
+          - Mechanical meaning stays inside the Official Plugin and Extension API payloads.
+          - Generic metadata is persisted through the Metadata Platform Module.
+          - Dependency extraction maps to generic Asset relationships.
+          - Import/export limits are explicit and testable.
+
+          ## Dependencies
+          - Prototype Epic: Acceptance documentation and known limits
+          - Prototype Epic: Generic plugin demonstration
+
+          ## Suggested Labels
+          feature, plugin, documentation, test, P1
+        milestone: Mechanical Prototype Vertical Slice
+        labels: [feature, plugin, documentation, test, P1]
+        fields:
+          Phase: Mechanical Engineering
+          Epic: Mechanical Official Plugin Vertical Slice
+          Platform Area: Official Plugin
+          Complexity: XL
+          ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0040
+        sub_issues:
+          - title: "Phase 5 Task: Select and document the first mechanical plugin workflow"
+            body: |
+              ## Objective
+              Choose the smallest mechanical workflow that proves OpenPDM's plugin architecture with real engineering data.
+
+              ## Acceptance Criteria
+              - The workflow uses existing Platform Core concepts only.
+              - Required file formats, metadata keys and relationship types are documented.
+              - A new ADR is proposed if the workflow requires a new architectural decision.
+              - Broader CAD, BOM and native metadata scope remains explicitly deferred.
+            labels: [plugin, documentation, decision, P1]
+            fields:
+              Phase: Mechanical Engineering
+              Epic: Mechanical Official Plugin Vertical Slice
+              Platform Area: Official Plugin
+              Complexity: M
+              ADR: ADR-0002, ADR-0036
+
+          - title: "Phase 5 Task: Implement mechanical metadata extraction through Extension API"
+            body: |
+              ## Objective
+              Extract one bounded set of mechanical metadata through the Official Plugin path.
+
+              ## Acceptance Criteria
+              - The plugin package implements Extension API v1 contracts.
+              - Metadata output is generic key-value data and is reauthorized before persistence.
+              - Malformed or unsupported files fail with bounded diagnostics.
+              - Automated tests cover successful extraction and failure isolation.
+            labels: [feature, plugin, test, P1]
+            fields:
+              Phase: Mechanical Engineering
+              Epic: Mechanical Official Plugin Vertical Slice
+              Platform Area: Official Plugin
+              Complexity: L
+              ADR: ADR-0034, ADR-0036, ADR-0039
+
+          - title: "Phase 5 Task: Map mechanical dependency output to generic Asset relationships"
+            body: |
+              ## Objective
+              Represent one mechanical dependency result using the existing generic Asset Graph.
+
+              ## Acceptance Criteria
+              - The plugin never writes relationship internals directly.
+              - Dependency output is applied through public relationship contracts.
+              - Cycles, unresolved references and authorization failures are handled safely.
+              - Web UI graph surfaces can inspect the resulting relationships.
+            labels: [feature, plugin, core, test, P1]
+            fields:
+              Phase: Mechanical Engineering
+              Epic: Mechanical Official Plugin Vertical Slice
+              Platform Area: Extension API
+              Complexity: L
+              ADR: ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0031, ADR-0039
+
+          - title: "Phase 5 Task: Document and demonstrate the mechanical prototype slice"
+            body: |
+              ## Objective
+              Make the first mechanical plugin workflow reproducible and honest about prototype limits.
+
+              ## Acceptance Criteria
+              - Developer and user-facing docs describe setup, sample data and expected results.
+              - Import/export, file format and provider limits are explicit.
+              - The demonstration reuses the stabilized prototype startup path.
+              - CI or documented smoke tests cover the workflow.
+            labels: [documentation, plugin, test, P1]
+            fields:
+              Phase: Mechanical Engineering
+              Epic: Mechanical Official Plugin Vertical Slice
+              Platform Area: Documentation
+              Complexity: M
+              ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039
 
   - phase: Engineering Workflows
     milestone: Engineering Workflows
