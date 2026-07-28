@@ -50,6 +50,28 @@ Run the browser workflow in [Web UI Manual Test Guide](WEB_UI_MANUAL_TEST_GUIDE.
 * plugin package persistence after backend restart
 * one real local file upload and browser download
 
+## Latest Prototype Acceptance Result
+
+Date: 2026-07-28
+Scope: automated local prototype gate covering startup readiness tests,
+first-run workspace setup, generic Engineering Asset revision upload/download,
+two-user collaboration, notifications, Asset Graph inspection, and the dummy
+categories plugin provider journey.
+Result: Pass.
+Evidence:
+
+* `uv run pytest`: 90 passed, 4 skipped.
+* `pnpm.cmd --dir frontend test`: 53 passed.
+* `pnpm.cmd --dir frontend build`: passed.
+* `pnpm.cmd --dir frontend test:e2e`: 63 passed.
+* `uv run python .github/automation/project/validate.py .github/automation/project/project.yaml`: passed.
+* `uv run python scripts/validate_phase0.py`: passed.
+* `uv run python scripts/validate_documentation.py`: passed.
+* `git diff --check`: passed.
+
+Manual local-service checks remain required before production-style release
+signoff; this prototype result records the automated acceptance gate.
+
 ## Known Limits
 
 * No production high availability.
