@@ -55,8 +55,34 @@ def validate_phase4_invariants() -> list[str]:
     return errors
 
 
+def validate_prototype_acceptance_invariants() -> list[str]:
+    errors: list[str] = []
+    required_files = [
+        "docs/PROTOTYPE_ACCEPTANCE.md",
+        "docs/WEB_UI_MANUAL_TEST_GUIDE.md",
+    ]
+    required_links = {
+        "README.md": ["docs/PROTOTYPE_ACCEPTANCE.md"],
+        "docs/README.md": ["PROTOTYPE_ACCEPTANCE.md"],
+        "docs/DEVELOPMENT.md": ["PROTOTYPE_ACCEPTANCE.md"],
+    }
+    for relative in required_files:
+        if not (ROOT / relative).is_file():
+            errors.append(f"missing required documentation file {relative}")
+    for relative, links in required_links.items():
+        contents = (ROOT / relative).read_text(encoding="utf-8")
+        for link in links:
+            if link not in contents:
+                errors.append(f"{relative}: missing required link {link!r}")
+    return errors
+
+
 def main() -> int:
-    errors = [*validate_local_links(), *validate_phase4_invariants()]
+    errors = [
+        *validate_local_links(),
+        *validate_phase4_invariants(),
+        *validate_prototype_acceptance_invariants(),
+    ]
     if errors:
         print("Documentation validation failed:")
         for error in errors:

@@ -55,3 +55,24 @@ def test_resolve_frontend_runner_uses_resolved_executable_path(monkeypatch) -> N
 
     assert is_available is True
     assert command == ["C:/tools/pnpm.cmd", "run", "dev"]
+
+
+def test_start_all_documents_service_readiness_commands() -> None:
+    script = (ROOT / "scripts" / "start_all.py").read_text(encoding="utf-8")
+
+    assert "http://localhost:18000/health" in script
+    assert "http://localhost:18000/foundation" in script
+    assert "http://localhost:18000/docs" in script
+    assert "http://localhost:5173" in script
+    assert "http://127.0.0.1:8000/health" in script
+    assert "http://127.0.0.1:8000/foundation" in script
+    assert "VITE_API_PROXY_TARGET=http://localhost:8000" in script
+
+
+def test_missing_prerequisite_messages_are_actionable() -> None:
+    messages = start_all.missing_prerequisite_messages(set())
+
+    assert any("Docker is required for the Compose stack" in message for message in messages)
+    assert any("uv is required to install Python dependencies" in message for message in messages)
+    assert any("Node.js is required for the Vite Web UI" in message for message in messages)
+    assert any("pnpm is preferred for Web UI" in message for message in messages)

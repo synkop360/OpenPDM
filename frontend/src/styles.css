@@ -1084,12 +1084,13 @@ select {
 
   .project-workspace {
     grid-column: auto;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .project-workspace > .content-span,
   .project-header {
     grid-column: auto;
+    min-width: 0;
   }
 
   .nav-panel {

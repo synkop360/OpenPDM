@@ -133,6 +133,7 @@ Useful guides:
 * `docs/API_FLOWS.md`
 * `docs/API_REFERENCE.md`
 * `docs/PHASE_0_DEMO.md`
+* `docs/PROTOTYPE_ACCEPTANCE.md`
 * `docs/WEB_UI_MANUAL_TEST_GUIDE.md`
 
 Phase 3 Asset Graph implementation guide:

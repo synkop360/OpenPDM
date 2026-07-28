@@ -54,6 +54,9 @@ Validation includes:
 * pytest backend and architecture tests;
 * frontend TypeScript and Vitest checks when JavaScript dependencies are installed.
 
+For the complete usable prototype acceptance gate, including browser checks and
+known limits, see [Usable Prototype Acceptance](PROTOTYPE_ACCEPTANCE.md).
+
 Build the Web UI production bundle after changing frontend behavior:
 
 ```bash
@@ -129,10 +132,31 @@ backend and web UI workflow.
 ## Start Backend And Web UI Together
 
 ```bash
+python scripts/dev.py install
 python scripts/start_all.py
 ```
 
-This starts the Compose backend on `http://localhost:18000`, waits for its health check and starts the Vite Web UI on `http://localhost:5173`. Use `--skip-compose`, `--skip-frontend` or `--dry-run` for focused workflows.
+This is the documented local startup path for the usable prototype. It starts
+PostgreSQL, MinIO and the backend through Docker Compose, waits for the backend
+health check, and then starts the Vite Web UI on its public local port.
+
+Readiness checks after startup:
+
+* Backend health: `http://localhost:18000/health`
+* Foundation API: `http://localhost:18000/foundation`
+* API docs: `http://localhost:18000/docs`
+* Web UI: `http://localhost:5173`
+
+Use `--skip-compose`, `--skip-frontend` or `--dry-run` for focused workflows.
+If the direct backend command is used instead of Compose, confirm
+`http://127.0.0.1:8000/health`, `http://127.0.0.1:8000/foundation` and set
+`VITE_API_PROXY_TARGET=http://localhost:8000` before starting Vite.
+
+Startup failure notes:
+
+* missing Docker prevents PostgreSQL, MinIO and the Compose backend from starting;
+* missing uv prevents Python dependency installation and backend development commands;
+* missing Node.js, pnpm or npm prevents the Vite Web UI from starting.
 
 ## Runtime Configuration
 

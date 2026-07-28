@@ -16,6 +16,8 @@ Read project authority in this order:
 
 ## Build And Operate
 
+* [Usable Prototype Acceptance](PROTOTYPE_ACCEPTANCE.md) - supported local workflow, acceptance checks and known limits.
+
 * [Development](DEVELOPMENT.md) — install, validate, test and run the repository.
 * [Deployment](DEPLOYMENT.md) — local Docker Compose services and runtime settings.
 * [Web UI Manual Test Guide](WEB_UI_MANUAL_TEST_GUIDE.md) — browser-level acceptance workflow.

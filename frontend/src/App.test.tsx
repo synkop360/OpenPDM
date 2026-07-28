@@ -364,7 +364,7 @@ describe("App", () => {
     const projectWorkspace = await screen.findByRole("region", { name: "Rocket" });
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Recent Assets" }));
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Collaboration feed" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "Assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     expect(window.location.pathname).toBe("/projects/project-1/assets");
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
@@ -661,7 +661,7 @@ describe("App", () => {
 
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
-    fireEvent.click(await screen.findByRole("tab", { name: "Assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
     if (runDiscardRace) {
       fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
@@ -863,7 +863,7 @@ describe("App", () => {
 
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
-    fireEvent.click(await screen.findByRole("tab", { name: "Assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     const checkoutButton = await screen.findByRole("button", { name: "Check out" });
     fireEvent.click(checkoutButton);
 
@@ -1035,7 +1035,7 @@ describe("App", () => {
     render(<App />);
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
-    fireEvent.click(await screen.findByRole("tab", { name: "Members" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Members" }));
     expect(await screen.findByRole("heading", { name: "Organization members" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "member@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Add member" }));

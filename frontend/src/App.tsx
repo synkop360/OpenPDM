@@ -591,38 +591,7 @@ function OpenPdmApp() {
   }, [session.data?.token, session.data?.user.is_platform_admin, view]);
 
   useEffect(() => {
-    const token = session.data?.token;
-    if (!token) {
-      setProviders(createLoadable([]));
-      return;
-    }
-    discoverProviders(token)
-      .then(async (result) => {
-        setProviders({ status: "ready", data: result, error: null });
-        if (!selectedProjectId || !selectedOrganizationId) return;
-        const optionProviders = result.filter((provider) =>
-          provider.capabilities.includes("option_provider"),
-        );
-        const entries = await Promise.all(
-          optionProviders.map(async (provider) => [
-            provider.id,
-            await getProviderOptions(
-              token,
-              provider.id,
-              selectedProjectId,
-              selectedOrganizationId,
-            ),
-          ] as const),
-        );
-        setProviderOptions(Object.fromEntries(entries));
-      })
-      .catch((error: unknown) =>
-        setProviders({
-          status: "error",
-          data: [],
-          error: error instanceof Error ? error.message : "Providers could not be discovered.",
-        }),
-      );
+    void refreshProviders();
   }, [selectedOrganizationId, selectedProjectId, session.data?.token]);
 
   useEffect(() => {
@@ -1703,6 +1672,44 @@ function OpenPdmApp() {
     setPlugins({ status: "ready", data: result, error: null });
   }
 
+  async function refreshProviders(): Promise<void> {
+    const token = session.data?.token;
+    if (!token) {
+      setProviders(createLoadable([]));
+      setProviderOptions({});
+      return;
+    }
+    try {
+      const result = await discoverProviders(token);
+      setProviders({ status: "ready", data: result, error: null });
+      if (!selectedProjectId || !selectedOrganizationId) {
+        setProviderOptions({});
+        return;
+      }
+      const optionProviders = result.filter((provider) =>
+        provider.capabilities.includes("option_provider"),
+      );
+      const entries = await Promise.all(
+        optionProviders.map(async (provider) => [
+          provider.id,
+          await getProviderOptions(
+            token,
+            provider.id,
+            selectedProjectId,
+            selectedOrganizationId,
+          ),
+        ] as const),
+      );
+      setProviderOptions(Object.fromEntries(entries));
+    } catch (error: unknown) {
+      setProviders({
+        status: "error",
+        data: [],
+        error: error instanceof Error ? error.message : "Providers could not be discovered.",
+      });
+    }
+  }
+
   async function handleApplyMetadataProvider(provider: ProviderDescriptor): Promise<void> {
     if (
       !session.data?.token ||
@@ -1755,6 +1762,7 @@ function OpenPdmApp() {
     try {
       await setPluginState(session.data.token, plugin.id, !plugin.enabled);
       await refreshPlugins();
+      await refreshProviders();
       setBanner(`${plugin.name} ${plugin.enabled ? "disabled" : "enabled"}.`);
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Plugin state could not be updated.");
@@ -2817,7 +2825,7 @@ function OpenPdmApp() {
               <header className="panel-header operational-header">
                 <div>
                   <p className="eyebrow">Engineering Assets</p>
-                  <h2 id="asset-collection-title">Project content</h2>
+                  <h2 id="asset-collection-title">Engineering Assets</h2>
                   <p className="muted-text">Filter, page and save private views without losing the selected Asset.</p>
                 </div>
                 <span className="status-pill">{assets.data.length} on page</span>

@@ -14,8 +14,13 @@ coverage/
 *.log
 .tmp/
 .memoire/
+openpdm-graphify-run/
+openpdm-graphify-run-*/
+graphify-out/
 
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 frontend/tsconfig.tsbuildinfo
 desktop/src-tauri/target/
 backend/.venv/
