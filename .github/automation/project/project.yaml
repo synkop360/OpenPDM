@@ -6569,7 +6569,7 @@ roadmap:
           - Generic metadata is persisted through the Metadata Platform Module.
           - Dependency extraction maps to generic Asset relationships.
           - Import/export limits are explicit and testable.
-          - Implementation of representation analysis and provider analysis contributions remains blocked until ADR-0047 and ADR-0048 are Accepted.
+          - All dependent Phase 5 implementation, including Tasks 2 through 9, remains blocked until ADR-0047 and ADR-0048 are Accepted and the project configuration is reapplied.
 
           ## Dependencies
           - Prototype Epic: Acceptance documentation and known limits
