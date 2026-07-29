@@ -3,6 +3,7 @@
 from .contracts import (
     EXTENSION_API_MAJOR_VERSION,
     EXTENSION_API_VERSION,
+    AnalysisMetadataContribution,
     AssetProviderCommand,
     Capability,
     EventEnvelope,
@@ -29,6 +30,7 @@ from .sdk import (
 __all__ = [
     "EXTENSION_API_MAJOR_VERSION",
     "EXTENSION_API_VERSION",
+    "AnalysisMetadataContribution",
     "AssetProviderCommand",
     "Capability",
     "ConfigurationProperty",

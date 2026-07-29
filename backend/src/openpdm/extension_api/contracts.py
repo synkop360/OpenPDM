@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from base64 import b64decode
+from binascii import Error as Base64Error
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -65,6 +67,24 @@ class RepresentationAnalysisInput(BaseModel):
     size_bytes: int = Field(ge=0, le=5 * 1024 * 1024)
     checksum_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     content_base64: str = Field(min_length=1, max_length=7_000_000)
+
+    @model_validator(mode="after")
+    def decoded_content_matches_declared_size(self) -> RepresentationAnalysisInput:
+        try:
+            content = b64decode(self.content_base64, validate=True)
+        except (Base64Error, ValueError) as exc:
+            raise ValueError("content_base64 must be valid base64.") from exc
+        if len(content) > 5 * 1024 * 1024:
+            raise ValueError("Decoded content exceeds the 5 MiB analysis limit.")
+        if len(content) != self.size_bytes:
+            raise ValueError("Decoded content size does not match size_bytes.")
+        return self
+
+
+class AnalysisMetadataContribution(MetadataContribution):
+    """A keyed generic metadata contribution supplied by an Analysis Provider."""
+
+    contribution_key: str = Field(min_length=1, max_length=255)
 
 
 class ReferenceContribution(BaseModel):
@@ -152,6 +172,9 @@ class InvocationResponse(BaseModel):
 
     success: bool
     metadata: list[MetadataContribution] = Field(default_factory=list, max_length=1000)
+    analysis_metadata: list[AnalysisMetadataContribution] = Field(
+        default_factory=list, max_length=1000
+    )
     references: list[ReferenceContribution] = Field(default_factory=list, max_length=1000)
     relationships: list[RelationshipContribution] = Field(default_factory=list, max_length=1000)
     commands: list[AssetProviderCommand] = Field(default_factory=list, max_length=100)

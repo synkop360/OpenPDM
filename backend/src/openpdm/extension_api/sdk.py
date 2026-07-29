@@ -103,6 +103,7 @@ class WitWorld(wit_world.WitWorld):
             {
                 "success": True,
                 "metadata": [],
+                "analysis_metadata": [],
                 "references": [],
                 "relationships": [],
                 "commands": [],
