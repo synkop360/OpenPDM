@@ -37,11 +37,11 @@ class PluginInvocationServices:
 
 
 def _analysis_metadata_source(provider_identity: str, contribution_key: str) -> str:
-    source = f"plugin:{provider_identity}:analysis:{contribution_key}"
-    if len(source) <= 255:
-        return source
-    digest = sha256(f"{provider_identity}\0{contribution_key}".encode()).hexdigest()
-    return f"plugin:analysis:{digest}"
+    return _analysis_contribution_identity(provider_identity, contribution_key)
+
+
+def _analysis_contribution_identity(provider_identity: str, contribution_key: str) -> str:
+    return sha256(f"{provider_identity}\0{contribution_key}".encode()).hexdigest()
 
 
 def invoke_plugin(
@@ -205,6 +205,18 @@ def invoke_analysis_provider(
         },
         services=services,
     )
+    for contribution in response.analysis_metadata:
+        _, project_id = MetadataModule.authorize_target(
+            db,
+            target_type=contribution.target_type,
+            target_id=contribution.target_id,
+            actor=actor,
+        )
+        if project_id != asset.project_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Analysis Provider metadata must target the analyzed Project.",
+            )
     for contribution in response.references:
         if contribution.source_asset_id != asset.id:
             raise HTTPException(
@@ -240,6 +252,9 @@ def invoke_analysis_provider(
             value=contribution.value,
             value_type=contribution.value_type.value,
             source=_analysis_metadata_source(plugin_id, contribution.contribution_key),
+            analysis_contribution_id=_analysis_contribution_identity(
+                plugin_id, contribution.contribution_key
+            ),
             actor=actor,
         )
     for contribution in response.references:

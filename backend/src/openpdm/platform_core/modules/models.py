@@ -263,6 +263,9 @@ class AssetRelationship(Base):
     relationship_type: Mapped[str] = mapped_column(String(64), index=True)
     direction: Mapped[str] = mapped_column(String(32), default="directed", nullable=False)
     metadata_json: Mapped[dict[str, object]] = mapped_column("metadata", JSON, default=dict)
+    analysis_contribution_id: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True
+    )
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
@@ -285,6 +288,9 @@ class AssetReference(Base):
     target_uri: Mapped[str] = mapped_column(Text)
     label: Mapped[str] = mapped_column(String(255), default="")
     metadata_json: Mapped[dict[str, object]] = mapped_column("metadata", JSON, default=dict)
+    analysis_contribution_id: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True
+    )
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
@@ -348,6 +354,9 @@ class MetadataEntry(Base):
     value: Mapped[object] = mapped_column(JSON)
     value_type: Mapped[str] = mapped_column(String(32))
     source: Mapped[str] = mapped_column(String(64), default="user")
+    analysis_contribution_id: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, nullable=False
     )

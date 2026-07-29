@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import create_engine, inspect, select
 
 from openpdm.extension_api import (
     AnalysisMetadataContribution,
@@ -43,7 +45,11 @@ from openpdm.platform_core.modules.models import (
     Revision,
     User,
 )
-from openpdm.plugin_application import PluginInvocationServices, invoke_analysis_provider
+from openpdm.plugin_application import (
+    PluginInvocationServices,
+    _analysis_metadata_source,
+    invoke_analysis_provider,
+)
 from openpdm.plugin_runtime.supervisor import RuntimeResult
 
 
@@ -602,6 +608,45 @@ def test_analysis_contributions_are_idempotent_and_emit_creation_events_once(
             "RelationshipCreated",
         }
 
+        replacement_target = Asset(
+            project_id=asset.project_id,
+            name="Replacement Dependency Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(replacement_target)
+        db.flush()
+        supervisor.response = InvocationResponse(
+            success=True,
+            analysis_metadata=[
+                AnalysisMetadataContribution(
+                    contribution_key="metadata-1",
+                    target_type="representation",
+                    target_id=representation.id,
+                    key="plugin.analysis.result.changed",
+                    value="changed",
+                    value_type="string",
+                )
+            ],
+            references=[
+                ReferenceContribution(
+                    contribution_key="reference-1",
+                    source_asset_id=asset.id,
+                    reference_type="external",
+                    target_uri="plugin://reference/changed",
+                    label="Changed reference",
+                )
+            ],
+            relationships=[
+                RelationshipContribution(
+                    contribution_key="relationship-1",
+                    source_asset_id=asset.id,
+                    target_asset_id=replacement_target.id,
+                    relationship_type="depends_on",
+                )
+            ],
+        )
+
         invoke_with_provider(
             db,
             settings=settings,
@@ -611,7 +656,7 @@ def test_analysis_contributions_are_idempotent_and_emit_creation_events_once(
             plugin_id=plugin_id,
             supervisor=supervisor,
             package_storage=package_storage,
-            relationship_mappings=mappings,
+            relationship_mappings={"relationship-1": replacement_target.id},
         )
 
         assert (
@@ -661,4 +706,105 @@ def test_analysis_contributions_are_idempotent_and_emit_creation_events_once(
                 )
             )
             == first_events
+        )
+
+
+def test_analysis_metadata_source_is_bounded_and_stably_scoped() -> None:
+    source = _analysis_metadata_source("provider" * 100, "contribution" * 100)
+
+    assert len(source) == 64
+    assert source == _analysis_metadata_source("provider" * 100, "contribution" * 100)
+    assert source != _analysis_metadata_source("provider" * 100, "other" * 100)
+
+
+def test_analysis_metadata_preflight_rejects_a_later_cross_project_target_without_writes(
+    tmp_path: Path,
+) -> None:
+    settings = settings_for(tmp_path)
+    initialize_disposable_database(settings)
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+    with session_scope(settings) as db:
+        owner = User(email="owner@example.com", display_name="Owner", password_hash="unused")
+        db.add(owner)
+        db.flush()
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        other_project = Project(organization_id=asset.project.organization_id, name="Other")
+        db.add(other_project)
+        db.flush()
+        db.add(ProjectMembership(project_id=other_project.id, user_id=owner.id, role="Owner"))
+        other_asset = Asset(
+            project_id=other_project.id,
+            name="Other Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(other_asset)
+        db.flush()
+
+        with pytest.raises(HTTPException) as error:
+            invoke(
+                db,
+                settings=settings,
+                actor=owner,
+                representation_id=representation.id,
+                blob_storage=blob_storage,
+                response=InvocationResponse(
+                    success=True,
+                    analysis_metadata=[
+                        AnalysisMetadataContribution(
+                            contribution_key="valid-metadata",
+                            target_type="representation",
+                            target_id=representation.id,
+                            key="plugin.analysis.valid",
+                            value="valid",
+                            value_type="string",
+                        ),
+                        AnalysisMetadataContribution(
+                            contribution_key="invalid-metadata",
+                            target_type="asset",
+                            target_id=other_asset.id,
+                            key="plugin.analysis.invalid",
+                            value="invalid",
+                            value_type="string",
+                        ),
+                    ],
+                    references=[
+                        ReferenceContribution(
+                            contribution_key="reference-1",
+                            source_asset_id=asset.id,
+                            reference_type="external",
+                            target_uri="plugin://reference/1",
+                            label="Reference",
+                        )
+                    ],
+                ),
+            )
+
+        assert error.value.status_code == 400
+        assert db.scalar(select(MetadataEntry)) is None
+        assert db.scalar(select(AssetReference)) is None
+
+
+def test_analysis_contribution_identity_migration_is_upgradeable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'migration.db'}"
+    monkeypatch.setenv("OPENPDM_DATABASE_URL", database_url)
+    dispose_engines()
+    initialize_disposable_database(Settings(database_url=database_url))
+    config = Config("alembic.ini")
+    command.stamp(config, "20260729_0007")
+    command.downgrade(config, "20260718_0006")
+    command.upgrade(config, "head")
+
+    inspector = inspect(create_engine(database_url))
+    for table_name in ("metadata_entries", "asset_references", "asset_relationships"):
+        assert "analysis_contribution_id" in {
+            column["name"] for column in inspector.get_columns(table_name)
+        }
+        assert any(
+            index["column_names"] == ["analysis_contribution_id"] and index["unique"]
+            for index in inspector.get_indexes(table_name)
         )

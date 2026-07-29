@@ -17,6 +17,7 @@ from typing import cast as type_cast
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import String, and_, cast, delete, func, literal, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from openpdm.extension_api import (
@@ -3074,19 +3075,8 @@ class RelationshipsModule:
         }
 
     @staticmethod
-    def _find_analysis_contribution(
-        records: list[AssetReference] | list[AssetRelationship],
-        *,
-        provider_identity: str,
-        contribution_key: str,
-    ) -> AssetReference | AssetRelationship | None:
-        for record in records:
-            if (
-                record.metadata_json.get("analysis_provider_id") == provider_identity
-                and record.metadata_json.get("analysis_contribution_key") == contribution_key
-            ):
-                return record
-        return None
+    def _analysis_contribution_identity(provider_identity: str, contribution_key: str) -> str:
+        return hashlib.sha256(f"{provider_identity}\0{contribution_key}".encode()).hexdigest()
 
     @staticmethod
     def persist_analysis_contribution(
@@ -3105,59 +3095,76 @@ class RelationshipsModule:
             actor=actor,
             permission="update_asset",
         )
+        contribution_identity = RelationshipsModule._analysis_contribution_identity(
+            provider_identity, contribution_key
+        )
         if isinstance(contribution, ReferenceContribution):
-            existing = RelationshipsModule._find_analysis_contribution(
-                list(
-                    db.scalars(
-                        select(AssetReference).where(
-                            AssetReference.source_asset_id == source_asset.id
-                        )
-                    )
-                ),
-                provider_identity=provider_identity,
-                contribution_key=contribution_key,
+            existing = db.scalar(
+                select(AssetReference).where(
+                    AssetReference.analysis_contribution_id == contribution_identity
+                )
             )
             if existing is not None:
                 return existing
-            return RelationshipsModule.create_reference(
-                db,
-                source_asset_id=source_asset.id,
-                reference_type=contribution.reference_type,
-                target_uri=contribution.target_uri,
-                label=contribution.label,
-                metadata=RelationshipsModule._analysis_contribution_metadata(
-                    contribution.metadata,
-                    provider_identity=provider_identity,
-                    contribution_key=contribution_key,
-                ),
-                actor=actor,
-            )
-
-        existing = RelationshipsModule._find_analysis_contribution(
-            list(
-                db.scalars(
-                    select(AssetRelationship).where(
-                        AssetRelationship.source_asset_id == source_asset.id
+            try:
+                with db.begin_nested():
+                    return RelationshipsModule.create_reference.__wrapped__(  # type: ignore[attr-defined]
+                        db,
+                        source_asset_id=source_asset.id,
+                        reference_type=contribution.reference_type,
+                        target_uri=contribution.target_uri,
+                        label=contribution.label,
+                        metadata=RelationshipsModule._analysis_contribution_metadata(
+                            contribution.metadata,
+                            provider_identity=provider_identity,
+                            contribution_key=contribution_key,
+                        ),
+                        actor=actor,
+                        analysis_contribution_id=contribution_identity,
+                    )
+            except IntegrityError:
+                db.expire_all()
+                existing = db.scalar(
+                    select(AssetReference).where(
+                        AssetReference.analysis_contribution_id == contribution_identity
                     )
                 )
-            ),
-            provider_identity=provider_identity,
-            contribution_key=contribution_key,
+                if existing is not None:
+                    return existing
+                raise
+
+        existing = db.scalar(
+            select(AssetRelationship).where(
+                AssetRelationship.analysis_contribution_id == contribution_identity
+            )
         )
         if existing is not None:
             return existing
-        return RelationshipsModule.create_relationship(
-            db,
-            source_asset_id=source_asset.id,
-            target_asset_id=contribution.target_asset_id,
-            relationship_type=contribution.relationship_type,
-            metadata=RelationshipsModule._analysis_contribution_metadata(
-                contribution.metadata,
-                provider_identity=provider_identity,
-                contribution_key=contribution_key,
-            ),
-            actor=actor,
-        )
+        try:
+            with db.begin_nested():
+                return RelationshipsModule.create_relationship.__wrapped__(  # type: ignore[attr-defined]
+                    db,
+                    source_asset_id=source_asset.id,
+                    target_asset_id=contribution.target_asset_id,
+                    relationship_type=contribution.relationship_type,
+                    metadata=RelationshipsModule._analysis_contribution_metadata(
+                        contribution.metadata,
+                        provider_identity=provider_identity,
+                        contribution_key=contribution_key,
+                    ),
+                    actor=actor,
+                    analysis_contribution_id=contribution_identity,
+                )
+        except IntegrityError:
+            db.expire_all()
+            existing = db.scalar(
+                select(AssetRelationship).where(
+                    AssetRelationship.analysis_contribution_id == contribution_identity
+                )
+            )
+            if existing is not None:
+                return existing
+            raise
 
     @staticmethod
     def _project_relationships(db: Session, *, project_id: str) -> list[AssetRelationship]:
@@ -3286,6 +3293,7 @@ class RelationshipsModule:
         relationship_type: str,
         metadata: dict[str, object] | None,
         actor: User,
+        analysis_contribution_id: str | None = None,
     ) -> AssetRelationship:
         source_asset = RelationshipsModule._get_asset(
             db,
@@ -3326,6 +3334,7 @@ class RelationshipsModule:
             relationship_type=normalized_type,
             direction=RELATIONSHIP_DIRECTION,
             metadata_json=relationship_metadata,
+            analysis_contribution_id=analysis_contribution_id,
             created_by_user_id=actor.id,
         )
         db.add(relationship)
@@ -3547,6 +3556,7 @@ class RelationshipsModule:
         label: str,
         metadata: dict[str, object] | None,
         actor: User,
+        analysis_contribution_id: str | None = None,
     ) -> AssetReference:
         source_asset = RelationshipsModule._get_asset(
             db,
@@ -3574,6 +3584,7 @@ class RelationshipsModule:
             target_uri=normalized_uri,
             label=label.strip(),
             metadata_json=reference_metadata,
+            analysis_contribution_id=analysis_contribution_id,
             created_by_user_id=actor.id,
         )
         db.add(reference)
@@ -4399,17 +4410,13 @@ class MetadataModule:
         )
 
     @staticmethod
-    def put_entry(
+    def authorize_target(
         db: Session,
         *,
         target_type: str,
         target_id: str,
-        key: str,
-        value: object,
-        value_type: str,
-        source: str,
         actor: User,
-    ) -> MetadataEntry:
+    ) -> tuple[str | None, str | None]:
         organization_id, project_id = MetadataModule._validate_target(
             db, target_type=target_type, target_id=target_id, actor=actor
         )
@@ -4420,25 +4427,85 @@ class MetadataModule:
                 actor=actor,
                 permission="update_asset",
             )
+        return organization_id, project_id
+
+    @staticmethod
+    def put_entry(
+        db: Session,
+        *,
+        target_type: str,
+        target_id: str,
+        key: str,
+        value: object,
+        value_type: str,
+        source: str,
+        analysis_contribution_id: str | None = None,
+        actor: User,
+    ) -> MetadataEntry:
+        organization_id, project_id = MetadataModule.authorize_target(
+            db, target_type=target_type, target_id=target_id, actor=actor
+        )
         require(value_type in ALLOWED_METADATA_TYPES, "Invalid metadata value type.")
         field_name = METADATA_TARGET_FIELDS[target_type]
         target_field = getattr(MetadataEntry, field_name)
         normalized_key = key.strip()
         normalized_source = source.strip()
+        if analysis_contribution_id is not None:
+            existing = db.scalar(
+                select(MetadataEntry).where(
+                    MetadataEntry.analysis_contribution_id == analysis_contribution_id
+                )
+            )
+            if existing is not None:
+                return existing
+            entry = MetadataEntry(
+                key=normalized_key,
+                value=value,
+                value_type=value_type,
+                source=normalized_source,
+                analysis_contribution_id=analysis_contribution_id,
+                **{field_name: target_id},
+            )
+            try:
+                with db.begin_nested():
+                    db.add(entry)
+                    db.flush()
+            except IntegrityError:
+                db.expire_all()
+                existing = db.scalar(
+                    select(MetadataEntry).where(
+                        MetadataEntry.analysis_contribution_id == analysis_contribution_id
+                    )
+                )
+                if existing is not None:
+                    return existing
+                raise
+            record_audit(
+                db,
+                actor_user_id=actor.id,
+                action="metadata.upserted",
+                resource_type="metadata_entry",
+                resource_id=entry.id,
+                organization_id=organization_id,
+                project_id=project_id,
+                details={"target_type": target_type, "target_id": target_id, "key": normalized_key},
+            )
+            emit_event(
+                db,
+                event_type="metadata.upserted",
+                resource_type="metadata_entry",
+                resource_id=entry.id,
+                organization_id=organization_id,
+                project_id=project_id,
+                payload={"target_type": target_type, "target_id": target_id, "key": normalized_key},
+            )
+            return entry
         filters = [
             target_field == target_id,
             MetadataEntry.key == normalized_key,
             MetadataEntry.source == normalized_source,
         ]
         existing = db.scalars(select(MetadataEntry).where(and_(*filters))).all()
-        if (
-            normalized_source.startswith("plugin:")
-            and ":analysis:" in normalized_source
-            and len(existing) == 1
-            and existing[0].value == value
-            and existing[0].value_type == value_type
-        ):
-            return existing[0]
         for item in existing:
             db.delete(item)
         entry = MetadataEntry(
