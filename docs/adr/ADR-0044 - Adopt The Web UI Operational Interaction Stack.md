@@ -1,6 +1,6 @@
 # ADR-0044 - Adopt The Web UI Operational Interaction Stack
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

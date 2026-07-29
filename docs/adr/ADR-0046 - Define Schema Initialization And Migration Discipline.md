@@ -1,6 +1,6 @@
 # ADR-0046 - Define Schema Initialization And Migration Discipline
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

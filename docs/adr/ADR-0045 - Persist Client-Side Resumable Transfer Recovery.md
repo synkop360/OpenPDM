@@ -1,6 +1,6 @@
 # ADR-0045 - Persist Client-Side Resumable Transfer Recovery
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

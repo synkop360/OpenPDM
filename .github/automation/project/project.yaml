@@ -254,7 +254,7 @@ issues:
       Replace the demonstration-style Web UI with a systematic industrial operational workspace for daily engineering collaboration.
 
       ## Expected Deliverable
-      An accessible, responsive Web UI with operational collection APIs, private saved Project views, governed administration, resumable Blob transfers and reconciled documentation. New contracts remain blocked until ADR-0041, ADR-0042 and ADR-0043 are explicitly accepted.
+      An accessible, responsive Web UI with operational collection APIs, private saved Project views, governed administration, resumable Blob transfers and reconciled documentation. New contracts remain blocked until ADR-0041 through ADR-0046 are explicitly accepted.
 
       ## Acceptance Criteria
       - Routed workspaces use project-owned tokens and accessible primitives.
@@ -265,7 +265,7 @@ issues:
 
       ## Dependencies
       - ADR-0001, ADR-0002, ADR-0007, ADR-0025, ADR-0029, ADR-0038 and ADR-0040
-      - Explicit acceptance of ADR-0041, ADR-0042 and ADR-0043 before dependent implementation
+      - Explicit acceptance of ADR-0041, ADR-0042, ADR-0043, ADR-0044, ADR-0045 and ADR-0046 before dependent implementation
 
       ## Exit Criteria
       - Every linked task is closed through a focused pull request.
@@ -278,7 +278,7 @@ issues:
       Epic: Web UI Operational Experience
       Platform Area: Frontend
       Complexity: XL
-      ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0038, ADR-0040
+      ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0038, ADR-0040, ADR-0041, ADR-0042, ADR-0043, ADR-0044, ADR-0045, ADR-0046
     closed: true
     sub_issues:
       - title: "Web UI Task: Propose operational collection, upload-session and saved-view ADRs"
@@ -318,7 +318,7 @@ issues:
           Epic: Web UI Operational Experience
           Platform Area: Frontend
           Complexity: XL
-          ADR: ADR-0007, ADR-0040
+          ADR: ADR-0007, ADR-0040, ADR-0044
         closed: true
 
       - title: "Web UI Task: Add operational collection APIs and private saved views"
@@ -403,7 +403,7 @@ issues:
           Epic: Web UI Operational Experience
           Platform Area: Platform Module
           Complexity: XL
-          ADR: ADR-0003, ADR-0006, ADR-0042
+          ADR: ADR-0003, ADR-0006, ADR-0042, ADR-0045
         closed: true
 
       - title: "Web UI Task: Complete operational QA, accessibility and documentation"
@@ -424,7 +424,7 @@ issues:
           Epic: Web UI Operational Experience
           Platform Area: Frontend
           Complexity: L
-          ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0038, ADR-0040, ADR-0041, ADR-0042, ADR-0043
+          ADR: ADR-0007, ADR-0025, ADR-0029, ADR-0038, ADR-0040, ADR-0041, ADR-0042, ADR-0043, ADR-0044, ADR-0045, ADR-0046
         closed: true
 
 roadmap:
@@ -6515,7 +6515,7 @@ roadmap:
           Epic: Acceptance Documentation and Known Limits
           Platform Area: Documentation
           Complexity: M
-          ADR: ADR-0001, ADR-0002, ADR-0041, ADR-0042, ADR-0043
+          ADR: ADR-0001, ADR-0002, ADR-0041, ADR-0042, ADR-0043, ADR-0044, ADR-0045, ADR-0046
         sub_issues:
           - title: "Prototype Task: Publish supported workflow and known-limits guide"
             body: |
@@ -6549,7 +6549,7 @@ roadmap:
               Epic: Acceptance Documentation and Known Limits
               Platform Area: Documentation
               Complexity: M
-              ADR: ADR-0041, ADR-0042, ADR-0043
+              ADR: ADR-0041, ADR-0042, ADR-0043, ADR-0044, ADR-0045, ADR-0046
 
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
