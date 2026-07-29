@@ -9,3 +9,7 @@ class AssetsInterface(Protocol):
     def require_asset_permission(
         self, db: Any, *, asset_id: str, actor: Any, permission: str
     ) -> Any: ...
+
+    def get_representation_for_analysis(
+        self, db: Any, *, representation_id: str, actor: Any
+    ) -> tuple[Any, Any]: ...

@@ -3,18 +3,26 @@
 from __future__ import annotations
 
 import json
+from base64 import b64encode
 from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from openpdm.extension_api import InvocationResponse, validate_plugin_package
+from openpdm.extension_api import (
+    InvocationResponse,
+    RepresentationAnalysisInput,
+    validate_plugin_package,
+)
+from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.infrastructure.plugin_packages import PluginPackageStorage
 from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
+from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.composition import MODULES
 from openpdm.plugin_runtime import WasmtimeWorkerSupervisor
 
 AssetsModule = MODULES.assets
+BlobsModule = MODULES.blobs
 MetadataModule = MODULES.metadata
 PluginsModule = MODULES.plugins
 
@@ -134,6 +142,59 @@ def invoke_metadata_provider(
             )
         )
     return entries
+
+
+def invoke_analysis_provider(
+    db: Session,
+    *,
+    plugin_id: str,
+    representation_id: str,
+    actor: object,
+    context: dict[str, object],
+    relationship_mappings: dict[str, str],
+    services: PluginInvocationServices,
+    storage: BlobStorage,
+    settings: Settings,
+) -> InvocationResponse:
+    """Invoke one running Analysis Provider with authorized bounded content only."""
+    asset, representation = AssetsModule.get_representation_for_analysis(
+        db, representation_id=representation_id, actor=actor
+    )
+    if representation.blob_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Representation has no Blob.",
+        )
+    blob, content = BlobsModule.read_blob_for_analysis(
+        db,
+        blob_id=representation.blob_id,
+        asset_id=asset.id,
+        actor=actor,
+        max_content_bytes=settings.plugin_analysis_max_content_bytes,
+        storage=storage,
+        assets=AssetsModule,
+    )
+    analysis_input = RepresentationAnalysisInput(
+        representation_id=representation.id,
+        asset_id=asset.id,
+        filename=blob.filename,
+        media_type=blob.media_type,
+        size_bytes=blob.size_bytes,
+        checksum_sha256=blob.checksum_sha256,
+        content_base64=b64encode(content).decode("ascii"),
+    )
+    return invoke_plugin(
+        db,
+        plugin_id=plugin_id,
+        capability="analysis_provider",
+        operation="analysis",
+        context={**context, "actor": actor},
+        payload={
+            "analysis_input": analysis_input.model_dump(mode="json"),
+            "relationship_mappings": relationship_mappings,
+        },
+        services=services,
+    )
 
 
 def invoke_option_provider(

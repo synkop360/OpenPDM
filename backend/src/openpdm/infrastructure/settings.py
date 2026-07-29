@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     plugin_runtime_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     plugin_runtime_fuel: int = Field(default=25_000_000, gt=0, le=100_000_000)
     plugin_runtime_memory_bytes: int = Field(default=64 * 1024 * 1024, gt=0, le=512 * 1024 * 1024)
+    plugin_analysis_max_content_bytes: int = Field(
+        default=5 * 1024 * 1024, ge=1, le=5 * 1024 * 1024
+    )
     plugin_configuration_key: str | None = None
     audit_graph_queries: bool = False
     api_cors_origins: list[str] = [

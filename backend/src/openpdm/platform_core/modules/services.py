@@ -1972,6 +1972,42 @@ class BlobModule:
         return blob
 
     @staticmethod
+    def read_blob_for_analysis(
+        db: Session,
+        *,
+        blob_id: str,
+        asset_id: str,
+        actor: User,
+        max_content_bytes: int,
+        storage: BlobStorage,
+        assets: "AssetsInterface",
+    ) -> tuple[Blob, bytes]:
+        """Return bounded Blob content only after authorizing its owning Asset."""
+        assets.require_asset_permission(
+            db, asset_id=asset_id, actor=actor, permission="read_project"
+        )
+        blob = db.get(Blob, blob_id)
+        if blob is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Blob not found.")
+        linked_to_asset = db.scalar(
+            select(Representation.id)
+            .join(Revision)
+            .where(Representation.blob_id == blob.id, Revision.asset_id == asset_id)
+            .limit(1)
+        )
+        require(
+            linked_to_asset is not None,
+            "Blob access denied.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        require(
+            blob.size_bytes <= max_content_bytes,
+            "Representation exceeds the analysis content limit.",
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+        return blob, storage.get_bytes(blob.storage_key)
+
+    @staticmethod
     async def upload_blob(
         db: Session,
         *,
@@ -2602,6 +2638,26 @@ class AssetsModule:
             db, project_id=asset.project_id, actor=actor, permission=permission
         )
         return asset
+
+    @staticmethod
+    def get_representation_for_analysis(
+        db: Session, *, representation_id: str, actor: User
+    ) -> tuple[Asset, Representation]:
+        """Return a Representation and owning Asset after read authorization."""
+        representation = db.scalar(
+            select(Representation)
+            .options(joinedload(Representation.revision).joinedload(Revision.asset))
+            .where(Representation.id == representation_id)
+        )
+        if representation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Representation not found."
+            )
+        asset = representation.revision.asset
+        AssetsModule.require_asset_permission(
+            db, asset_id=asset.id, actor=actor, permission="read_project"
+        )
+        return asset, representation
 
     @staticmethod
     def create_asset(

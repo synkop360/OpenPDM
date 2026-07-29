@@ -14,6 +14,18 @@ class BlobsInterface(Protocol):
         self, db: Any, *, blob_id: str, asset_id: str, actor: Any
     ) -> Any: ...
 
+    def read_blob_for_analysis(
+        self,
+        db: Any,
+        *,
+        blob_id: str,
+        asset_id: str,
+        actor: Any,
+        max_content_bytes: int,
+        storage: BlobStorage,
+        assets: AssetsInterface,
+    ) -> tuple[Any, bytes]: ...
+
     def create_upload_session(
         self,
         db: Any,
