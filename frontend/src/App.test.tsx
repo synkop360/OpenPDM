@@ -533,6 +533,7 @@ describe("App", () => {
     }));
     }
     let settleDelete!: () => void;
+    let analysisAttempts = 0;
     const pendingDelete = new Promise<JsonResponse>((resolve, reject) => {
       settleDelete = () => deleteOutcome === "resolve" ? resolve(jsonResponse(undefined, 204)) : reject(new TypeError("offline"));
     });
@@ -638,7 +639,31 @@ describe("App", () => {
           return jsonResponse(assetsById["asset-2"]);
         }
         if (path === "/assets/asset-1/history" || path === "/assets/asset-2/history") {
-          return jsonResponse([]);
+          const assetId = path.includes("asset-2") ? "asset-2" : "asset-1";
+          return jsonResponse([{
+            id: `revision-${assetId}`,
+            asset_id: assetId,
+            number: 1,
+            comment: "Initial revision",
+            created_by_user_id: "user-1",
+            created_at: "2026-01-02T00:00:00",
+            representations: [{
+              id: `representation-${assetId}`,
+              revision_id: `revision-${assetId}`,
+              name: `${assetId}.bin`,
+              media_type: "application/octet-stream",
+              blob_id: `blob-${assetId}`,
+              created_at: "2026-01-02T00:00:00",
+              blob: {
+                id: `blob-${assetId}`,
+                filename: `${assetId}.bin`,
+                media_type: "application/octet-stream",
+                size_bytes: 1,
+                checksum_sha256: "a".repeat(64),
+                created_at: "2026-01-02T00:00:00",
+              },
+            }],
+          }]);
         }
         if (path === "/assets/asset-1/relationships") {
           return jsonResponse([
@@ -770,6 +795,21 @@ describe("App", () => {
         if (path === "/assets/asset-1/timeline" || path === "/assets/asset-2/timeline") {
           return jsonResponse([]);
         }
+        if (path === "/providers") {
+          return jsonResponse([{
+            id: "org.openpdm.examples.analysis",
+            name: "Generic Analysis API Test Plugin",
+            capabilities: ["analysis_provider"],
+          }]);
+        }
+        if (path === "/metadata/asset/asset-1" || path === "/metadata/asset/asset-2") {
+          return jsonResponse([]);
+        }
+        if (path === "/plugins/org.openpdm.examples.analysis/providers/analysis" && init?.method === "POST") {
+          analysisAttempts += 1;
+          if (analysisAttempts === 1) return new Promise<JsonResponse>(() => {});
+          return jsonResponse({ metadata: [], references: [], relationships: [] });
+        }
         if ((path === "/notifications" || path.startsWith("/notifications/page?"))) {
           return jsonResponse([]);
         }
@@ -817,6 +857,25 @@ describe("App", () => {
     "keeps the new Asset recovery when an old discard DELETE later %s",
     async (deleteOutcome) => exerciseRelationshipAndDiscardRace(deleteOutcome),
   );
+
+  it("allows a new analysis after the selected Asset changes during an in-flight analysis", async () => {
+    await exerciseRelationshipAndDiscardRace("resolve", false);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Analyze representation" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled());
+
+    fireEvent.click(screen.getByRole("button", { name: /^Wing Panel/ }));
+    expect(await screen.findByText((_content, element) =>
+      element?.tagName.toLowerCase() === "p" && element.textContent === "Primary structure"))
+      .toBeInTheDocument();
+
+    const analysisButton = await screen.findByRole("button", { name: "Analyze representation" });
+    expect(analysisButton).toBeEnabled();
+    fireEvent.click(analysisButton);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([input, init]) =>
+      String(input) === "/plugins/org.openpdm.examples.analysis/providers/analysis" && init?.method === "POST"))
+      .toHaveLength(2));
+  });
 
   it("shows collaboration recovery guidance when checkout is rejected", async () => {
     window.localStorage.setItem("openpdm.sessionToken", "token-123");

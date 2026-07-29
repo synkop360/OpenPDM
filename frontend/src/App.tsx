@@ -719,6 +719,7 @@ function OpenPdmApp() {
   useEffect(() => {
     const token = session.data?.token;
     analysisOperation.current += 1;
+    setBusyAction((current) => current?.startsWith("provider-analysis-") ? null : current);
     setAnalysisResult(null);
     setAnalysisRepresentationId("");
     if (!token || !selectedAssetId || view !== "project") {
