@@ -47,6 +47,8 @@ from openpdm.platform_core.public import (
 from openpdm.platform_core.request_context import get_request_id
 from openpdm.plugin_application import (
     PluginInvocationServices,
+    _analysis_metadata_source,
+    invoke_analysis_provider,
     invoke_asset_provider,
     invoke_metadata_provider,
     invoke_option_provider,
@@ -525,6 +527,19 @@ class InvokeMetadataProviderRequest(BaseModel):
     project_id: str
     organization_id: str | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class InvokeAnalysisProviderRequest(BaseModel):
+    representation_id: str
+    project_id: str
+    organization_id: str | None = None
+    relationship_mappings: dict[str, str] = Field(default_factory=dict, max_length=100)
+
+
+class AnalysisResultResponse(BaseModel):
+    metadata: list[MetadataResponse]
+    references: list[ReferenceResponse]
+    relationships: list[RelationshipResponse]
 
 
 class InvokeAssetProviderRequest(BaseModel):
@@ -2394,12 +2409,95 @@ def run_metadata_provider(
     return [serialize_metadata(entry) for entry in entries]
 
 
+@router.post(
+    "/plugins/{plugin_id}/providers/analysis",
+    response_model=AnalysisResultResponse,
+)
+def run_analysis_provider(
+    plugin_id: str,
+    payload: InvokeAnalysisProviderRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+    storage: BlobStorage = Depends(get_storage),
+) -> AnalysisResultResponse:
+    response = invoke_analysis_provider(
+        db,
+        plugin_id=plugin_id,
+        representation_id=payload.representation_id,
+        actor=context.user,
+        context={
+            "request_id": get_request_id() or "unknown",
+            "actor_id": context.user.id,
+            "organization_id": payload.organization_id,
+            "project_id": payload.project_id,
+        },
+        relationship_mappings=payload.relationship_mappings,
+        services=plugin_invocation_services(),
+        storage=storage,
+        settings=Settings(),
+    )
+    metadata = [
+        entry
+        for contribution in response.analysis_metadata
+        for entry in MetadataModule.list_entries(
+            db,
+            target_type=contribution.target_type,
+            target_id=contribution.target_id,
+            actor=context.user,
+        )
+        if entry.key == contribution.key
+        and entry.source == _analysis_metadata_source(plugin_id, contribution.contribution_key)
+    ]
+    source_asset_id = response.references[0].source_asset_id if response.references else None
+    references = (
+        [
+            entry
+            for entry in RelationshipsModule.list_references(
+                db, asset_id=source_asset_id, actor=context.user
+            )
+            if entry.metadata_json.get("analysis_provider_id") == plugin_id
+            and entry.metadata_json.get("analysis_contribution_key")
+            in {contribution.contribution_key for contribution in response.references}
+        ]
+        if source_asset_id is not None
+        else []
+    )
+    relationship_source_asset_id = (
+        response.relationships[0].source_asset_id if response.relationships else None
+    )
+    relationships = (
+        [
+            entry
+            for entry in RelationshipsModule.list_relationships(
+                db, asset_id=relationship_source_asset_id, actor=context.user
+            )
+            if entry.source_asset_id == relationship_source_asset_id
+            and entry.metadata_json.get("analysis_provider_id") == plugin_id
+            and entry.metadata_json.get("analysis_contribution_key")
+            in {contribution.contribution_key for contribution in response.relationships}
+        ]
+        if relationship_source_asset_id is not None
+        else []
+    )
+    db.commit()
+    return AnalysisResultResponse(
+        metadata=[serialize_metadata(entry) for entry in metadata],
+        references=[serialize_reference(entry) for entry in references],
+        relationships=[serialize_relationship(entry) for entry in relationships],
+    )
+
+
 @router.get("/providers", response_model=list[ProviderDescriptorResponse])
 def discover_providers(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> list[ProviderDescriptorResponse]:
-    provider_capabilities = {"asset_provider", "metadata_provider", "option_provider"}
+    provider_capabilities = {
+        "analysis_provider",
+        "asset_provider",
+        "metadata_provider",
+        "option_provider",
+    }
     return [
         ProviderDescriptorResponse(
             id=plugin.id,

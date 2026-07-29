@@ -8,6 +8,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, select
 
 from openpdm.extension_api import (
@@ -742,6 +743,121 @@ def test_analysis_metadata_source_is_bounded_and_stably_scoped() -> None:
     assert len(source) == 64
     assert source == _analysis_metadata_source("provider" * 100, "contribution" * 100)
     assert source != _analysis_metadata_source("provider" * 100, "other" * 100)
+
+
+def test_analysis_provider_route_returns_persisted_generic_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'analysis-route.db'}"
+    monkeypatch.setenv("OPENPDM_DATABASE_URL", database_url)
+    monkeypatch.setenv("OPENPDM_BLOB_LOCAL_ROOT", str(tmp_path / "blobs"))
+    monkeypatch.setenv("OPENPDM_PLUGIN_PACKAGE_ROOT", str(tmp_path / "plugins"))
+    dispose_engines()
+    settings = Settings(
+        database_url=database_url,
+        blob_local_root=str(tmp_path / "blobs"),
+        plugin_package_root=str(tmp_path / "plugins"),
+    )
+    initialize_disposable_database(settings)
+
+    from openpdm.api import core
+    from openpdm.main import create_app
+
+    client = TestClient(create_app())
+    registration = client.post(
+        "/auth/register",
+        json={"email": "owner@example.com", "display_name": "Owner", "password": "secret123"},
+    )
+    assert registration.status_code == 201
+    signed_in = client.post(
+        "/auth/sign-in", json={"email": "owner@example.com", "password": "secret123"})
+    token = signed_in.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+
+    with session_scope(settings) as db:
+        owner = db.scalar(select(User).where(User.email == "owner@example.com"))
+        assert owner is not None
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        target_asset = Asset(
+            project_id=asset.project_id,
+            name="Target Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(target_asset)
+        db.flush()
+        invocation = InvocationResponse(
+            success=True,
+            analysis_metadata=[
+                AnalysisMetadataContribution(
+                    contribution_key="metadata-1",
+                    target_type="representation",
+                    target_id=representation.id,
+                    key="plugin.analysis.status",
+                    value="complete",
+                    value_type="string",
+                )
+            ],
+            references=[
+                ReferenceContribution(
+                    contribution_key="reference-1",
+                    source_asset_id=asset.id,
+                    reference_type="external",
+                    target_uri="plugin://reference/1",
+                    label="Reference",
+                )
+            ],
+            relationships=[
+                RelationshipContribution(
+                    contribution_key="relationship-1",
+                    source_asset_id=asset.id,
+                    target_asset_id=target_asset.id,
+                    relationship_type="depends_on",
+                )
+            ],
+        )
+        plugin_id, supervisor, package_storage = install_running_analysis_provider(
+            db, settings=settings, actor=owner, response=invocation
+        )
+        project_id = asset.project_id
+        organization_id = asset.project.organization_id
+
+    monkeypatch.setattr(
+        core,
+        "plugin_invocation_services",
+        lambda: PluginInvocationServices(
+            package_storage=package_storage,
+            cipher=PluginSecretCipher(None),
+            supervisor=supervisor,  # type: ignore[arg-type]
+        ),
+    )
+    client.app.dependency_overrides[core.get_storage] = lambda: blob_storage
+
+    providers = client.get("/providers", headers=headers)
+    assert providers.status_code == 200
+    assert providers.json() == [
+        {"id": plugin_id, "name": "Analysis Test", "capabilities": ["analysis_provider"]}
+    ]
+
+    response = client.post(
+        f"/plugins/{plugin_id}/providers/analysis",
+        headers=headers,
+        json={
+            "representation_id": representation.id,
+            "project_id": project_id,
+            "organization_id": organization_id,
+            "relationship_mappings": {"relationship-1": target_asset.id},
+        },
+    )
+
+    assert response.status_code == 200
+    assert set(response.json()) == {"metadata", "references", "relationships"}
+    assert len(response.json()["metadata"]) == 1
+    assert len(response.json()["references"]) == 1
+    assert len(response.json()["relationships"]) == 1
 
 
 def test_analysis_relationship_failure_is_audited_through_the_public_mutation(

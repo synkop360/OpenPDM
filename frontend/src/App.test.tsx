@@ -62,6 +62,7 @@ describe("App", () => {
       userId: "user-2", assetId: "asset-1", sessionId: "other-session", blobId: null,
       fileName: "other.step", fileSize: 5, fileType: "application/step", fileLastModified: 1,
     }));
+    let analysisApplied = false;
 
     vi.stubGlobal(
       "fetch",
@@ -198,6 +199,16 @@ describe("App", () => {
               created_by_user_id: "user-1",
               created_at: "2026-01-02T00:30:00",
             },
+            ...(analysisApplied ? [{
+              id: "relationship-analysis-1",
+              source_asset_id: "asset-1",
+              target_asset_id: "asset-2",
+              relationship_type: "depends_on",
+              direction: "directed",
+              metadata: {},
+              created_by_user_id: "user-1",
+              created_at: "2026-01-02T01:10:00",
+            }] : []),
           ]);
         }
         if (path === "/assets/asset-1/relationships/incoming") {
@@ -226,6 +237,16 @@ describe("App", () => {
               created_by_user_id: "user-1",
               created_at: "2026-01-02T00:30:00",
             },
+            ...(analysisApplied ? [{
+              id: "relationship-analysis-1",
+              source_asset_id: "asset-1",
+              target_asset_id: "asset-2",
+              relationship_type: "depends_on",
+              direction: "directed",
+              metadata: {},
+              created_by_user_id: "user-1",
+              created_at: "2026-01-02T01:10:00",
+            }] : []),
           ]);
         }
         if (path === "/assets/asset-1/references") {
@@ -240,6 +261,16 @@ describe("App", () => {
               created_by_user_id: "user-1",
               created_at: "2026-01-02T00:50:00",
             },
+            ...(analysisApplied ? [{
+              id: "reference-analysis-1",
+              source_asset_id: "asset-1",
+              reference_type: "external",
+              target_uri: "plugin://reference/1",
+              label: "Analysis reference",
+              metadata: {},
+              created_by_user_id: "user-1",
+              created_at: "2026-01-02T01:10:00",
+            }] : []),
           ]);
         }
         if (path.startsWith("/assets/asset-1/graph")) {
@@ -297,6 +328,11 @@ describe("App", () => {
               name: "Asset Categories API Test Plugin",
               capabilities: ["metadata_provider", "option_provider"],
             },
+            {
+              id: "org.openpdm.examples.analysis",
+              name: "Generic Analysis API Test Plugin",
+              capabilities: ["analysis_provider"],
+            },
           ]);
         }
         if (path === "/plugins/org.openpdm.examples.asset-categories/providers/options") {
@@ -312,7 +348,53 @@ describe("App", () => {
           ]);
         }
         if (path === "/metadata/asset/asset-1") {
-          return jsonResponse([]);
+          return jsonResponse(analysisApplied ? [{
+            id: "metadata-analysis-1",
+            asset_id: "asset-1",
+            revision_id: null,
+            representation_id: null,
+            key: "plugin.analysis.status",
+            value: "complete",
+            value_type: "string",
+            source: "analysis:test",
+            created_at: "2026-01-02T01:10:00",
+          }] : []);
+        }
+        if (path === "/plugins/org.openpdm.examples.analysis/providers/analysis" && init?.method === "POST") {
+          analysisApplied = true;
+          return jsonResponse({
+            metadata: [{
+              id: "metadata-analysis-1",
+              asset_id: "asset-1",
+              revision_id: null,
+              representation_id: null,
+              key: "plugin.analysis.status",
+              value: "complete",
+              value_type: "string",
+              source: "analysis:test",
+              created_at: "2026-01-02T01:10:00",
+            }],
+            references: [{
+              id: "reference-analysis-1",
+              source_asset_id: "asset-1",
+              reference_type: "external",
+              target_uri: "plugin://reference/1",
+              label: "Analysis reference",
+              metadata: {},
+              created_by_user_id: "user-1",
+              created_at: "2026-01-02T01:10:00",
+            }],
+            relationships: [{
+              id: "relationship-analysis-1",
+              source_asset_id: "asset-1",
+              target_asset_id: "asset-2",
+              relationship_type: "depends_on",
+              direction: "directed",
+              metadata: {},
+              created_by_user_id: "user-1",
+              created_at: "2026-01-02T01:10:00",
+            }],
+          });
         }
         if (path === "/blobs/upload-sessions/session-1") {
           return jsonResponse({
@@ -380,6 +462,24 @@ describe("App", () => {
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("Representation to analyze")).toHaveValue("representation-1");
+    fireEvent.click(screen.getByRole("button", { name: "Analyze representation" }));
+    expect(await screen.findByText("Analysis complete: 1 metadata, 1 references, 1 relationships.")).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls).toContainEqual([
+      "/plugins/org.openpdm.examples.analysis/providers/analysis",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          representation_id: "representation-1",
+          project_id: "project-1",
+          organization_id: "org-1",
+        }),
+      }),
+    ]));
+    expect(await screen.findByText("plugin.analysis.status")).toBeInTheDocument();
+    expect(await screen.findByText("Analysis reference")).toBeInTheDocument();
+    expect(screen.getByText("2 links")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(command|executable|launch)/i })).not.toBeInTheDocument();
     expect(await screen.findByText("Resume transfer")).toBeInTheDocument();
     const recoveredFile = new File([new Uint8Array(1234)], "native.fcstd", {
       type: "application/octet-stream", lastModified: 42,

@@ -78,6 +78,12 @@ export type ProviderOptionSet = {
   options: Array<{ value: string; label: string }>;
 };
 
+export type AnalysisResult = {
+  metadata: MetadataEntry[];
+  references: ReferenceRecord[];
+  relationships: Relationship[];
+};
+
 export type MetadataEntry = {
   id: string;
   asset_id: string | null;
@@ -712,6 +718,24 @@ export async function invokeMetadataProvider(
   },
 ): Promise<MetadataEntry[]> {
   return request<MetadataEntry[]>(`/plugins/${pluginId}/providers/metadata`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function invokeAnalysisProvider(
+  token: string,
+  pluginId: string,
+  payload: {
+    representation_id: string;
+    project_id: string;
+    organization_id: string;
+    relationship_mappings?: Record<string, string>;
+  },
+): Promise<AnalysisResult> {
+  return request<AnalysisResult>(`/plugins/${pluginId}/providers/analysis`, {
     method: "POST",
     token,
     body: JSON.stringify(payload),
