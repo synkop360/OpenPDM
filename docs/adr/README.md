@@ -68,3 +68,11 @@ Numbers are never reused.
 An ADR records a decision—not a discussion.
 
 It should remain concise, easy to read and understandable years after it was written.
+
+## Current ADRs
+
+Recent ADRs:
+
+* ADR-0044 - Adopt The Web UI Operational Interaction Stack
+* ADR-0045 - Persist Client-Side Resumable Transfer Recovery
+* ADR-0046 - Define Schema Initialization And Migration Discipline
