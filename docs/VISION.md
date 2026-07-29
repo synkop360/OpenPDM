@@ -163,10 +163,10 @@ The Platform Core understands only generic Engineering Assets and relationships.
 
 Domain-specific knowledge is delegated to plugins.
 
-Examples include:
+Examples include, without selecting any vendor-specific target:
 
-* SOLIDWORKS
 * FreeCAD
+* SOLIDWORKS
 * Fusion 360
 * KiCad
 * Blender
