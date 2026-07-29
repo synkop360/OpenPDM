@@ -47,14 +47,20 @@ discovery; it does not delete records already contributed by a prior analysis.
    `.FCStd` document in an accessible Project.
 2. In the generic Web UI, select that Representation in the discovered provider
    action and choose `Analyze representation`. The Web UI does not name a CAD
-   program, upload a local program, or offer a launch command.
-3. To create an Asset Graph relationship, provide an explicit mapping from a
-   displayed plugin dependency key to an existing Engineering Asset in the same
-   Project. Omit a mapping to retain the dependency as a Reference.
-4. Inspect the returned generic metadata, References, and relationships in the
-   existing Engineering Asset panels and Asset Graph.
+   program, upload a local program, offer a launch command, or submit
+   `relationship_mappings`. This Web UI path is intentionally unmapped, so
+   document links are retained as References rather than Asset Graph
+   relationships.
+3. Inspect the returned generic metadata and References in the existing
+   Engineering Asset panels. The Asset Graph remains unchanged by this
+   unmapped Web UI invocation.
 
-API clients invoke the same operation with:
+An API client may request a generic Asset Graph relationship by explicitly
+mapping a plugin dependency key to an existing accessible Engineering Asset in
+the same Project. Mapping is API-only in this vertical slice; the generic Web
+UI intentionally has no dependency-mapping control.
+
+For example, an API client can invoke the operation with one explicit mapping:
 
 ```json
 POST /plugins/org.openpdm.freecad/providers/analysis
@@ -107,8 +113,10 @@ Supported in this prototype slice:
 
 * bounded analysis of stored `.FCStd` documents no larger than 5 MiB;
 * document label, object count, and `App::Link` count contributions;
-* unmapped document links as plugin-owned References;
-* explicitly mapped document links as generic `depends_on` relationships;
+* generic Web UI analysis with no mappings, preserving document links as
+  plugin-owned References;
+* API-only explicit mapping of document links as generic `depends_on`
+  relationships;
 * repeated analysis without duplicate contributions.
 
 Not supported:

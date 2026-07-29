@@ -134,9 +134,11 @@ another plugin.
 The existing plugin administration, provider discovery, generic metadata,
 relationship, reference, audit, and event surfaces remain the only application
 surfaces. Any Phase 5 invocation UI is generic: it selects an existing
-Representation and submits optional explicit Asset mappings. It may show
-provider-returned text and normal Platform Core records, but it may not embed
-plugin executable UI or launch an executable.
+Representation and submits no Asset mappings. It may show provider-returned
+text and normal Platform Core records, but it may not embed plugin executable
+UI or launch an executable. Explicit dependency-to-Engineering-Asset mappings
+remain available through the public analysis API only; therefore the Web UI
+path yields metadata and References but no relationship contributions.
 
 Desktop-only CAD launch, export, and synchronization behavior remains outside
 this Phase 5 slice.
@@ -148,6 +150,8 @@ plugin test suite will maintain a manifest describing each fixture's expected
 metadata and links, with SHA-256 checksums to detect accidental replacement.
 For `AssemblyExample.FCStd`, this includes its in-document link identifiers;
 an explicit user mapping is required before any becomes an Asset relationship.
+In this vertical slice, that mapping is supplied by an API client rather than
+the generic Web UI.
 The user documentation will state FreeCAD's supported first-slice format, the
 analysis size limit, expected metadata/reference/relationship results, known
 exclusions, and the fact that no CAD executable is launched.

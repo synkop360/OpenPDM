@@ -189,6 +189,12 @@ The server supplies the provider with server-owned generic Representation
 identity, file metadata, checksum, and content. It does not accept content,
 storage locations, or credentials from the client.
 
+The generic Web UI currently invokes this endpoint without
+`relationship_mappings`. That unmapped Web UI path persists generic metadata
+and References only. Explicit dependency-to-Engineering-Asset mapping is
+available to API clients, but mapping controls are not part of the Web UI in
+this vertical slice.
+
 The decoded content limit is 5 MiB. An oversized Representation returns `413`
 with `Representation exceeds the analysis content limit.` A Representation
 without a Blob returns `409`; authorization failures return `403`; invalid

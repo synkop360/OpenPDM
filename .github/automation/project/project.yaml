@@ -6567,10 +6567,10 @@ roadmap:
           - The selected mechanical workflow is documented before implementation.
           - Mechanical meaning stays inside the Official Plugin and Extension API payloads.
           - Generic metadata is persisted through the Metadata Platform Module.
-          - Dependency extraction maps to generic Asset relationships.
+          - API clients may map dependency extraction to generic Asset relationships; the generic Web UI submits unmapped analyses and retains dependencies as generic References.
           - Import/export limits are explicit and testable.
           - The FreeCAD Official Plugin analyzes only stored, bounded `.FCStd` Representations; its fixture corpus records source provenance and SHA-256 digests.
-          - The public analysis route and generic Web UI action are covered by automated tests from package installation through idempotent analysis.
+          - The public analysis route and generic Web UI action are covered by automated tests from package installation through idempotent analysis; mapped relationship contribution is covered through the public API rather than a Web UI mapping control.
           - No Web UI, backend, plugin runtime, or test path launches FreeCAD, FreeCADCmd, or another executable; desktop integration remains deferred.
           - Analysis-provider implementation remains blocked until ADR-0047, ADR-0048 and ADR-0049 are Accepted and the project configuration is reapplied.
 
