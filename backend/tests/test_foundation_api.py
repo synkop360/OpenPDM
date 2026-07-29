@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
-from openpdm.infrastructure.database import dispose_engines
+from openpdm.infrastructure.database import dispose_engines, initialize_disposable_database
 
 
 def build_client(tmp_path: Path) -> TestClient:
@@ -15,6 +15,7 @@ def build_client(tmp_path: Path) -> TestClient:
     os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
     reset_blob_storage_cache()
     dispose_engines()
+    initialize_disposable_database()
     from openpdm.main import create_app
 
     return TestClient(create_app())

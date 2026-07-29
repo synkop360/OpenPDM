@@ -19,7 +19,11 @@ from openpdm.extension_api import (
     build_plugin_package,
 )
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
-from openpdm.infrastructure.database import dispose_engines, session_scope
+from openpdm.infrastructure.database import (
+    dispose_engines,
+    initialize_disposable_database,
+    session_scope,
+)
 from openpdm.platform_core.modules.models import (
     AssetReference,
     AssetRelationship,
@@ -43,6 +47,7 @@ def build_client(tmp_path: Path) -> TestClient:
     os.environ["OPENPDM_PLUGIN_CONFIGURATION_KEY"] = Fernet.generate_key().decode()
     reset_blob_storage_cache()
     dispose_engines()
+    initialize_disposable_database()
     from openpdm.main import create_app
 
     return TestClient(create_app())

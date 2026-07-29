@@ -29,7 +29,11 @@ from sqlalchemy.orm import Session
 from openpdm import __version__
 from openpdm.extension_api import validate_plugin_package
 from openpdm.infrastructure.blob_storage import BlobStorage, build_blob_storage
-from openpdm.infrastructure.database import get_db_session, initialize_database, session_scope
+from openpdm.infrastructure.database import (
+    get_db_session,
+    initialize_disposable_database,
+    session_scope,
+)
 from openpdm.infrastructure.plugin_packages import build_plugin_package_storage
 from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
 from openpdm.infrastructure.settings import Settings
@@ -2497,7 +2501,7 @@ def set_plugin_state(
 
 @asynccontextmanager
 async def application_lifespan(app: FastAPI) -> Generator[None, None, None]:
-    initialize_database()
+    initialize_disposable_database()
     build_blob_storage()
     stop_dispatcher = asyncio.Event()
     dispatcher = asyncio.create_task(_plugin_event_dispatch_loop(stop_dispatcher))

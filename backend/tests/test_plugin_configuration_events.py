@@ -14,7 +14,11 @@ from openpdm.extension_api import (
     PluginManifest,
     build_plugin_package,
 )
-from openpdm.infrastructure.database import dispose_engines, initialize_database, session_scope
+from openpdm.infrastructure.database import (
+    dispose_engines,
+    initialize_disposable_database,
+    session_scope,
+)
 from openpdm.infrastructure.plugin_packages import PluginPackageStorage
 from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
 from openpdm.infrastructure.settings import Settings
@@ -51,7 +55,7 @@ def settings_for(tmp_path: Path) -> Settings:
 
 def test_plugin_configuration_secrets_are_encrypted_and_never_audited(tmp_path: Path) -> None:
     settings = settings_for(tmp_path)
-    initialize_database(settings)
+    initialize_disposable_database(settings)
     cipher = PluginSecretCipher(Fernet.generate_key().decode())
     with session_scope(settings) as db:
         admin = User(
@@ -102,7 +106,7 @@ def test_plugin_configuration_secrets_are_encrypted_and_never_audited(tmp_path: 
 
 def test_missing_immutable_package_returns_actionable_conflict(tmp_path: Path) -> None:
     settings = settings_for(tmp_path)
-    initialize_database(settings)
+    initialize_disposable_database(settings)
     with session_scope(settings) as db:
         actor = User(email="user@example.com", display_name="User", password_hash="unused")
         plugin = PluginRecord(
@@ -141,7 +145,7 @@ def test_missing_immutable_package_returns_actionable_conflict(tmp_path: Path) -
 
 def test_post_commit_delivery_is_persisted_and_dispatched_once(tmp_path: Path) -> None:
     settings = settings_for(tmp_path)
-    initialize_database(settings)
+    initialize_disposable_database(settings)
     storage = PluginPackageStorage(settings.plugin_package_root)
     archive = build_plugin_package(
         PluginManifest(

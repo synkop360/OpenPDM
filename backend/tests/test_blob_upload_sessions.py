@@ -27,7 +27,7 @@ from openpdm.infrastructure.blob_storage import (
 from openpdm.infrastructure.database import (
     dispose_engines,
     get_session_factory,
-    initialize_database,
+    initialize_disposable_database,
     session_scope,
 )
 from openpdm.infrastructure.settings import Settings
@@ -56,6 +56,7 @@ def build_client(tmp_path: Path) -> TestClient:
     os.environ["OPENPDM_BLOB_UPLOAD_SESSION_TTL_SECONDS"] = "3600"
     reset_blob_storage_cache()
     dispose_engines()
+    initialize_disposable_database()
     from openpdm.main import create_app
 
     return TestClient(create_app())
@@ -547,7 +548,7 @@ def test_upload_session_migration_is_upgradeable(tmp_path: Path) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'migration.db'}"
     os.environ["OPENPDM_DATABASE_URL"] = database_url
     dispose_engines()
-    initialize_database(Settings(database_url=database_url))
+    initialize_disposable_database(Settings(database_url=database_url))
     engine = create_engine(database_url)
     BlobUploadChunk.__table__.drop(engine)
     BlobUploadSession.__table__.drop(engine)

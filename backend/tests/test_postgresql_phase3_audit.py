@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete, select
 
-from openpdm.infrastructure.database import get_session_factory, initialize_database
+from openpdm.infrastructure.database import get_session_factory, initialize_disposable_database
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.modules.audit import AuditOutcome, Phase3AuditContext
 from openpdm.platform_core.modules.audit.implementation import SqlAlchemyAuditEvents
@@ -18,7 +18,7 @@ def test_failed_phase3_audit_survives_business_rollback_on_postgresql() -> None:
     if not database_url:
         pytest.skip("Set OPENPDM_TEST_POSTGRES_URL to run PostgreSQL audit integration tests.")
     settings = Settings(database_url=database_url)
-    initialize_database(settings)
+    initialize_disposable_database(settings)
     factory = get_session_factory(settings)
     actor_id = str(uuid4())
     request_resource_id = str(uuid4())

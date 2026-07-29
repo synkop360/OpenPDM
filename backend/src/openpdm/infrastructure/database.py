@@ -71,8 +71,8 @@ def get_session_factory(settings: Settings | None = None) -> sessionmaker[Sessio
     return factory
 
 
-def initialize_database(settings: Settings | None = None) -> None:
-    """Create the current schema for local development and tests."""
+def initialize_disposable_database(settings: Settings | None = None) -> None:
+    """Create the current schema only for disposable development and test databases."""
     from openpdm.platform_core.modules.models import Base as PlatformBase
 
     PlatformBase.metadata.create_all(get_engine(settings))
