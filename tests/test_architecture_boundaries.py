@@ -43,6 +43,19 @@ def test_application_api_uses_composition_root_not_module_implementations() -> N
     assert violations == []
 
 
+def test_plugin_orchestration_uses_composition_root_not_module_implementations() -> None:
+    checked = [
+        BACKEND_SRC / "plugin_application.py",
+        BACKEND_SRC / "plugin_runtime" / "dispatcher.py",
+    ]
+    violations: list[str] = []
+    for source_file in checked:
+        imports = imported_modules(source_file)
+        if any(name.startswith("openpdm.platform_core.modules.services") for name in imports):
+            violations.append(str(source_file.relative_to(ROOT)))
+    assert violations == []
+
+
 def test_public_platform_module_contracts_exist_and_publish_no_orm() -> None:
     missing: list[str] = []
     orm_leaks: list[str] = []

@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from openpdm.extension_api import InvocationResponse, validate_plugin_package
 from openpdm.infrastructure.plugin_packages import PluginPackageStorage
 from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
-from openpdm.platform_core.modules.services import PluginsModule
+from openpdm.platform_core.composition import MODULES
 from openpdm.plugin_runtime.supervisor import WasmtimeWorkerSupervisor
+
+PluginsModule = MODULES.plugins
 
 
 def dispatch_due_plugin_events(
