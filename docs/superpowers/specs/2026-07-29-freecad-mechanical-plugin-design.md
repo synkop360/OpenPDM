@@ -18,10 +18,10 @@ inside the existing WebAssembly sandbox, return plugin-owned metadata, and
 report dependency findings through generic Platform Core records.
 
 The slice uses the copied fixtures in `sample/freecad/native/`, with
-`AssemblyExample.FCStd` as the dependency fixture and the remaining files as
-parser-coverage fixtures. `sample/freecad/step/Schenkel.stp` is retained to
-document the interchange boundary only; it is not parsed, converted, or
-previewed in this slice.
+`AssemblyExample.FCStd` as the in-document dependency fixture and the
+remaining files as parser-coverage fixtures. `sample/freecad/step/Schenkel.stp`
+is retained to document the interchange boundary only; it is not parsed,
+converted, or previewed in this slice.
 
 ## Explicit Non-Goals
 
@@ -105,9 +105,9 @@ can perform the selected workflow. They need ADRs before implementation:
 ADR-0036 permits additive Extension API v1 behavior. ADR-0039 must be
 extended by a new ADR because its initial capability set does not include
 binary analysis or link contributions. The decision must preserve ADR-0031's
-distinction: unresolved external file references become generic References;
-only a caller-supplied mapping to an existing authorized Engineering Asset can
-produce a generic Relationship.
+distinction: unmapped plugin-extracted dependency identifiers become generic
+References; only a caller-supplied mapping to an existing authorized
+Engineering Asset can produce a generic Relationship.
 
 ### FreeCAD Plugin behavior
 
@@ -120,10 +120,10 @@ analysis capability plus any existing capability it actually uses. It contains:
   archives with a structured non-retryable Extension API error;
 * plugin-owned metadata such as the document label, FreeCAD file format/version
   when present, and deterministic object/link counts;
-* plugin-owned rules that identify external links and return unresolved generic
-  References;
+* plugin-owned rules that identify document links or external file links and
+  return unresolved generic References using plugin-owned target URIs;
 * relationship contributions only for a caller-supplied, authorized mapping of
-  an extracted external reference to an existing Engineering Asset.
+  an extracted dependency identifier to an existing Engineering Asset.
 
 The plugin must produce a stable ordering and stable keys for the same input.
 It must not fabricate Assets, infer mappings from file names, or depend on
@@ -146,9 +146,11 @@ this Phase 5 slice.
 `sample/freecad/README.md` records the fixture origin and organization. The
 plugin test suite will maintain a manifest describing each fixture's expected
 metadata and links, with SHA-256 checksums to detect accidental replacement.
-The user documentation will state FreeCAD's supported first-slice format,
-the analysis size limit, expected metadata/reference/relationship results,
-known exclusions, and the fact that no CAD executable is launched.
+For `AssemblyExample.FCStd`, this includes its in-document link identifiers;
+an explicit user mapping is required before any becomes an Asset relationship.
+The user documentation will state FreeCAD's supported first-slice format, the
+analysis size limit, expected metadata/reference/relationship results, known
+exclusions, and the fact that no CAD executable is launched.
 
 ## Quality Gates
 
