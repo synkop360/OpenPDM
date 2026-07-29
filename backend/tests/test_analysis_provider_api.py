@@ -6,11 +6,15 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 
 from openpdm.extension_api import (
+    AnalysisMetadataContribution,
     Capability,
     InvocationResponse,
     PluginManifest,
+    ReferenceContribution,
+    RelationshipContribution,
     build_plugin_package,
 )
 from openpdm.infrastructure.blob_storage import LocalFileBlobStorage
@@ -25,7 +29,11 @@ from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.composition import MODULES
 from openpdm.platform_core.modules.models import (
     Asset,
+    AssetReference,
+    AssetRelationship,
     Blob,
+    DomainEvent,
+    MetadataEntry,
     Organization,
     OrganizationMembership,
     PluginRecord,
@@ -40,8 +48,9 @@ from openpdm.plugin_runtime.supervisor import RuntimeResult
 
 
 class CapturingSupervisor:
-    def __init__(self) -> None:
+    def __init__(self, response: InvocationResponse | None = None) -> None:
         self.arguments: list[str] | None = None
+        self.response = response or InvocationResponse(success=True)
 
     def invoke(
         self, component: bytes, *, export_name: str, arguments: list[str] | None = None
@@ -49,7 +58,7 @@ class CapturingSupervisor:
         assert component.startswith(b"\x00asm")
         assert export_name == "invoke"
         self.arguments = arguments
-        return RuntimeResult(True, result=InvocationResponse(success=True).model_dump_json())
+        return RuntimeResult(True, result=self.response.model_dump_json())
 
 
 def settings_for(tmp_path: Path, *, analysis_limit: int = 5 * 1024 * 1024) -> Settings:
@@ -63,7 +72,11 @@ def settings_for(tmp_path: Path, *, analysis_limit: int = 5 * 1024 * 1024) -> Se
 
 
 def install_running_analysis_provider(
-    db: object, *, settings: Settings, actor: User
+    db: object,
+    *,
+    settings: Settings,
+    actor: User,
+    response: InvocationResponse | None = None,
 ) -> tuple[str, CapturingSupervisor, PluginPackageStorage]:
     storage = PluginPackageStorage(settings.plugin_package_root)
     archive = build_plugin_package(
@@ -95,7 +108,7 @@ def install_running_analysis_provider(
         )
     )
     db.flush()  # type: ignore[attr-defined]
-    return "org.openpdm.analysis-test", CapturingSupervisor(), storage
+    return "org.openpdm.analysis-test", CapturingSupervisor(response), storage
 
 
 def create_representation(
@@ -167,9 +180,11 @@ def invoke(
     actor: User,
     representation_id: str,
     blob_storage: LocalFileBlobStorage,
+    response: InvocationResponse | None = None,
+    relationship_mappings: dict[str, str] | None = None,
 ) -> CapturingSupervisor:
     plugin_id, supervisor, package_storage = install_running_analysis_provider(
-        db, settings=settings, actor=actor
+        db, settings=settings, actor=actor, response=response
     )
     invoke_analysis_provider(
         db,
@@ -177,7 +192,7 @@ def invoke(
         representation_id=representation_id,
         actor=actor,
         context={"actor_id": actor.id, "request_id": "analysis-test"},
-        relationship_mappings={"dependency-key": "asset-id"},
+        relationship_mappings=relationship_mappings or {"dependency-key": "asset-id"},
         services=PluginInvocationServices(
             package_storage=package_storage,
             cipher=PluginSecretCipher(None),
@@ -187,6 +202,35 @@ def invoke(
         settings=settings,
     )
     return supervisor
+
+
+def invoke_with_provider(
+    db: object,
+    *,
+    settings: Settings,
+    actor: User,
+    representation_id: str,
+    blob_storage: LocalFileBlobStorage,
+    plugin_id: str,
+    supervisor: CapturingSupervisor,
+    package_storage: PluginPackageStorage,
+    relationship_mappings: dict[str, str],
+) -> InvocationResponse:
+    return invoke_analysis_provider(
+        db,
+        plugin_id=plugin_id,
+        representation_id=representation_id,
+        actor=actor,
+        context={"actor_id": actor.id, "request_id": "analysis-test"},
+        relationship_mappings=relationship_mappings,
+        services=PluginInvocationServices(
+            package_storage=package_storage,
+            cipher=PluginSecretCipher(None),
+            supervisor=supervisor,  # type: ignore[arg-type]
+        ),
+        storage=blob_storage,
+        settings=settings,
+    )
 
 
 def test_analysis_input_requires_read_access_and_representation_blob(tmp_path: Path) -> None:
@@ -333,3 +377,288 @@ def test_analysis_input_uses_server_owned_representation_values(tmp_path: Path) 
             },
             "relationship_mappings": {"dependency-key": "asset-id"},
         }
+
+
+def test_analysis_contributions_reject_a_source_other_than_the_analyzed_asset(
+    tmp_path: Path,
+) -> None:
+    settings = settings_for(tmp_path)
+    initialize_disposable_database(settings)
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+    with session_scope(settings) as db:
+        owner = User(email="owner@example.com", display_name="Owner", password_hash="unused")
+        db.add(owner)
+        db.flush()
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        other_asset = Asset(
+            project_id=asset.project_id,
+            name="Other Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(other_asset)
+        db.flush()
+
+        with pytest.raises(HTTPException) as error:
+            invoke(
+                db,
+                settings=settings,
+                actor=owner,
+                representation_id=representation.id,
+                blob_storage=blob_storage,
+                response=InvocationResponse(
+                    success=True,
+                    references=[
+                        ReferenceContribution(
+                            contribution_key="reference-1",
+                            source_asset_id=other_asset.id,
+                            reference_type="external",
+                            target_uri="plugin://reference/1",
+                            label="Reference",
+                        )
+                    ],
+                ),
+            )
+
+        assert error.value.status_code == 400
+        assert (
+            error.value.detail == "Analysis Provider may only contribute from the analyzed Asset."
+        )
+
+
+def test_analysis_contributions_reject_an_unreadable_mapped_target_asset(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    initialize_disposable_database(settings)
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+    with session_scope(settings) as db:
+        owner = User(email="owner@example.com", display_name="Owner", password_hash="unused")
+        db.add(owner)
+        db.flush()
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        other_organization = Organization(name="Other Organization", slug="other-organization")
+        db.add(other_organization)
+        db.flush()
+        other_project = Project(organization_id=other_organization.id, name="Other")
+        target_asset = Asset(
+            project=other_project,
+            name="Unreadable Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add_all([other_project, target_asset])
+        db.flush()
+
+        with pytest.raises(HTTPException) as error:
+            invoke(
+                db,
+                settings=settings,
+                actor=owner,
+                representation_id=representation.id,
+                blob_storage=blob_storage,
+                response=InvocationResponse(
+                    success=True,
+                    relationships=[
+                        RelationshipContribution(
+                            contribution_key="dependency-1",
+                            source_asset_id=asset.id,
+                            target_asset_id=target_asset.id,
+                            relationship_type="depends_on",
+                        )
+                    ],
+                ),
+                relationship_mappings={"dependency-1": target_asset.id},
+            )
+
+        assert error.value.status_code == 403
+
+
+def test_analysis_contributions_require_a_matching_relationship_mapping_key(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    initialize_disposable_database(settings)
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+    with session_scope(settings) as db:
+        owner = User(email="owner@example.com", display_name="Owner", password_hash="unused")
+        db.add(owner)
+        db.flush()
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        target_asset = Asset(
+            project_id=asset.project_id,
+            name="Mapped Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(target_asset)
+        db.flush()
+
+        with pytest.raises(HTTPException) as error:
+            invoke(
+                db,
+                settings=settings,
+                actor=owner,
+                representation_id=representation.id,
+                blob_storage=blob_storage,
+                response=InvocationResponse(
+                    success=True,
+                    relationships=[
+                        RelationshipContribution(
+                            contribution_key="unmapped-dependency",
+                            source_asset_id=asset.id,
+                            target_asset_id=target_asset.id,
+                            relationship_type="depends_on",
+                        )
+                    ],
+                ),
+                relationship_mappings={"different-dependency": target_asset.id},
+            )
+
+        assert error.value.status_code == 400
+
+
+def test_analysis_contributions_are_idempotent_and_emit_creation_events_once(
+    tmp_path: Path,
+) -> None:
+    settings = settings_for(tmp_path)
+    initialize_disposable_database(settings)
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+    with session_scope(settings) as db:
+        owner = User(email="owner@example.com", display_name="Owner", password_hash="unused")
+        db.add(owner)
+        db.flush()
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        target_asset = Asset(
+            project_id=asset.project_id,
+            name="Dependency Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(target_asset)
+        db.flush()
+        response = InvocationResponse(
+            success=True,
+            analysis_metadata=[
+                AnalysisMetadataContribution(
+                    contribution_key="metadata-1",
+                    target_type="representation",
+                    target_id=representation.id,
+                    key="plugin.analysis.result",
+                    value="complete",
+                    value_type="string",
+                )
+            ],
+            references=[
+                ReferenceContribution(
+                    contribution_key="reference-1",
+                    source_asset_id=asset.id,
+                    reference_type="external",
+                    target_uri="plugin://reference/1",
+                    label="Reference",
+                )
+            ],
+            relationships=[
+                RelationshipContribution(
+                    contribution_key="relationship-1",
+                    source_asset_id=asset.id,
+                    target_asset_id=target_asset.id,
+                    relationship_type="depends_on",
+                )
+            ],
+        )
+        plugin_id, supervisor, package_storage = install_running_analysis_provider(
+            db, settings=settings, actor=owner, response=response
+        )
+        mappings = {"relationship-1": target_asset.id}
+
+        invoke_with_provider(
+            db,
+            settings=settings,
+            actor=owner,
+            representation_id=representation.id,
+            blob_storage=blob_storage,
+            plugin_id=plugin_id,
+            supervisor=supervisor,
+            package_storage=package_storage,
+            relationship_mappings=mappings,
+        )
+        first_events = list(
+            db.scalars(
+                select(DomainEvent).where(
+                    DomainEvent.event_type.in_(
+                        ("metadata.upserted", "ReferenceCreated", "RelationshipCreated")
+                    )
+                )
+            )
+        )
+        assert {event.event_type for event in first_events} == {
+            "metadata.upserted",
+            "ReferenceCreated",
+            "RelationshipCreated",
+        }
+
+        invoke_with_provider(
+            db,
+            settings=settings,
+            actor=owner,
+            representation_id=representation.id,
+            blob_storage=blob_storage,
+            plugin_id=plugin_id,
+            supervisor=supervisor,
+            package_storage=package_storage,
+            relationship_mappings=mappings,
+        )
+
+        assert (
+            len(
+                list(
+                    db.scalars(
+                        select(MetadataEntry).where(
+                            MetadataEntry.representation_id == representation.id,
+                            MetadataEntry.key == "plugin.analysis.result",
+                        )
+                    )
+                )
+            )
+            == 1
+        )
+        assert (
+            len(
+                list(
+                    db.scalars(
+                        select(AssetReference).where(AssetReference.source_asset_id == asset.id)
+                    )
+                )
+            )
+            == 1
+        )
+        assert (
+            len(
+                list(
+                    db.scalars(
+                        select(AssetRelationship).where(
+                            AssetRelationship.source_asset_id == asset.id,
+                            AssetRelationship.target_asset_id == target_asset.id,
+                        )
+                    )
+                )
+            )
+            == 1
+        )
+        assert (
+            list(
+                db.scalars(
+                    select(DomainEvent).where(
+                        DomainEvent.event_type.in_(
+                            ("metadata.upserted", "ReferenceCreated", "RelationshipCreated")
+                        )
+                    )
+                )
+            )
+            == first_events
+        )

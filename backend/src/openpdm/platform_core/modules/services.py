@@ -19,7 +19,11 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import String, and_, cast, delete, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from openpdm.extension_api import ValidatedPluginPackage
+from openpdm.extension_api import (
+    ReferenceContribution,
+    RelationshipContribution,
+    ValidatedPluginPackage,
+)
 from openpdm.infrastructure.blob_storage import BlobStorage
 from openpdm.infrastructure.plugin_packages import PluginPackageStorage
 from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
@@ -3057,6 +3061,105 @@ class RelationshipsModule:
         }
 
     @staticmethod
+    def _analysis_contribution_metadata(
+        metadata: dict[str, object],
+        *,
+        provider_identity: str,
+        contribution_key: str,
+    ) -> dict[str, object]:
+        return {
+            **RelationshipsModule._normalize_metadata(metadata),
+            "analysis_provider_id": provider_identity,
+            "analysis_contribution_key": contribution_key,
+        }
+
+    @staticmethod
+    def _find_analysis_contribution(
+        records: list[AssetReference] | list[AssetRelationship],
+        *,
+        provider_identity: str,
+        contribution_key: str,
+    ) -> AssetReference | AssetRelationship | None:
+        for record in records:
+            if (
+                record.metadata_json.get("analysis_provider_id") == provider_identity
+                and record.metadata_json.get("analysis_contribution_key") == contribution_key
+            ):
+                return record
+        return None
+
+    @staticmethod
+    def persist_analysis_contribution(
+        db: Session,
+        *,
+        provider_identity: str,
+        contribution_key: str,
+        source_asset_id: str,
+        contribution: ReferenceContribution | RelationshipContribution,
+        actor: User,
+    ) -> AssetReference | AssetRelationship:
+        """Persist a generic analysis contribution without duplicating a stable key."""
+        source_asset = RelationshipsModule._get_asset(
+            db,
+            asset_id=source_asset_id,
+            actor=actor,
+            permission="update_asset",
+        )
+        if isinstance(contribution, ReferenceContribution):
+            existing = RelationshipsModule._find_analysis_contribution(
+                list(
+                    db.scalars(
+                        select(AssetReference).where(
+                            AssetReference.source_asset_id == source_asset.id
+                        )
+                    )
+                ),
+                provider_identity=provider_identity,
+                contribution_key=contribution_key,
+            )
+            if existing is not None:
+                return existing
+            return RelationshipsModule.create_reference(
+                db,
+                source_asset_id=source_asset.id,
+                reference_type=contribution.reference_type,
+                target_uri=contribution.target_uri,
+                label=contribution.label,
+                metadata=RelationshipsModule._analysis_contribution_metadata(
+                    contribution.metadata,
+                    provider_identity=provider_identity,
+                    contribution_key=contribution_key,
+                ),
+                actor=actor,
+            )
+
+        existing = RelationshipsModule._find_analysis_contribution(
+            list(
+                db.scalars(
+                    select(AssetRelationship).where(
+                        AssetRelationship.source_asset_id == source_asset.id
+                    )
+                )
+            ),
+            provider_identity=provider_identity,
+            contribution_key=contribution_key,
+        )
+        if existing is not None:
+            return existing
+        return RelationshipsModule.create_relationship(
+            db,
+            source_asset_id=source_asset.id,
+            target_asset_id=contribution.target_asset_id,
+            relationship_type=contribution.relationship_type,
+            metadata=RelationshipsModule._analysis_contribution_metadata(
+                contribution.metadata,
+                provider_identity=provider_identity,
+                contribution_key=contribution_key,
+            ),
+            actor=actor,
+        )
+
+    @staticmethod
     def _project_relationships(db: Session, *, project_id: str) -> list[AssetRelationship]:
         project_asset_ids = select(Asset.id).where(Asset.project_id == project_id)
         return list(
@@ -4320,19 +4423,29 @@ class MetadataModule:
         require(value_type in ALLOWED_METADATA_TYPES, "Invalid metadata value type.")
         field_name = METADATA_TARGET_FIELDS[target_type]
         target_field = getattr(MetadataEntry, field_name)
+        normalized_key = key.strip()
+        normalized_source = source.strip()
         filters = [
             target_field == target_id,
-            MetadataEntry.key == key.strip(),
-            MetadataEntry.source == source.strip(),
+            MetadataEntry.key == normalized_key,
+            MetadataEntry.source == normalized_source,
         ]
         existing = db.scalars(select(MetadataEntry).where(and_(*filters))).all()
+        if (
+            normalized_source.startswith("plugin:")
+            and ":analysis:" in normalized_source
+            and len(existing) == 1
+            and existing[0].value == value
+            and existing[0].value_type == value_type
+        ):
+            return existing[0]
         for item in existing:
             db.delete(item)
         entry = MetadataEntry(
-            key=key.strip(),
+            key=normalized_key,
             value=value,
             value_type=value_type,
-            source=source.strip(),
+            source=normalized_source,
             **{field_name: target_id},
         )
         db.add(entry)
@@ -4345,7 +4458,7 @@ class MetadataModule:
             resource_id=entry.id,
             organization_id=organization_id,
             project_id=project_id,
-            details={"target_type": target_type, "target_id": target_id, "key": key.strip()},
+            details={"target_type": target_type, "target_id": target_id, "key": normalized_key},
         )
         emit_event(
             db,
@@ -4354,7 +4467,7 @@ class MetadataModule:
             resource_id=entry.id,
             organization_id=organization_id,
             project_id=project_id,
-            payload={"target_type": target_type, "target_id": target_id, "key": key.strip()},
+            payload={"target_type": target_type, "target_id": target_id, "key": normalized_key},
         )
         return entry
 

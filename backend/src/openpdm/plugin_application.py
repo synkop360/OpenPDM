@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from base64 import b64encode
 from dataclasses import dataclass
+from hashlib import sha256
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -25,6 +26,7 @@ AssetsModule = MODULES.assets
 BlobsModule = MODULES.blobs
 MetadataModule = MODULES.metadata
 PluginsModule = MODULES.plugins
+RelationshipsModule = MODULES.relationships
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +34,14 @@ class PluginInvocationServices:
     package_storage: PluginPackageStorage
     cipher: PluginSecretCipher
     supervisor: WasmtimeWorkerSupervisor
+
+
+def _analysis_metadata_source(provider_identity: str, contribution_key: str) -> str:
+    source = f"plugin:{provider_identity}:analysis:{contribution_key}"
+    if len(source) <= 255:
+        return source
+    digest = sha256(f"{provider_identity}\0{contribution_key}".encode()).hexdigest()
+    return f"plugin:analysis:{digest}"
 
 
 def invoke_plugin(
@@ -183,7 +193,7 @@ def invoke_analysis_provider(
         checksum_sha256=blob.checksum_sha256,
         content_base64=b64encode(content).decode("ascii"),
     )
-    return invoke_plugin(
+    response = invoke_plugin(
         db,
         plugin_id=plugin_id,
         capability="analysis_provider",
@@ -195,6 +205,62 @@ def invoke_analysis_provider(
         },
         services=services,
     )
+    for contribution in response.references:
+        if contribution.source_asset_id != asset.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Analysis Provider may only contribute from the analyzed Asset.",
+            )
+    for contribution in response.relationships:
+        if contribution.source_asset_id != asset.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Analysis Provider may only contribute from the analyzed Asset.",
+            )
+        mapped_target_id = relationship_mappings.get(contribution.contribution_key)
+        if mapped_target_id != contribution.target_asset_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Analysis Provider relationship target is not an extracted dependency mapping.",
+            )
+        target_asset = AssetsModule.get_asset(
+            db, asset_id=contribution.target_asset_id, actor=actor
+        )
+        if target_asset.project_id != asset.project_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Analysis Provider target must belong to the analyzed Project.",
+            )
+    for contribution in response.analysis_metadata:
+        MetadataModule.put_entry(
+            db,
+            target_type=contribution.target_type,
+            target_id=contribution.target_id,
+            key=contribution.key,
+            value=contribution.value,
+            value_type=contribution.value_type.value,
+            source=_analysis_metadata_source(plugin_id, contribution.contribution_key),
+            actor=actor,
+        )
+    for contribution in response.references:
+        RelationshipsModule.persist_analysis_contribution(
+            db,
+            provider_identity=plugin_id,
+            contribution_key=contribution.contribution_key,
+            source_asset_id=asset.id,
+            contribution=contribution,
+            actor=actor,
+        )
+    for contribution in response.relationships:
+        RelationshipsModule.persist_analysis_contribution(
+            db,
+            provider_identity=plugin_id,
+            contribution_key=contribution.contribution_key,
+            source_asset_id=asset.id,
+            contribution=contribution,
+            actor=actor,
+        )
+    return response
 
 
 def invoke_option_provider(
