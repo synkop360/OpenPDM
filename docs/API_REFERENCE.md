@@ -52,7 +52,11 @@ The common query parameters are `limit`, `cursor`, `sort` and `direction=asc|des
 
 Membership addition accepts exactly one of `user_email` or the legacy `user_id`. Roles are `Owner`, `Maintainer`, `Contributor` and `Viewer`. Only Owners manage Owner roles, and every Organization and Project must retain at least one Owner.
 
-Saved Engineering Asset views are owner-private, scoped to one readable Project, and store only allowlisted generic Asset filters, sort configuration, density and selected columns. They are not returned after the owner loses Project access.
+Saved Engineering Asset views are private to the authenticated user and scoped
+to one readable Project. They store only allowlisted generic Asset filters, sort
+configuration, density and selected columns. Stored query state is revalidated
+when applied to Engineering Asset queries and never grants access by itself.
+Views are not returned after the owner loses Project access.
 
 ## Engineering Assets, Revisions And Blobs
 
@@ -84,6 +88,11 @@ Identical retries, completion, and cancellation are idempotent. Every session
 operation reauthorizes both the owning user and current write access to the
 target Engineering Asset. Completed Blob responses expose client-safe metadata
 only: identifier, filename, media type, size, checksum and creation time.
+
+Upload-session responses include `id`, `asset_id`, file identity fields,
+`chunk_size_bytes`, `received_bytes`, `received_chunk_numbers`, `status`,
+`expires_at`, and `blob`. Clients may use these fields to resume a transfer, but
+must treat the server response as authoritative.
 
 A Representation may claim a completed resumable Blob only for the Engineering
 Asset bound to its upload session. Legacy multipart Blobs remain usable by their
