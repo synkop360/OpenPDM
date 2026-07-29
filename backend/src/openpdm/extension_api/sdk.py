@@ -100,7 +100,14 @@ class WitWorld(wit_world.WitWorld):
     def invoke(self, request: str) -> str:
         json.loads(request)
         return json.dumps(
-            {"success": True, "metadata": [], "commands": [], "error": None},
+            {
+                "success": True,
+                "metadata": [],
+                "references": [],
+                "relationships": [],
+                "commands": [],
+                "error": None,
+            },
             separators=(",", ":"),
             sort_keys=True,
         )

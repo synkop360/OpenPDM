@@ -16,6 +16,9 @@ from openpdm.extension_api import (
     ConfigurationProperty,
     ConfigurationSchema,
     PluginManifest,
+    ReferenceContribution,
+    RelationshipContribution,
+    RepresentationAnalysisInput,
     build_plugin_package,
     extension_api_wit_path,
     scaffold_plugin,
@@ -134,6 +137,58 @@ def test_manifest_rejects_unknown_fields_and_undefined_required_configuration() 
         )
     with pytest.raises(ValidationError, match="undefined"):
         ConfigurationSchema(required=["missing"])
+
+
+def test_analysis_provider_is_additive_v1_capability() -> None:
+    value = manifest(capabilities=[Capability.ANALYSIS_PROVIDER])
+
+    assert value.capabilities == [Capability.ANALYSIS_PROVIDER]
+
+
+def test_analysis_input_is_strict_and_bounded() -> None:
+    value = RepresentationAnalysisInput(
+        representation_id="representation-1",
+        asset_id="asset-1",
+        filename="design.bin",
+        media_type="application/octet-stream",
+        size_bytes=5 * 1024 * 1024,
+        checksum_sha256="a" * 64,
+        content_base64="YQ==",
+    )
+
+    assert value.asset_id == "asset-1"
+    with pytest.raises(ValidationError):
+        RepresentationAnalysisInput.model_validate({**value.model_dump(), "unknown": True})
+
+
+def test_analysis_contribution_requires_stable_key() -> None:
+    with pytest.raises(ValidationError):
+        ReferenceContribution(
+            source_asset_id="asset-1",
+            reference_type="plugin.ref",
+            target_uri="plugin://ref/1",
+            label="Reference",
+            metadata={},
+        )
+
+
+def test_relationship_contribution_is_strict() -> None:
+    relationship = RelationshipContribution(
+        contribution_key="dependency-1",
+        source_asset_id="asset-1",
+        target_asset_id="asset-2",
+        relationship_type="depends_on",
+        metadata={},
+    )
+
+    with pytest.raises(ValidationError):
+        RelationshipContribution.model_validate(
+            {**relationship.model_dump(), "unexpected": "value"}
+        )
+    with pytest.raises(ValidationError, match="must differ"):
+        RelationshipContribution.model_validate(
+            {**relationship.model_dump(), "target_asset_id": relationship.source_asset_id}
+        )
 
 
 def test_sdk_exposes_the_versioned_wit_contract() -> None:

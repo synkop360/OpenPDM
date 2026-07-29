@@ -13,6 +13,9 @@ from .contracts import (
     MetadataValueType,
     ProviderOption,
     ProviderOptionSet,
+    ReferenceContribution,
+    RelationshipContribution,
+    RepresentationAnalysisInput,
 )
 from .manifest import ConfigurationProperty, ConfigurationSchema, PluginManifest
 from .package import ValidatedPluginPackage, validate_plugin_package
@@ -38,6 +41,9 @@ __all__ = [
     "MetadataValueType",
     "ProviderOption",
     "ProviderOptionSet",
+    "ReferenceContribution",
+    "RelationshipContribution",
+    "RepresentationAnalysisInput",
     "PluginManifest",
     "ValidatedPluginPackage",
     "build_plugin_package",
