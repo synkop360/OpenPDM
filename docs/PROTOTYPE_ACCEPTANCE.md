@@ -74,6 +74,26 @@ Evidence:
   * plugin package persistence after backend restart;
   * one real local file upload and browser download.
 
+## Phase 5 Mechanical Plugin Acceptance Result
+
+Date: 2026-07-29
+Scope: the `org.openpdm.freecad` Official Plugin package, its bounded generic
+analysis-provider workflow, and existing-provider regression coverage.
+Result: Incomplete.
+
+The focused FreeCAD, generic analysis-provider, reference-plugin, and dummy
+categories-plugin checks passed (26 tests), as did the frontend lint, test,
+build, desktop Chromium browser, documentation, and project-validation gates.
+The built package was validated without starting FreeCAD or another CAD
+program. The required manual local-service smoke check is pending and is
+defined in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#pending-manual-local-service-smoke-check).
+
+The repository-wide backend suite has two migration-upgrade failures caused by
+duplicate `analysis_contribution_id` column creation, and the repository-wide
+Ruff scope includes existing generated binding findings. These must be resolved
+before Phase 5 is recorded as fully accepted. The complete matrix and exact
+command results are in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#phase-5-acceptance-matrix).
+
 ## Known Limits
 
 * No production high availability.

@@ -144,3 +144,63 @@ authorization coverage is in `backend/tests/test_analysis_provider_api.py`.
 This slice follows [ADR-0047](adr/ADR-0047%20-%20Authorize%20Bounded%20Representation%20Analysis%20Inputs.md),
 [ADR-0048](adr/ADR-0048%20-%20Accept%20Provider%20Analysis%20Contributions.md),
 and [ADR-0049](adr/ADR-0049%20-%20Set%20Analysis%20Provider%20Sandbox%20Fuel%20Budget.md).
+
+## Phase 5 Acceptance Matrix
+
+Automated evidence was recorded on 2026-07-29. The local-service smoke check
+remains pending maintainer execution; no manual result is inferred from the
+automated checks.
+
+| Scenario | Evidence | Status |
+| --- | --- | --- |
+| Valid `.FCStd` | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
+| Malformed archive | `plugins/freecad/tests/test_parser.py::test_parser_rejects_non_zip_payload` and `test_parser_rejects_archive_without_document_xml` | Passed |
+| Unsupported STEP | Manual local-service smoke check below; STEP is outside the supported scope | Pending |
+| Oversized content | `plugins/freecad/tests/test_parser.py::test_parser_rejects_content_larger_than_declared_limit` and `backend/tests/test_analysis_provider_api.py::test_analysis_input_rejects_content_above_configured_limit` | Passed |
+| No Blob | `backend/tests/test_analysis_provider_api.py::test_analysis_input_rejects_representation_without_blob` | Passed |
+| Unauthorized actor | `backend/tests/test_analysis_provider_api.py::test_analysis_input_requires_read_access_and_representation_blob` | Passed |
+| Unmapped link | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
+| Explicitly mapped link | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
+| Repeated analysis | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
+| Disabled plugin | Manual local-service smoke check below | Pending |
+| Existing-provider regression | `backend/tests/test_reference_plugin_e2e.py::test_reference_official_plugin_exercises_phase4_journey` and `backend/tests/test_dummy_categories_plugin_e2e.py::test_dummy_categories_plugin_exercises_public_extension_api` | Passed |
+
+### Automated Gate Results
+
+* Rebuilt and validated `plugins/freecad/dist/freecad.openpdm-plugin` with
+  `uv run python scripts/build_freecad_plugin.py --output plugins/freecad/dist/freecad.openpdm-plugin`: passed.
+* Focused plugin, API, and existing-provider coverage:
+  `uv run pytest plugins/freecad/tests/test_parser.py backend/tests/test_freecad_plugin_e2e.py backend/tests/test_analysis_provider_api.py backend/tests/test_reference_plugin_e2e.py backend/tests/test_dummy_categories_plugin_e2e.py -v`: 26 passed.
+* `pnpm.cmd --dir frontend lint`: passed.
+* `pnpm.cmd --dir frontend test -- --run`: 54 passed.
+* `pnpm.cmd --dir frontend build`: passed.
+* `pnpm.cmd --dir frontend exec playwright test --project=chromium-desktop`: 7 passed. The plan's `chromium` project name is not configured; the configured desktop Chromium project was used after the exact command reported that mismatch.
+* `uv run python scripts/validate_documentation.py`,
+  `uv run python .github/automation/project/validate.py .github/automation/project/project.yaml`,
+  and `git diff --check`: passed.
+
+The full backend suite is not yet green: `uv run pytest backend/tests -v`
+reported 104 passed, 4 skipped, and 2 failures. Both failures are older
+migration-upgrade tests (`test_upload_session_migration_is_upgradeable` and
+`test_project_asset_view_migration_is_upgradeable`) that attempt to add the
+already-present `analysis_contribution_id` column. The focused analysis
+migration check passes. `uv run ruff format --check backend tests plugins
+scripts` also reports three formatting candidates, including generated
+reference-plugin code; `uv run ruff check backend tests plugins scripts`
+reports 94 findings in generated plugin bindings. These repository-wide gates
+must be resolved before declaring the Phase 5 acceptance gate fully passed.
+
+### Pending Manual Local-Service Smoke Check
+
+Run the documented local services, then, as a Platform Administrator, build,
+install, and enable `plugins/freecad/dist/freecad.openpdm-plugin`. Upload
+`AssemblyExample.FCStd` to a Blob-backed Representation in an accessible
+Project. In the generic Web UI, select the Representation and run `Analyze
+representation`; verify the three `freecad.document.*` metadata entries and
+13 References. Then use the public analysis endpoint once with
+`document.link.Base` explicitly mapped to an accessible Engineering Asset and
+verify one `depends_on` Relationship, the timeline event, and audit record.
+Disable the plugin and verify the analysis action disappears while prior
+records remain. Confirm during this sequence that no external executable or
+CAD process starts. Record the operator, date, and outcome here before
+changing this status from Pending.
