@@ -404,6 +404,7 @@ function OpenPdmApp() {
     assetId: null, recovery: null });
   const transferOperation = useRef(0);
   const activeTransferOperation = useRef<{ id: number; controller: AbortController } | null>(null);
+  const analysisOperation = useRef(0);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(
     readStoredValue(ORG_KEY),
   );
@@ -717,6 +718,9 @@ function OpenPdmApp() {
   }, [selectedProjectId, session.data?.token, view]);
   useEffect(() => {
     const token = session.data?.token;
+    analysisOperation.current += 1;
+    setAnalysisResult(null);
+    setAnalysisRepresentationId("");
     if (!token || !selectedAssetId || view !== "project") {
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
@@ -862,6 +866,7 @@ function OpenPdmApp() {
   const canManageProjectMembers = currentProjectRole === "Owner" || currentProjectRole === "Maintainer";
   const hasAssets = assets.data.length > 0;
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
+  const analysisBusy = busyAction?.startsWith("provider-analysis-") ?? false;
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
   const organizationOwnerCount = organizationMembers.data.filter((membership) => membership.role === "Owner").length;
   const projectOwnerCount = projectMembers.data.filter((membership) => membership.role === "Owner").length;
@@ -1756,8 +1761,11 @@ function OpenPdmApp() {
       !selectedOrganizationId ||
       !selectedAnalysisRepresentation
     ) return;
+    const operation = analysisOperation.current + 1;
+    analysisOperation.current = operation;
     setBusyAction(`provider-analysis-${provider.id}`);
     setBanner(null);
+    setAnalysisResult(null);
     try {
       const result = await invokeAnalysisProvider(session.data.token, provider.id, {
         representation_id: selectedAnalysisRepresentation.id,
@@ -1772,6 +1780,7 @@ function OpenPdmApp() {
         listAssetReferences(session.data.token, selectedAssetId),
         getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
       ]);
+      if (operation !== analysisOperation.current) return;
       setAssetMetadata({ status: "ready", data: metadata, error: null });
       setAssetRelationships({ status: "ready", data: relationships, error: null });
       setIncomingRelationships({ status: "ready", data: incoming, error: null });
@@ -1781,9 +1790,11 @@ function OpenPdmApp() {
       setAnalysisResult(result);
       setBanner(`${provider.name} analysis completed.`);
     } catch (error: unknown) {
+      if (operation !== analysisOperation.current) return;
+      setAnalysisResult(null);
       setBanner(error instanceof Error ? error.message : "Analysis Provider invocation failed.");
     } finally {
-      setBusyAction(null);
+      if (operation === analysisOperation.current) setBusyAction(null);
     }
   }
 
@@ -3179,7 +3190,7 @@ function OpenPdmApp() {
                       <label>
                         Representation to analyze
                         <select
-                          disabled={analysisRepresentations.length === 0 || busyAction?.startsWith("provider-analysis-")}
+                          disabled={analysisRepresentations.length === 0 || analysisBusy}
                           value={selectedAnalysisRepresentation?.id ?? ""}
                           onChange={(event) => setAnalysisRepresentationId(event.target.value)}
                         >
@@ -3203,7 +3214,7 @@ function OpenPdmApp() {
                             className="secondary-button"
                             disabled={
                               !selectedAnalysisRepresentation ||
-                              busyAction === `provider-analysis-${provider.id}`
+                              analysisBusy
                             }
                             onClick={() => void handleInvokeAnalysisProvider(provider)}
                             type="button"
