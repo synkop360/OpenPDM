@@ -1038,6 +1038,7 @@ def test_postgresql_simultaneous_upload_and_completion_is_idempotent(
     os.environ["OPENPDM_BLOB_UPLOAD_MAX_SIZE_BYTES"] = "32"
     reset_blob_storage_cache()
     dispose_engines()
+    initialize_disposable_database(Settings(database_url=POSTGRES_TEST_URL))
     from openpdm.main import create_app
 
     client = TestClient(create_app())
@@ -1125,6 +1126,7 @@ def test_postgresql_cleanup_race_preserves_one_terminal_transition(
     os.environ["OPENPDM_BLOB_UPLOAD_MAX_SIZE_BYTES"] = "32"
     reset_blob_storage_cache()
     dispose_engines()
+    initialize_disposable_database(Settings(database_url=POSTGRES_TEST_URL))
     from openpdm.main import create_app
 
     client = TestClient(create_app())
