@@ -1,6 +1,6 @@
 # ADR-0048 - Accept Provider Analysis Contributions
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 

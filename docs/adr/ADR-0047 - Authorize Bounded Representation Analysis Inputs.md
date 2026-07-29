@@ -1,6 +1,6 @@
 # ADR-0047 - Authorize Bounded Representation Analysis Inputs
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 
