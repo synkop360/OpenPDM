@@ -76,3 +76,5 @@ Recent ADRs:
 * ADR-0044 - Adopt The Web UI Operational Interaction Stack
 * ADR-0045 - Persist Client-Side Resumable Transfer Recovery
 * ADR-0046 - Define Schema Initialization And Migration Discipline
+* ADR-0047 - Authorize Bounded Representation Analysis Inputs (Proposed)
+* ADR-0048 - Accept Provider Analysis Contributions (Proposed)

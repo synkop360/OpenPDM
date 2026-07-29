@@ -6569,6 +6569,7 @@ roadmap:
           - Generic metadata is persisted through the Metadata Platform Module.
           - Dependency extraction maps to generic Asset relationships.
           - Import/export limits are explicit and testable.
+          - Implementation of representation analysis and provider analysis contributions remains blocked until ADR-0047 and ADR-0048 are Accepted.
 
           ## Dependencies
           - Prototype Epic: Acceptance documentation and known limits
@@ -6585,6 +6586,28 @@ roadmap:
           Complexity: XL
           ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0040
         sub_issues:
+          - title: "Phase 5 Task: Accept representation analysis Extension API decisions"
+            body: |
+              ## Objective
+              Review and accept the generic Extension API decisions required before Phase 5 representation analysis implementation begins.
+
+              ## Acceptance Criteria
+              - ADR-0047 and ADR-0048 are marked Accepted by maintainers.
+              - The decisions preserve Platform Core domain-agnostic boundaries and the Extension API v1 compatibility rules.
+              - The project configuration is reapplied before any dependent implementation work begins.
+              - No mechanical or vendor-specific semantics are added to the Platform Core.
+
+              ## Dependencies
+              - ADR-0047 - Authorize Bounded Representation Analysis Inputs
+              - ADR-0048 - Accept Provider Analysis Contributions
+            labels: [plugin, decision, P1]
+            fields:
+              Phase: Mechanical Engineering
+              Epic: Mechanical Official Plugin Vertical Slice
+              Platform Area: Extension API
+              Complexity: M
+              ADR: ADR-0047, ADR-0048
+
           - title: "Phase 5 Task: Select and document the first mechanical plugin workflow"
             body: |
               ## Objective
