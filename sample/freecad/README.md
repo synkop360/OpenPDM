@@ -15,3 +15,9 @@ deterministic parser fixture: its document label is `AssemblyExample`, its
 object count is 53, and it has 13 `App::Link` document links. Do not treat a
 fixture name, FreeCAD object type, or CAD-specific property as Platform Core
 vocabulary.
+
+The source installation's `doc/LICENSE.html` identifies the FreeCAD application
+as LGPL 2 or later. No individual license notice accompanied these example
+documents in the copied directory. The repository records provenance and hashes
+only; contributors and redistributors must verify the applicable upstream
+example-data terms before redistributing the fixtures.

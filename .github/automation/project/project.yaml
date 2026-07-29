@@ -6569,6 +6569,9 @@ roadmap:
           - Generic metadata is persisted through the Metadata Platform Module.
           - Dependency extraction maps to generic Asset relationships.
           - Import/export limits are explicit and testable.
+          - The FreeCAD Official Plugin analyzes only stored, bounded `.FCStd` Representations; its fixture corpus records source provenance and SHA-256 digests.
+          - The public analysis route and generic Web UI action are covered by automated tests from package installation through idempotent analysis.
+          - No Web UI, backend, plugin runtime, or test path launches FreeCAD, FreeCADCmd, or another executable; desktop integration remains deferred.
           - Analysis-provider implementation remains blocked until ADR-0047, ADR-0048 and ADR-0049 are Accepted and the project configuration is reapplied.
 
           ## Dependencies
@@ -6584,7 +6587,7 @@ roadmap:
           Epic: Mechanical Official Plugin Vertical Slice
           Platform Area: Official Plugin
           Complexity: XL
-          ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0040
+          ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0040, ADR-0047, ADR-0048, ADR-0049
         sub_issues:
           - title: "Phase 5 Task: Accept representation analysis Extension API decisions"
             body: |
@@ -6671,6 +6674,9 @@ roadmap:
               ## Acceptance Criteria
               - Developer and user-facing docs describe setup, sample data and expected results.
               - Import/export, file format and provider limits are explicit.
+              - The fixture corpus records its FreeCAD installation provenance, SHA-256 manifest, and redistribution-license caveat.
+              - The documented path builds, installs, enables, discovers, and invokes the Official Plugin through public APIs and the generic Web UI.
+              - FreeCAD, FreeCADCmd, and all executable launch behavior remain outside the Web UI, backend, plugin runtime, and test scope; desktop integration is deferred.
               - The demonstration reuses the stabilized prototype startup path.
               - CI or documented smoke tests cover the workflow.
             labels: [documentation, plugin, test, P1]
@@ -6679,7 +6685,7 @@ roadmap:
               Epic: Mechanical Official Plugin Vertical Slice
               Platform Area: Documentation
               Complexity: M
-              ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039
+              ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0047, ADR-0048, ADR-0049
 
   - phase: Engineering Workflows
     milestone: Engineering Workflows

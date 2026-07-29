@@ -79,3 +79,18 @@ Recent ADRs:
 * ADR-0047 - Authorize Bounded Representation Analysis Inputs (Accepted)
 * ADR-0048 - Accept Provider Analysis Contributions (Accepted)
 * ADR-0049 - Set Analysis Provider Sandbox Fuel Budget (Accepted)
+
+## Phase 5 Analysis Decisions
+
+The accepted Phase 5 decisions define a generic Extension API capability, not a
+CAD-specific Platform Core contract:
+
+* [ADR-0047](ADR-0047%20-%20Authorize%20Bounded%20Representation%20Analysis%20Inputs.md)
+  authorizes one read-authorized Representation with a 5 MiB decoded-content
+  boundary.
+* [ADR-0048](ADR-0048%20-%20Accept%20Provider%20Analysis%20Contributions.md)
+  permits idempotent generic metadata, Reference, and explicitly mapped
+  relationship contributions.
+* [ADR-0049](ADR-0049%20-%20Set%20Analysis%20Provider%20Sandbox%20Fuel%20Budget.md)
+  configures the bounded analysis-provider sandbox fuel budget independently of
+  other provider invocations.
