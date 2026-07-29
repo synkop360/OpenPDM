@@ -9,6 +9,9 @@ vertical slice.
 * `step/` contains a STEP interchange example. The first slice documents it
   as an import/export boundary and does not parse it.
 
-The fixture manifest introduced with the plugin will identify which native
-documents are used for each deterministic test. Do not treat a fixture name,
-FreeCAD object type, or CAD-specific property as Platform Core vocabulary.
+The plugin-owned fixture manifest at `plugins/freecad/fixtures.json` records
+the SHA-256 digest for every native document. `AssemblyExample.FCStd` is the
+deterministic parser fixture: its document label is `AssemblyExample`, its
+object count is 53, and it has 13 `App::Link` document links. Do not treat a
+fixture name, FreeCAD object type, or CAD-specific property as Platform Core
+vocabulary.
