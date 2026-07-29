@@ -6561,7 +6561,7 @@ roadmap:
           Deliver one minimal mechanical engineering workflow through an Official Plugin without adding engineering semantics to the Platform Core.
 
           ## Description
-          Use the stabilized prototype plugin, metadata and relationship paths to prove one real mechanical workflow before broad SOLIDWORKS, FreeCAD, BOM or native metadata scope.
+          Use the stabilized prototype plugin, metadata and relationship paths to prove one real mechanical workflow before broad FreeCAD, BOM or native metadata scope. When the first vertical slice requires a CAD application, FreeCAD is the preferred target. SOLIDWORKS-specific scope remains deferred unless a later ADR or roadmap update explicitly selects it.
 
           ## Acceptance Criteria
           - The selected mechanical workflow is documented before implementation.

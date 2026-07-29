@@ -240,7 +240,11 @@ contribution through the Web UI.
 * generic metadata extraction persisted through the Metadata Platform Module
 * dependency extraction represented through generic Asset relationships
 * documented import/export limits for the prototype provider
-* broader SOLIDWORKS, FreeCAD, BOM and native metadata coverage after the first vertical slice is demonstrably usable
+* broader FreeCAD, BOM and native metadata coverage after the first vertical slice is demonstrably usable
+
+When the first vertical slice requires a CAD application, FreeCAD is the
+preferred target. SOLIDWORKS-specific scope remains deferred unless a later ADR
+or roadmap update explicitly selects it.
 
 **Success criteria**
 

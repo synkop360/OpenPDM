@@ -52,11 +52,12 @@ Run the browser workflow in [Web UI Manual Test Guide](WEB_UI_MANUAL_TEST_GUIDE.
 
 ## Latest Prototype Acceptance Result
 
-Date: 2026-07-28
-Scope: automated local prototype gate covering startup readiness tests,
-first-run workspace setup, generic Engineering Asset revision upload/download,
-two-user collaboration, notifications, Asset Graph inspection, and the dummy
-categories plugin provider journey.
+Date: 2026-07-29
+Scope: automated local prototype gate and validated manual local-service smoke
+checks covering startup readiness, first-run workspace setup, generic
+Engineering Asset revision upload/download, two-user collaboration,
+notifications, Asset Graph inspection, and the dummy categories plugin provider
+journey.
 Result: Pass.
 Evidence:
 
@@ -68,9 +69,10 @@ Evidence:
 * `uv run python scripts/validate_phase0.py`: passed.
 * `uv run python scripts/validate_documentation.py`: passed.
 * `git diff --check`: passed.
-
-Manual local-service checks remain required before production-style release
-signoff; this prototype result records the automated acceptance gate.
+* Maintainer-validated manual local-service smoke checks completed:
+  * two local browser sessions;
+  * plugin package persistence after backend restart;
+  * one real local file upload and browser download.
 
 ## Known Limits
 
