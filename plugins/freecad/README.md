@@ -17,7 +17,8 @@ For each supported document, it contributes these plugin-owned metadata keys:
 
 Each unmapped `App::Link` becomes a plugin-owned `freecad://` Reference. A link
 becomes a generic `depends_on` Relationship only when the caller explicitly maps
-its link name to an existing authorized Engineering Asset. The Platform Core
+its stable contribution key (`document.link.<link-name>`) to an existing authorized
+Engineering Asset. The Platform Core
 does not interpret FreeCAD object types, metadata keys, reference URIs, or the
 relationship choice.
 

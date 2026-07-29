@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     import wit_world
 
 MAX_CONTENT_BYTES = 5 * 1024 * 1024
+MAX_DOCUMENT_XML_BYTES = 5 * 1024 * 1024
 _PRELOADED_ZLIB = zlib
 _PRELOADED_EXPAT = expat
 _PRELOADED_PYEXPAT = pyexpat
@@ -51,6 +52,11 @@ def parse_fcstd(content: bytes) -> FreecadDocument:
         with ZipFile(BytesIO(content)) as archive:
             if "Document.xml" not in archive.namelist():
                 raise PluginFailure("freecad.invalid_archive", "Document.xml is required.")
+            document_xml = archive.getinfo("Document.xml")
+            if document_xml.file_size > MAX_DOCUMENT_XML_BYTES:
+                raise PluginFailure(
+                    "freecad.invalid_archive", "Document.xml exceeds the uncompressed size limit."
+                )
             root = ElementTree.fromstring(archive.read("Document.xml"))
     except BadZipFile as exc:
         raise PluginFailure(
@@ -195,11 +201,12 @@ def analyze(payload: dict[str, object]) -> str:
     references: list[dict[str, object]] = []
     relationships: list[dict[str, object]] = []
     for link in document.links:
-        target_asset_id = mappings.get(link)
+        contribution_key = f"document.link.{link}"
+        target_asset_id = mappings.get(contribution_key)
         if isinstance(target_asset_id, str):
             relationships.append(
                 {
-                    "contribution_key": f"document.link.{link}",
+                    "contribution_key": contribution_key,
                     "source_asset_id": asset_id,
                     "target_asset_id": target_asset_id,
                     "relationship_type": "depends_on",
@@ -209,7 +216,7 @@ def analyze(payload: dict[str, object]) -> str:
         else:
             references.append(
                 {
-                    "contribution_key": f"document.link.{link}",
+                    "contribution_key": contribution_key,
                     "source_asset_id": asset_id,
                     "reference_type": "freecad.document_link",
                     "target_uri": f"freecad://document/{checksum}/object/{link}",
