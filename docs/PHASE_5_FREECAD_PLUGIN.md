@@ -179,16 +179,15 @@ automated checks.
   `uv run python .github/automation/project/validate.py .github/automation/project/project.yaml`,
   and `git diff --check`: passed.
 
-The full backend suite is not yet green: `uv run pytest backend/tests -v`
-reported 104 passed, 4 skipped, and 2 failures. Both failures are older
-migration-upgrade tests (`test_upload_session_migration_is_upgradeable` and
-`test_project_asset_view_migration_is_upgradeable`) that attempt to add the
-already-present `analysis_contribution_id` column. The focused analysis
-migration check passes. `uv run ruff format --check backend tests plugins
-scripts` also reports three formatting candidates, including generated
-reference-plugin code; `uv run ruff check backend tests plugins scripts`
-reports 94 findings in generated plugin bindings. These repository-wide gates
-must be resolved before declaring the Phase 5 acceptance gate fully passed.
+* `uv run pytest backend/tests -v`: 106 passed, 4 skipped. The
+  migration-upgrade fixtures now first downgrade the disposable current schema
+  to the revision they claim to represent, then prove the forward upgrade.
+
+`uv run ruff format --check backend tests plugins scripts` still reports three
+formatting candidates, including generated reference-plugin code; `uv run ruff
+check backend tests plugins scripts` still reports 94 findings in generated
+plugin bindings. These repository-wide Ruff findings are outside the Phase 5
+change scope and must be resolved before Phase 5 is recorded as fully accepted.
 
 ### Pending Manual Local-Service Smoke Check
 
@@ -204,3 +203,13 @@ Disable the plugin and verify the analysis action disappears while prior
 records remain. Confirm during this sequence that no external executable or
 CAD process starts. Record the operator, date, and outcome here before
 changing this status from Pending.
+
+For the unsupported-content check, upload the tracked
+`sample/freecad/step/Schenkel.stp` file as a Blob-backed Representation in the
+same accessible Project. Select that Representation and run `Analyze
+representation`. Verify that the request is rejected with the bounded
+unsupported-content diagnostic, that no `freecad.document.*` metadata,
+References, or Relationships are added for that Representation, and that no
+external executable or CAD process starts. Record the result with the other
+manual smoke evidence before changing the Unsupported STEP matrix status from
+Pending.

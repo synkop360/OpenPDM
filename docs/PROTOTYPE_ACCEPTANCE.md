@@ -88,11 +88,12 @@ The built package was validated without starting FreeCAD or another CAD
 program. The required manual local-service smoke check is pending and is
 defined in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#pending-manual-local-service-smoke-check).
 
-The repository-wide backend suite has two migration-upgrade failures caused by
-duplicate `analysis_contribution_id` column creation, and the repository-wide
-Ruff scope includes existing generated binding findings. These must be resolved
-before Phase 5 is recorded as fully accepted. The complete matrix and exact
-command results are in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#phase-5-acceptance-matrix).
+The complete backend suite now passes with 106 passed and 4 skipped. Its
+migration-upgrade fixtures downgrade a disposable current schema before proving
+the forward upgrade. The repository-wide Ruff scope still includes existing
+generated binding findings, which are outside the Phase 5 change scope and
+must be resolved before Phase 5 is recorded as fully accepted. The complete
+matrix and exact command results are in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#phase-5-acceptance-matrix).
 
 ## Known Limits
 
