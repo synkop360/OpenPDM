@@ -167,7 +167,12 @@ Protect and back up this key outside the database. Losing it makes encrypted plu
 
 Operational collection routes default to 50 results and enforce a maximum of 100. Their cursors are opaque and are invalid after changing resource scope, actor scope, filters, sort key or direction.
 
-The Compose backend runs Alembic migrations before starting the API. Migration `20260718_0005` creates the owner-private `project_asset_views` table. Existing local-development databases created before Alembic tracking are reconciled idempotently and stamped through the current migration head.
+Alembic is the authoritative schema migration path for persistent deployments.
+The Compose backend runs `alembic upgrade head` before serving the API. Direct
+SQLAlchemy schema creation is reserved for disposable development and automated
+test databases, as described by ADR-0046. Existing local-development databases
+created before Alembic tracking are reconciled idempotently and stamped through
+the current migration head.
 
 For a backend started outside Compose, upgrade the database before starting the new application version:
 

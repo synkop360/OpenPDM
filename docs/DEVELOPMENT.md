@@ -107,6 +107,19 @@ URLs, Lucide for interface icons, and repository-owned CSS design tokens for its
 dark responsive workspace shell. Do not display fabricated data for capabilities
 that are not available through the public application API.
 
+The Web UI operational stack is documented by ADR-0044. New Web UI work should
+prefer the existing React Router route model, Radix interaction primitives,
+Lucide icons, Vitest unit/component tests, Playwright browser checks, and
+repository-owned CSS tokens before introducing another UI dependency or pattern.
+
+### Resumable Transfer Recovery
+
+The Web UI stores minimal resumable upload recovery state in browser
+`sessionStorage`, scoped by user and Engineering Asset. The stored state contains
+upload-session identity and selected-file identity, not file bytes, storage keys
+or credentials. On reuse, the Web UI revalidates the session through the public
+upload-session API before sending more chunks.
+
 ## Run the Local Deployment Environment
 
 ```bash
