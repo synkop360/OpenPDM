@@ -33,6 +33,7 @@ from openpdm.platform_core.modules.models import (
     Asset,
     AssetReference,
     AssetRelationship,
+    AuditRecord,
     Blob,
     DomainEvent,
     MetadataEntry,
@@ -607,6 +608,20 @@ def test_analysis_contributions_are_idempotent_and_emit_creation_events_once(
             "ReferenceCreated",
             "RelationshipCreated",
         }
+        first_audits = list(
+            db.scalars(
+                select(AuditRecord).where(
+                    AuditRecord.action.in_(
+                        ("metadata.upserted", "reference.created", "relationship.created")
+                    )
+                )
+            )
+        )
+        assert {record.action for record in first_audits} == {
+            "metadata.upserted",
+            "reference.created",
+            "relationship.created",
+        }
 
         replacement_target = Asset(
             project_id=asset.project_id,
@@ -707,6 +722,18 @@ def test_analysis_contributions_are_idempotent_and_emit_creation_events_once(
             )
             == first_events
         )
+        assert (
+            list(
+                db.scalars(
+                    select(AuditRecord).where(
+                        AuditRecord.action.in_(
+                            ("metadata.upserted", "reference.created", "relationship.created")
+                        )
+                    )
+                )
+            )
+            == first_audits
+        )
 
 
 def test_analysis_metadata_source_is_bounded_and_stably_scoped() -> None:
@@ -715,6 +742,68 @@ def test_analysis_metadata_source_is_bounded_and_stably_scoped() -> None:
     assert len(source) == 64
     assert source == _analysis_metadata_source("provider" * 100, "contribution" * 100)
     assert source != _analysis_metadata_source("provider" * 100, "other" * 100)
+
+
+def test_analysis_relationship_failure_is_audited_through_the_public_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'analysis.db'}"
+    monkeypatch.setenv("OPENPDM_DATABASE_URL", database_url)
+    dispose_engines()
+    settings = Settings(
+        database_url=database_url,
+        blob_local_root=str(tmp_path / "blobs"),
+        plugin_package_root=str(tmp_path / "plugins"),
+    )
+    initialize_disposable_database(settings)
+    blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
+    with session_scope(settings) as db:
+        owner = User(email="owner@example.com", display_name="Owner", password_hash="unused")
+        db.add(owner)
+        db.flush()
+        asset, representation, _ = create_representation(
+            db, owner=owner, content=b"model", storage=blob_storage
+        )
+        target_asset = Asset(
+            project_id=asset.project_id,
+            name="Target Asset",
+            description="",
+            created_by_user_id=owner.id,
+        )
+        db.add(target_asset)
+        db.flush()
+
+        with pytest.raises(HTTPException) as error:
+            invoke(
+                db,
+                settings=settings,
+                actor=owner,
+                representation_id=representation.id,
+                blob_storage=blob_storage,
+                response=InvocationResponse(
+                    success=True,
+                    relationships=[
+                        RelationshipContribution(
+                            contribution_key="invalid-relationship",
+                            source_asset_id=asset.id,
+                            target_asset_id=target_asset.id,
+                            relationship_type="not-an-approved-type",
+                        )
+                    ],
+                ),
+                relationship_mappings={"invalid-relationship": target_asset.id},
+            )
+
+        assert error.value.status_code == 400
+        audit = db.scalar(
+            select(AuditRecord).where(
+                AuditRecord.action == "relationship.failed",
+                AuditRecord.resource_id == asset.id,
+            )
+        )
+        assert audit is not None
+        assert audit.details["result"] == "failed"
+        assert audit.details["reason"] == "Invalid relationship type."
 
 
 def test_analysis_metadata_preflight_rejects_a_later_cross_project_target_without_writes(

@@ -3099,72 +3099,34 @@ class RelationshipsModule:
             provider_identity, contribution_key
         )
         if isinstance(contribution, ReferenceContribution):
-            existing = db.scalar(
-                select(AssetReference).where(
-                    AssetReference.analysis_contribution_id == contribution_identity
-                )
+            return RelationshipsModule.create_reference(
+                db,
+                source_asset_id=source_asset.id,
+                reference_type=contribution.reference_type,
+                target_uri=contribution.target_uri,
+                label=contribution.label,
+                metadata=RelationshipsModule._analysis_contribution_metadata(
+                    contribution.metadata,
+                    provider_identity=provider_identity,
+                    contribution_key=contribution_key,
+                ),
+                actor=actor,
+                analysis_contribution_id=contribution_identity,
             )
-            if existing is not None:
-                return existing
-            try:
-                with db.begin_nested():
-                    return RelationshipsModule.create_reference.__wrapped__(  # type: ignore[attr-defined]
-                        db,
-                        source_asset_id=source_asset.id,
-                        reference_type=contribution.reference_type,
-                        target_uri=contribution.target_uri,
-                        label=contribution.label,
-                        metadata=RelationshipsModule._analysis_contribution_metadata(
-                            contribution.metadata,
-                            provider_identity=provider_identity,
-                            contribution_key=contribution_key,
-                        ),
-                        actor=actor,
-                        analysis_contribution_id=contribution_identity,
-                    )
-            except IntegrityError:
-                db.expire_all()
-                existing = db.scalar(
-                    select(AssetReference).where(
-                        AssetReference.analysis_contribution_id == contribution_identity
-                    )
-                )
-                if existing is not None:
-                    return existing
-                raise
 
-        existing = db.scalar(
-            select(AssetRelationship).where(
-                AssetRelationship.analysis_contribution_id == contribution_identity
-            )
+        return RelationshipsModule.create_relationship(
+            db,
+            source_asset_id=source_asset.id,
+            target_asset_id=contribution.target_asset_id,
+            relationship_type=contribution.relationship_type,
+            metadata=RelationshipsModule._analysis_contribution_metadata(
+                contribution.metadata,
+                provider_identity=provider_identity,
+                contribution_key=contribution_key,
+            ),
+            actor=actor,
+            analysis_contribution_id=contribution_identity,
         )
-        if existing is not None:
-            return existing
-        try:
-            with db.begin_nested():
-                return RelationshipsModule.create_relationship.__wrapped__(  # type: ignore[attr-defined]
-                    db,
-                    source_asset_id=source_asset.id,
-                    target_asset_id=contribution.target_asset_id,
-                    relationship_type=contribution.relationship_type,
-                    metadata=RelationshipsModule._analysis_contribution_metadata(
-                        contribution.metadata,
-                        provider_identity=provider_identity,
-                        contribution_key=contribution_key,
-                    ),
-                    actor=actor,
-                    analysis_contribution_id=contribution_identity,
-                )
-        except IntegrityError:
-            db.expire_all()
-            existing = db.scalar(
-                select(AssetRelationship).where(
-                    AssetRelationship.analysis_contribution_id == contribution_identity
-                )
-            )
-            if existing is not None:
-                return existing
-            raise
 
     @staticmethod
     def _project_relationships(db: Session, *, project_id: str) -> list[AssetRelationship]:
@@ -3312,6 +3274,14 @@ class RelationshipsModule:
             source_asset.id != target_asset.id,
             "Self-relationships are not supported in Phase 3.",
         )
+        if analysis_contribution_id is not None:
+            existing = db.scalar(
+                select(AssetRelationship).where(
+                    AssetRelationship.analysis_contribution_id == analysis_contribution_id
+                )
+            )
+            if existing is not None:
+                return existing
         normalized_type = RelationshipsModule._require_relationship_type(relationship_type)
         relationship_metadata = RelationshipsModule._normalize_metadata(metadata)
         existing = db.scalar(
@@ -3337,9 +3307,26 @@ class RelationshipsModule:
             analysis_contribution_id=analysis_contribution_id,
             created_by_user_id=actor.id,
         )
-        db.add(relationship)
-        source_asset.updated_at = utc_now()
-        db.flush()
+        if analysis_contribution_id is None:
+            db.add(relationship)
+            source_asset.updated_at = utc_now()
+            db.flush()
+        else:
+            try:
+                with db.begin_nested():
+                    db.add(relationship)
+                    source_asset.updated_at = utc_now()
+                    db.flush()
+            except IntegrityError:
+                db.expire_all()
+                existing = db.scalar(
+                    select(AssetRelationship).where(
+                        AssetRelationship.analysis_contribution_id == analysis_contribution_id
+                    )
+                )
+                if existing is not None:
+                    return existing
+                raise
         payload = {
             **RelationshipsModule._relationship_payload(relationship),
             "metadata": relationship.metadata_json,
@@ -3567,6 +3554,14 @@ class RelationshipsModule:
         normalized_type = RelationshipsModule._require_reference_type(reference_type)
         normalized_uri = target_uri.strip()
         require(normalized_uri, "Reference target URI is required.")
+        if analysis_contribution_id is not None:
+            existing = db.scalar(
+                select(AssetReference).where(
+                    AssetReference.analysis_contribution_id == analysis_contribution_id
+                )
+            )
+            if existing is not None:
+                return existing
         reference_metadata = RelationshipsModule._normalize_metadata(metadata)
         existing = db.scalar(
             select(AssetReference).where(
@@ -3587,9 +3582,26 @@ class RelationshipsModule:
             analysis_contribution_id=analysis_contribution_id,
             created_by_user_id=actor.id,
         )
-        db.add(reference)
-        source_asset.updated_at = utc_now()
-        db.flush()
+        if analysis_contribution_id is None:
+            db.add(reference)
+            source_asset.updated_at = utc_now()
+            db.flush()
+        else:
+            try:
+                with db.begin_nested():
+                    db.add(reference)
+                    source_asset.updated_at = utc_now()
+                    db.flush()
+            except IntegrityError:
+                db.expire_all()
+                existing = db.scalar(
+                    select(AssetReference).where(
+                        AssetReference.analysis_contribution_id == analysis_contribution_id
+                    )
+                )
+                if existing is not None:
+                    return existing
+                raise
         payload = {
             **RelationshipsModule._reference_payload(reference),
             "metadata": reference.metadata_json,
