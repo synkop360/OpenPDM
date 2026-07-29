@@ -53,6 +53,7 @@ def invoke_plugin(
     context: dict[str, object],
     payload: dict[str, object],
     services: PluginInvocationServices,
+    fuel: int | None = None,
 ) -> InvocationResponse:
     plugin = PluginsModule.get_plugin(db, plugin_id=plugin_id, actor=context["actor"])
     if not plugin.enabled or plugin.lifecycle_state != "running":
@@ -87,11 +88,20 @@ def invoke_plugin(
         "configuration": configuration,
         "payload": payload,
     }
-    result = services.supervisor.invoke(
-        package.component,
-        export_name="invoke",
-        arguments=[json.dumps(request, sort_keys=True, separators=(",", ":"))],
-    )
+    invocation_arguments = [json.dumps(request, sort_keys=True, separators=(",", ":"))]
+    if fuel is None:
+        result = services.supervisor.invoke(
+            package.component,
+            export_name="invoke",
+            arguments=invocation_arguments,
+        )
+    else:
+        result = services.supervisor.invoke(
+            package.component,
+            export_name="invoke",
+            arguments=invocation_arguments,
+            fuel=fuel,
+        )
     if not result.success or result.result is None:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -204,6 +214,7 @@ def invoke_analysis_provider(
             "relationship_mappings": relationship_mappings,
         },
         services=services,
+        fuel=settings.plugin_analysis_provider_fuel,
     )
     for contribution in response.analysis_metadata:
         _, project_id = MetadataModule.authorize_target(

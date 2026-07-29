@@ -38,7 +38,12 @@ class WasmtimeWorkerSupervisor:
         return self.invoke(component, export_name="activate")
 
     def invoke(
-        self, component: bytes, *, export_name: str, arguments: list[str] | None = None
+        self,
+        component: bytes,
+        *,
+        export_name: str,
+        arguments: list[str] | None = None,
+        fuel: int | None = None,
     ) -> RuntimeResult:
         request_id = str(uuid4())
         request = json.dumps(
@@ -48,7 +53,7 @@ class WasmtimeWorkerSupervisor:
                 "component": base64.b64encode(component).decode("ascii"),
                 "export_name": export_name,
                 "arguments": arguments or [],
-                "fuel": self.fuel,
+                "fuel": self.fuel if fuel is None else fuel,
                 "memory_bytes": self.memory_bytes,
             },
             separators=(",", ":"),

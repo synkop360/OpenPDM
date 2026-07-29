@@ -58,14 +58,21 @@ from openpdm.plugin_runtime.supervisor import RuntimeResult
 class CapturingSupervisor:
     def __init__(self, response: InvocationResponse | None = None) -> None:
         self.arguments: list[str] | None = None
+        self.fuel: int | None = None
         self.response = response or InvocationResponse(success=True)
 
     def invoke(
-        self, component: bytes, *, export_name: str, arguments: list[str] | None = None
+        self,
+        component: bytes,
+        *,
+        export_name: str,
+        arguments: list[str] | None = None,
+        fuel: int | None = None,
     ) -> RuntimeResult:
         assert component.startswith(b"\x00asm")
         assert export_name == "invoke"
         self.arguments = arguments
+        self.fuel = fuel
         return RuntimeResult(True, result=self.response.model_dump_json())
 
 
@@ -385,6 +392,17 @@ def test_analysis_input_uses_server_owned_representation_values(tmp_path: Path) 
             },
             "relationship_mappings": {"dependency-key": "asset-id"},
         }
+        assert supervisor.fuel == settings.plugin_analysis_provider_fuel
+
+
+def test_analysis_provider_fuel_setting_is_bounded_independently() -> None:
+    assert Settings().plugin_analysis_provider_fuel == 200_000_000
+    assert (
+        Settings(plugin_analysis_provider_fuel=500_000_000).plugin_analysis_provider_fuel
+        == 500_000_000
+    )
+    with pytest.raises(ValueError):
+        Settings(plugin_analysis_provider_fuel=500_000_001)
 
 
 def test_analysis_contributions_reject_a_source_other_than_the_analyzed_asset(
@@ -770,7 +788,8 @@ def test_analysis_provider_route_returns_persisted_generic_records(
     )
     assert registration.status_code == 201
     signed_in = client.post(
-        "/auth/sign-in", json={"email": "owner@example.com", "password": "secret123"})
+        "/auth/sign-in", json={"email": "owner@example.com", "password": "secret123"}
+    )
     token = signed_in.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
     blob_storage = LocalFileBlobStorage(settings.blob_local_root, settings.s3_bucket)
