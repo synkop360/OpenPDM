@@ -183,11 +183,16 @@ automated checks.
   migration-upgrade fixtures now first downgrade the disposable current schema
   to the revision they claim to represent, then prove the forward upgrade.
 
-`uv run ruff format --check backend tests plugins scripts` still reports three
-formatting candidates, including generated reference-plugin code; `uv run ruff
-check backend tests plugins scripts` still reports 94 findings in generated
-plugin bindings. These repository-wide Ruff findings are outside the Phase 5
-change scope and must be resolved before Phase 5 is recorded as fully accepted.
+The repository-wide Ruff findings in the generated `plugins/reference/bindings`
+and `plugins/dummy-categories/bindings` componentize-py output are resolved:
+`uv run ruff check backend tests plugins scripts` and `uv run ruff format
+--check backend tests plugins scripts` both pass for those paths (unused
+imports removed, a deprecated `typing.Union` alias replaced with `X | Y`
+syntax, and a loop variable renamed so it no longer shadows the iterable it
+was built from). Both plugin packages were rebuilt with `componentize-py` and
+their e2e coverage (`test_reference_plugin_e2e.py`,
+`test_dummy_categories_plugin_e2e.py`) plus the full backend suite (106
+passed, 4 skipped) were rerun with no behavior change.
 
 ### Pending Manual Local-Service Smoke Check
 

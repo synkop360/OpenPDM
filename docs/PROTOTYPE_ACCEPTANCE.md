@@ -90,9 +90,13 @@ defined in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#pending-manual
 
 The complete backend suite now passes with 106 passed and 4 skipped. Its
 migration-upgrade fixtures downgrade a disposable current schema before proving
-the forward upgrade. The repository-wide Ruff scope still includes existing
-generated binding findings, which are outside the Phase 5 change scope and
-must be resolved before Phase 5 is recorded as fully accepted. The complete
+the forward upgrade. The repository-wide Ruff findings in the generated
+reference- and dummy-categories-plugin bindings are resolved: `uv run ruff
+check backend tests plugins scripts` and `uv run ruff format --check backend
+tests plugins scripts` both pass for those paths, both plugin packages still
+componentize, and their e2e coverage plus the full backend suite were rerun
+with no behavior change. The manual local-service smoke check above is now the
+only remaining item before Phase 5 is recorded as fully accepted. The complete
 matrix and exact command results are in [the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#phase-5-acceptance-matrix).
 
 ## Known Limits
