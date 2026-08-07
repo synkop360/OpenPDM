@@ -1,9 +1,11 @@
-import componentize_py_runtime
-import componentize_py_async_support
 import weakref
-
-from typing import TypeVar, Generic, cast, Self, Any, Callable
+from collections.abc import Callable
 from types import TracebackType
+from typing import Any, Generic, Self, TypeVar, cast
+
+import componentize_py_runtime
+
+import componentize_py_async_support
 from componentize_py_async_support import _ReturnCode
 
 T = TypeVar("T")

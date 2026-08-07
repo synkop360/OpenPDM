@@ -1,5 +1,5 @@
-from typing import TypeVar, Generic, Union
 from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 S = TypeVar("S")
 
@@ -37,7 +37,7 @@ class Err(Generic[E], Exception):
     value: E
 
 
-Result = Union[Ok[T], Err[E]]
+Result = Ok[T] | Err[E]
 """Represents a Component Model `result` value, i.e. a variant type representing
 either success payload or failure payload.
 
