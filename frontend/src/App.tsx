@@ -108,6 +108,7 @@ import {
   writeStoredValue,
 } from "./app/storage";
 import { useRouteFocus } from "./app/useRouteFocus";
+import { InlineAlert } from "./components/feedback/InlineAlert";
 import { ProjectTabs } from "./components/navigation/ProjectTabs";
 import { ConfirmDialog } from "./components/primitives/Dialog";
 import { AppShell } from "./components/shell/AppShell";
@@ -2128,16 +2129,8 @@ function OpenPdmApp() {
                 }
               />
             </label>
-            {authError ? (
-              <p className="error-message" role="alert">
-                {authError}
-              </p>
-            ) : null}
-            {session.error ? (
-              <p className="error-message" role="alert">
-                {session.error}
-              </p>
-            ) : null}
+            {authError ? <InlineAlert tone="danger">{authError}</InlineAlert> : null}
+            {session.error ? <InlineAlert tone="danger">{session.error}</InlineAlert> : null}
             <button className="primary-button" disabled={busyAction !== null} type="submit">
               {busyAction === "sign-in"
                 ? "Signing in..."
@@ -2181,9 +2174,7 @@ function OpenPdmApp() {
               <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
 
               {organizations.status === "error" ? (
-                <p className="error-message" role="alert">
-                  {organizations.error}
-                </p>
+                <InlineAlert tone="danger">{organizations.error}</InlineAlert>
               ) : null}
 
               {!hasOrganizations ? (
@@ -2285,9 +2276,7 @@ function OpenPdmApp() {
                   ) : null}
 
                   {projects.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {projects.error}
-                    </p>
+                    <InlineAlert tone="danger">{projects.error}</InlineAlert>
                   ) : null}
 
                   {hasProjects ? (
@@ -2411,7 +2400,7 @@ function OpenPdmApp() {
                   ) : null}                </div>
 
                 {view === "home" && (organizations.status === "loading" || projects.status === "loading" || assets.status === "loading" || notifications.status === "loading") ? (
-                  <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> Refreshing operational context…</div>
+                  <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> Refreshing operational context…</InlineAlert>
                 ) : null}
                 {view === "home" && (organizations.status === "error" || projects.status === "error" || assets.status === "error" || notifications.status === "error") ? (
                   <article className="detail-card recovery-card" role="alert">
@@ -2553,17 +2542,19 @@ function OpenPdmApp() {
                 </div>
 
                 {notifications.status === "error" ? (
-                  <div className="state-banner state-error" role="alert">
-                    <strong>{notifications.data.length ? "Showing stale notifications" : "Notifications unavailable"}</strong>
+                  <InlineAlert
+                    title={notifications.data.length ? "Showing stale notifications" : "Notifications unavailable"}
+                    tone="danger"
+                  >
                     <span>{notifications.error}</span>
                     <button className="secondary-button" onClick={() => void handleRefreshNotifications()} type="button">Retry</button>
-                  </div>
+                  </InlineAlert>
                 ) : null}
                 {notifications.status === "loading" ? (
-                  <div className="state-banner" role="status">
+                  <InlineAlert tone="info">
                     <RefreshCw aria-hidden="true" />
                     <span>{notifications.data.length ? "Refreshing while the current page stays available…" : "Loading notifications…"}</span>
-                  </div>
+                  </InlineAlert>
                 ) : null}
 
                 {notifications.data.length ? (
@@ -2644,9 +2635,7 @@ function OpenPdmApp() {
                     {busyAction === "install-plugin" ? "Installing..." : "Install package"}
                   </button>
                 </form>
-                {plugins.status === "error" ? (
-                  <p className="error-message" role="alert">{plugins.error}</p>
-                ) : null}
+                {plugins.status === "error" ? <InlineAlert tone="danger">{plugins.error}</InlineAlert> : null}
                 <div className="governance-filter-bar" aria-label="Plugin filters">
                   <label>Search plugins<input type="search" placeholder="Name, identifier or capability" value={pluginQuery} onChange={(event) => setPluginQuery(event.target.value)} /></label>
                   <label>Lifecycle<select value={pluginLifecycleFilter} onChange={(event) => setPluginLifecycleFilter(event.target.value)}><option value="all">All states</option>{[...new Set(plugins.data.map((plugin) => plugin.lifecycle_state))].map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
@@ -2662,7 +2651,7 @@ function OpenPdmApp() {
                     <article className="detail-card plugin-card" key={plugin.id}>
                       <div className="detail-row"><div><p className="eyebrow">{plugin.plugin_type} plugin</p><h3>{plugin.name}</h3><p>{plugin.id} · v{plugin.version}</p></div><span className={`status-pill plugin-state-${plugin.lifecycle_state}`}>{plugin.lifecycle_state}</span></div>
                       <div className="capability-list" aria-label="Declared capabilities">{plugin.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div>
-                      {plugin.diagnostic_reason ? <p className="error-message">{plugin.diagnostic_reason}</p> : null}
+                      {plugin.diagnostic_reason ? <InlineAlert tone="warning">{plugin.diagnostic_reason}</InlineAlert> : null}
                       <details className="manifest-review"><summary>Review manifest and package evidence</summary><dl><div><dt>Extension API</dt><dd>{plugin.extension_api_versions.join(", ") || "Not declared"}</dd></div><div><dt>Package digest</dt><dd><code>{plugin.package_digest}</code></dd></div><div><dt>Installed</dt><dd>{formatTimestamp(plugin.created_at)}</dd></div><div><dt>Last changed</dt><dd>{formatTimestamp(plugin.updated_at)}</dd></div></dl></details>
                       <div className="collaboration-actions">
                         <ConfirmDialog confirmLabel={plugin.enabled ? "Disable plugin" : "Enable plugin"} description={`${plugin.enabled ? "Disable" : "Enable"} ${plugin.name}. Declared capabilities: ${plugin.capabilities.join(", ") || "none"}. This audited lifecycle change uses the same Extension API path for Official and Community Plugins.`} onConfirm={() => void handlePluginState(plugin)} title={`Review ${plugin.enabled ? "disable" : "enable"} action`} trigger={<button className="secondary-button" disabled={busyAction === `plugin-state-${plugin.id}`} type="button">{plugin.enabled ? "Disable" : "Enable"}</button>} />
@@ -2684,7 +2673,7 @@ function OpenPdmApp() {
                               </label>
                             );
                           }) : <label>Advanced configuration (JSON object)<textarea aria-invalid={Boolean(pluginConfigurationErrors[plugin.id])} value={pluginConfigurationJson[plugin.id] ?? "{}"} onChange={(event) => { setPluginConfigurationJson((current) => ({ ...current, [plugin.id]: event.target.value })); setPluginConfigurationErrors((current) => ({ ...current, [plugin.id]: null })); }} /><small>The manifest uses schema constructs that need the validated JSON fallback.</small></label>}
-                          {pluginConfigurationErrors[plugin.id] ? <p className="error-message" role="alert">{pluginConfigurationErrors[plugin.id]}</p> : null}
+                          {pluginConfigurationErrors[plugin.id] ? <InlineAlert tone="danger">{pluginConfigurationErrors[plugin.id]}</InlineAlert> : null}
                           <div className="collaboration-actions"><button className="primary-button" disabled={busyAction === `plugin-config-save-${plugin.id}`} onClick={() => void handleSavePluginConfiguration(plugin.id)} type="button">{busyAction === `plugin-config-save-${plugin.id}` ? "Saving..." : "Save configuration"}</button><button className="secondary-button" onClick={() => void handleLoadPluginConfiguration(plugin.id)} type="button">Reset draft</button></div>
                         </section>
                       ) : null}
@@ -2770,10 +2759,10 @@ function OpenPdmApp() {
                     </header>
 
                     {assetRelationships.status === "loading" || assetReferences.status === "loading" ? (
-                      <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> Loading relationship context…</div>
+                      <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> Loading relationship context…</InlineAlert>
                     ) : null}
                     {assetRelationships.status === "error" || incomingRelationships.status === "error" || outgoingRelationships.status === "error" || assetReferences.status === "error" ? (
-                      <div className="state-banner state-error" role="alert"><strong>Relationship context is partial</strong><span>{assetRelationships.error ?? incomingRelationships.error ?? outgoingRelationships.error ?? assetReferences.error}</span><button className="secondary-button" onClick={() => void handleRefreshAssetState()} type="button">Retry</button></div>
+                      <InlineAlert title="Relationship context is partial" tone="danger"><span>{assetRelationships.error ?? incomingRelationships.error ?? outgoingRelationships.error ?? assetReferences.error}</span><button className="secondary-button" onClick={() => void handleRefreshAssetState()} type="button">Retry</button></InlineAlert>
                     ) : null}
 
                     {assetDetail.data ? (
@@ -2844,7 +2833,7 @@ function OpenPdmApp() {
                         Owners control Owner roles. Every Organization must retain an Owner.
                       </p>
                       {organizationMembers.status === "error" ? (
-                        <p className="error-message" role="alert">{organizationMembers.error}</p>
+                        <InlineAlert tone="danger">{organizationMembers.error}</InlineAlert>
                       ) : null}
                       <div className="member-list">
                         {organizationMembers.data.filter(matchesMemberQuery).map((membership) => {
@@ -2923,7 +2912,7 @@ function OpenPdmApp() {
                         Project members must already belong to the Organization.
                       </p>
                       {projectMembers.status === "error" ? (
-                        <p className="error-message" role="alert">{projectMembers.error}</p>
+                        <InlineAlert tone="danger">{projectMembers.error}</InlineAlert>
                       ) : null}
                       <div className="member-list">
                         {projectMembers.data.filter(matchesMemberQuery).map((membership) => {
@@ -3073,7 +3062,7 @@ function OpenPdmApp() {
                     </div>
                   </div>
 
-                  {assetViews.status === "error" ? <p className="error-message" role="alert">Saved views unavailable: {assetViews.error}</p> : null}
+                  {assetViews.status === "error" ? <InlineAlert tone="danger">Saved views unavailable: {assetViews.error}</InlineAlert> : null}
 
                   <details className="create-disclosure">
                     <summary>Create Engineering Asset</summary>
@@ -3091,14 +3080,16 @@ function OpenPdmApp() {
                   </details>
 
                   {assets.status === "error" ? (
-                    <div className="state-banner state-error" role="alert">
-                      <strong>{assets.data.length ? "Showing stale Asset data" : "Engineering Assets unavailable"}</strong>
+                    <InlineAlert
+                      title={assets.data.length ? "Showing stale Asset data" : "Engineering Assets unavailable"}
+                      tone="danger"
+                    >
                       <span>{assets.error}</span>
                       <button className="secondary-button" onClick={() => { setAssetCursor(null); setAssetCursorHistory([]); setAssetReloadKey((current) => current + 1); }} type="button">Retry</button>
-                    </div>
+                    </InlineAlert>
                   ) : null}
                   {assets.status === "loading" ? (
-                    <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> {assets.data.length ? "Refreshing this page…" : "Loading Engineering Assets…"}</div>
+                    <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> {assets.data.length ? "Refreshing this page…" : "Loading Engineering Assets…"}</InlineAlert>
                   ) : null}
 
                   {hasAssets ? (
@@ -3160,9 +3151,7 @@ function OpenPdmApp() {
                 </div>
 
                 {notifications.status === "error" ? (
-                  <p className="error-message" role="alert">
-                    {notifications.error}
-                  </p>
+                  <InlineAlert tone="danger">{notifications.error}</InlineAlert>
                 ) : null}
 
                 {notifications.data.length > 0 ? (
@@ -3280,11 +3269,11 @@ function OpenPdmApp() {
                     {providers.data.every((provider) =>
                       !provider.capabilities.includes("metadata_provider"),
                     ) ? (
-                      <p className={providers.status === "error" ? "error-message" : "empty-state"}>
-                        {providers.status === "error"
-                          ? providers.error
-                          : "No running Metadata Provider is available."}
-                      </p>
+                      providers.status === "error" ? (
+                        <InlineAlert tone="danger">{providers.error}</InlineAlert>
+                      ) : (
+                        <p className="empty-state">No running Metadata Provider is available.</p>
+                      )
                     ) : null}
 
                     {assetMetadata.data.length > 0 ? (
@@ -3383,11 +3372,11 @@ function OpenPdmApp() {
                     {assetRelationships.status === "error" ||
                     incomingRelationships.status === "error" ||
                     outgoingRelationships.status === "error" ? (
-                      <p className="error-message" role="alert">
+                      <InlineAlert tone="danger">
                         {assetRelationships.error ??
                           incomingRelationships.error ??
                           outgoingRelationships.error}
-                      </p>
+                      </InlineAlert>
                     ) : null}
 
                     <div className="relationship-grid">
@@ -3481,9 +3470,7 @@ function OpenPdmApp() {
                     </div>
 
                     {assetReferences.status === "error" ? (
-                      <p className="error-message" role="alert">
-                        {assetReferences.error}
-                      </p>
+                      <InlineAlert tone="danger">{assetReferences.error}</InlineAlert>
                     ) : null}
 
                     {assetReferences.data.length > 0 ? (
@@ -3523,9 +3510,7 @@ function OpenPdmApp() {
                     </div>
 
                     {assetGraph.status === "error" ? (
-                      <p className="error-message" role="alert">
-                        {assetGraph.error}
-                      </p>
+                      <InlineAlert tone="danger">{assetGraph.error}</InlineAlert>
                     ) : null}
 
                     {assetGraph.data ? (
@@ -3678,9 +3663,7 @@ function OpenPdmApp() {
                   </form>
 
                   {collaborationState.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {collaborationState.error}
-                    </p>
+                    <InlineAlert tone="danger">{collaborationState.error}</InlineAlert>
                   ) : null}
 
                   {collaborationError ? (
@@ -3720,9 +3703,7 @@ function OpenPdmApp() {
                   ) : null}
 
                   {assetTimeline.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {assetTimeline.error}
-                    </p>
+                    <InlineAlert tone="danger">{assetTimeline.error}</InlineAlert>
                   ) : null}
 
                   <div className="timeline">
@@ -3749,9 +3730,7 @@ function OpenPdmApp() {
                   </div>
 
                   {assetHistory.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {assetHistory.error}
-                    </p>
+                    <InlineAlert tone="danger">{assetHistory.error}</InlineAlert>
                   ) : null}
 
                   <div className="timeline">
