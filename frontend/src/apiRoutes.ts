@@ -13,4 +13,5 @@ export const API_PROXY_PATHS = [
   "/plugins",
   "/providers",
   "/platform",
+  "/users",
 ] as const;

@@ -460,8 +460,8 @@ describe("App", () => {
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Recent Assets" }));
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Collaboration feed" }));
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
-    expect(window.location.pathname).toBe("/projects/project-1/assets");
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/projects/project-1/assets/asset-1");
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Collaboration notifications" })).toBeInTheDocument();

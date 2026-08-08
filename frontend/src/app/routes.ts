@@ -19,12 +19,16 @@ export type AppRoute = {
   view: AppView;
   projectId: string | null;
   projectTab: ProjectTab;
+  assetId: string | null;
 };
 
 export function parseAppRoute(pathname: string): AppRoute {
   const routeParts = pathname.split("/").filter(Boolean);
   const isProjectRoute = routeParts[0] === "projects" && routeParts.length >= 2;
   const requestedTab = routeParts[2];
+  const projectTab = projectTabs.includes(requestedTab as ProjectTab)
+    ? (requestedTab as ProjectTab)
+    : "overview";
 
   return {
     view:
@@ -38,8 +42,15 @@ export function parseAppRoute(pathname: string): AppRoute {
             : "projects"
           : "home",
     projectId: isProjectRoute ? routeParts[1] : null,
-    projectTab: projectTabs.includes(requestedTab as ProjectTab)
-      ? (requestedTab as ProjectTab)
-      : "overview",
+    projectTab,
+    assetId: isProjectRoute && requestedTab === projectTab ? routeParts[3] || null : null,
   };
+}
+
+export function projectAssetPath(
+  projectId: string,
+  tab: ProjectTab,
+  assetId: string | null,
+): string {
+  return assetId ? `/projects/${projectId}/${tab}/${assetId}` : `/projects/${projectId}/${tab}`;
 }
