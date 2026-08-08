@@ -6708,6 +6708,7 @@ roadmap:
           feature, plugin, documentation, test, P1
         milestone: Mechanical Prototype Vertical Slice
         labels: [feature, plugin, documentation, test, P1]
+        closed: true
         fields:
           Phase: Mechanical Engineering
           Epic: Mechanical Official Plugin Vertical Slice
@@ -6731,6 +6732,7 @@ roadmap:
               - ADR-0048 - Accept Provider Analysis Contributions
               - ADR-0049 - Set Analysis Provider Sandbox Fuel Budget
             labels: [plugin, decision, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6749,6 +6751,7 @@ roadmap:
               - A new ADR is proposed if the workflow requires a new architectural decision.
               - Broader CAD, BOM and native metadata scope remains explicitly deferred.
             labels: [plugin, documentation, decision, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6767,6 +6770,7 @@ roadmap:
               - Malformed or unsupported files fail with bounded diagnostics.
               - Automated tests cover successful extraction and failure isolation.
             labels: [feature, plugin, test, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6785,6 +6789,7 @@ roadmap:
               - Cycles, unresolved references and authorization failures are handled safely.
               - Web UI graph surfaces can inspect the resulting relationships.
             labels: [feature, plugin, core, test, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6806,6 +6811,7 @@ roadmap:
               - The demonstration reuses the stabilized prototype startup path.
               - CI or documented smoke tests cover the workflow.
             labels: [documentation, plugin, test, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
