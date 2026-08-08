@@ -1,6 +1,6 @@
 # ADR-0050 - Adopt Asset-Addressable Deep-Linking URL Scheme
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 
