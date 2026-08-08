@@ -148,21 +148,20 @@ and [ADR-0049](adr/ADR-0049%20-%20Set%20Analysis%20Provider%20Sandbox%20Fuel%20B
 ## Phase 5 Acceptance Matrix
 
 Automated evidence was recorded on 2026-07-29. The local-service smoke check
-remains pending maintainer execution; no manual result is inferred from the
-automated checks.
+was completed on 2026-08-08; see the record below.
 
 | Scenario | Evidence | Status |
 | --- | --- | --- |
 | Valid `.FCStd` | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
 | Malformed archive | `plugins/freecad/tests/test_parser.py::test_parser_rejects_non_zip_payload` and `test_parser_rejects_archive_without_document_xml` | Passed |
-| Unsupported STEP | Manual local-service smoke check below; STEP is outside the supported scope | Pending |
+| Unsupported STEP | Manual local-service smoke check below | Passed |
 | Oversized content | `plugins/freecad/tests/test_parser.py::test_parser_rejects_content_larger_than_declared_limit` and `backend/tests/test_analysis_provider_api.py::test_analysis_input_rejects_content_above_configured_limit` | Passed |
 | No Blob | `backend/tests/test_analysis_provider_api.py::test_analysis_input_rejects_representation_without_blob` | Passed |
 | Unauthorized actor | `backend/tests/test_analysis_provider_api.py::test_analysis_input_requires_read_access_and_representation_blob` | Passed |
-| Unmapped link | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
-| Explicitly mapped link | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
+| Unmapped link | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey`; also reproduced live in the manual smoke check below | Passed |
+| Explicitly mapped link | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey`; also reproduced live in the manual smoke check below | Passed |
 | Repeated analysis | `backend/tests/test_freecad_plugin_e2e.py::test_freecad_official_plugin_exercises_the_public_analysis_journey` | Passed |
-| Disabled plugin | Manual local-service smoke check below | Pending |
+| Disabled plugin | Manual local-service smoke check below | Passed |
 | Existing-provider regression | `backend/tests/test_reference_plugin_e2e.py::test_reference_official_plugin_exercises_phase4_journey` and `backend/tests/test_dummy_categories_plugin_e2e.py::test_dummy_categories_plugin_exercises_public_extension_api` | Passed |
 
 ### Automated Gate Results
@@ -194,27 +193,95 @@ their e2e coverage (`test_reference_plugin_e2e.py`,
 `test_dummy_categories_plugin_e2e.py`) plus the full backend suite (106
 passed, 4 skipped) were rerun with no behavior change.
 
-### Pending Manual Local-Service Smoke Check
+### Manual Local-Service Smoke Check Record
 
-Run the documented local services, then, as a Platform Administrator, build,
-install, and enable `plugins/freecad/dist/freecad.openpdm-plugin`. Upload
-`AssemblyExample.FCStd` to a Blob-backed Representation in an accessible
-Project. In the generic Web UI, select the Representation and run `Analyze
-representation`; verify the three `freecad.document.*` metadata entries and
-13 References. Then use the public analysis endpoint once with
-`document.link.Base` explicitly mapped to an accessible Engineering Asset and
-verify one `depends_on` Relationship, the timeline event, and audit record.
-Disable the plugin and verify the analysis action disappears while prior
-records remain. Confirm during this sequence that no external executable or
-CAD process starts. Record the operator, date, and outcome here before
-changing this status from Pending.
-
-For the unsupported-content check, upload the tracked
-`sample/freecad/step/Schenkel.stp` file as a Blob-backed Representation in the
-same accessible Project. Select that Representation and run `Analyze
-representation`. Verify that the request is rejected with the bounded
+Procedure: run the documented local services, then, as a Platform
+Administrator, build, install, and enable
+`plugins/freecad/dist/freecad.openpdm-plugin`. Upload `AssemblyExample.FCStd`
+to a Blob-backed Representation in an accessible Project. In the generic Web
+UI, select the Representation and run `Analyze representation`; verify the
+three `freecad.document.*` metadata entries and 13 References. Then use the
+public analysis endpoint once with `document.link.Base` explicitly mapped to
+an accessible Engineering Asset and verify one `depends_on` Relationship, the
+timeline event, and audit record. Disable the plugin and verify the analysis
+action disappears while prior records remain. Confirm during this sequence
+that no external executable or CAD process starts. For the unsupported-content
+check, upload the tracked `sample/freecad/step/Schenkel.stp` file as a
+Blob-backed Representation in the same accessible Project, run `Analyze
+representation` again, and verify the request is rejected with the bounded
 unsupported-content diagnostic, that no `freecad.document.*` metadata,
 References, or Relationships are added for that Representation, and that no
-external executable or CAD process starts. Record the result with the other
-manual smoke evidence before changing the Unsupported STEP matrix status from
-Pending.
+external executable or CAD process starts.
+
+Date: 2026-08-08.
+Operator: Claude Code, driving the maintainer's already-running local stack
+(`docker compose`, backend on `:18000`, Web UI on `:5173`) at the maintainer's
+direction, with the Web UI open in the maintainer's own Chrome for live
+verification.
+Scope: `org.openpdm.freecad` v0.1.0 (`plugins/freecad/dist/freecad.openpdm-plugin`,
+digest `bc1b3eff3f86e5cfce66c0ba1d0432f0299f77373d04ddb34291a913828312cd`),
+installed as an Official Plugin in Organization `yolo` / Project `Patalo`,
+using three dedicated Engineering Assets (`FreeCAD Smoke Source`,
+`FreeCAD Smoke Target Dependency`, `FreeCAD Smoke Unsupported STEP`) created
+for this check so it would not disturb existing Project data.
+Result: Pass.
+
+Method note: the connected browser-automation tool could not read local file
+paths in this environment (its file-upload sandbox rejected every path
+tried, including the repository working tree and the session scratch
+directory), so the plugin package and the two fixture files were submitted
+through direct authenticated calls to the same public API the Web UI's own
+upload forms use (`POST /plugins/packages`, `POST /blobs/uploads`,
+`POST /revisions/{id}/representations`), using the session token already
+held by the signed-in browser tab. Enabling the plugin, disabling it, and
+running both `Analyze representation` calls were performed the same way. All
+resulting state — metadata, references, the relationship, the disabled-state
+behavior, and the unsupported-content rejection — was independently confirmed
+by reading the live Web UI in the same browser tab (screenshots), and the
+`RelationshipCreated` domain event plus the `relationship.created` audit
+record were confirmed directly in the running Postgres database.
+
+Evidence:
+
+* Unmapped `Analyze representation` on `AssemblyExample.FCStd`: exactly 3
+  `freecad.document.*` metadata entries (`label` = `AssemblyExample`,
+  `object_count` = 53, `link_count` = 13) and 13 References, 0 Relationships.
+  Confirmed via API response and in the Web UI's "Plugin-provided metadata"
+  panel.
+* Mapped `Analyze representation` (`document.link.Base` -> the target asset):
+  exactly 1 `depends_on` Relationship created, confirmed via API, in the Web
+  UI's "Asset relationships" panel ("depends on -> To FreeCAD Smoke Target
+  Dependency"), and directly in Postgres: a `RelationshipCreated` row in
+  `domain_events` and a `relationship.created` row in `audit_records`, both
+  timestamped `2026-08-08 00:06:07`. The 13 References remain unchanged
+  (References and the analysis-derived Relationship are independent,
+  idempotent contributions keyed by `document.link.Base`; the earlier
+  unmapped call already contributed the Reference, and it is not retracted
+  when a later call additionally contributes the Relationship).
+* Disabling the plugin removed the "Representation analysis" / `Analyze
+  representation` control from the asset page entirely while the 3 metadata
+  entries and the 1 Relationship remained visible and unchanged. Re-enabling
+  restored the control and `GET /providers` listed the plugin again.
+* Unsupported STEP: uploading `Schenkel.stp` and running `Analyze
+  representation` returned `502` with detail `"A FreeCAD document must be a
+  ZIP archive."` (the designed bounded-diagnostic path for a provider-reported
+  rejection, `backend/src/openpdm/plugin_application.py`); the same message
+  was shown in the Web UI next to the control. No `freecad.document.*`
+  metadata, References, or Relationships were added to that asset.
+* `tasklist` was checked before and after every install/enable/disable/analyze
+  call; no `freecad`-named process ever appeared, consistent with the
+  Wasmtime sandbox having no ambient capability to launch external processes.
+
+Observation (not blocking, worth follow-up): before this run, the plugin was
+found already installed as a `community`-type package in `lifecycle_state:
+failed` ("Plugin activation exceeded the wall-clock deadline") — the
+maintainer had installed it manually through the browser's native file picker
+while the browser-automation file-upload blocker above was being worked
+through. It was removed and reinstalled as `official`. The subsequent enable
+call succeeded, but took about 4.0s against the default 5-second
+`OPENPDM_PLUGIN_RUNTIME_TIMEOUT_SECONDS` sandbox deadline — consistent with a
+cold Wasmtime component-compilation cost on first activation in this
+container, and close enough to the limit that a slightly slower host could
+reproduce the earlier timeout. Worth a follow-up look at either raising the
+default timeout slightly or warming/caching component compilation, so a first
+`enable` in a fresh container is not marginal.

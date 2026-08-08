@@ -17,11 +17,11 @@ prototype acceptance was recorded as a Pass on 2026-07-29 (see
 `docs/PROTOTYPE_ACCEPTANCE.md`).
 
 Phase 5 — Mechanical Engineering is in progress. The first vertical slice (the
-FreeCAD Official Plugin) is implemented and automated-tested, but its
-acceptance is recorded as Incomplete pending a manual local-service smoke
-check and the resolution of repository-wide Ruff findings in generated plugin
-bindings (see `docs/PROTOTYPE_ACCEPTANCE.md#phase-5-mechanical-plugin-acceptance-result`
-and `docs/PHASE_5_FREECAD_PLUGIN.md`).
+FreeCAD Official Plugin) is implemented, automated-tested, and its acceptance
+was recorded as a Pass on 2026-08-08, including the manual local-service smoke
+check (see `docs/PROTOTYPE_ACCEPTANCE.md#phase-5-mechanical-plugin-acceptance-result`
+and `docs/PHASE_5_FREECAD_PLUGIN.md`). Broader FreeCAD, BOM and native
+metadata coverage beyond the first vertical slice has not started.
 
 Phases 6 through 8 and the Personal Daily-Use Track have not started.
 
@@ -310,23 +310,20 @@ Phase 5 should start only after the usable prototype track is stable enough to
 exercise plugin installation, provider discovery and generic metadata
 contribution through the Web UI.
 
-**Status:** In progress. The first vertical slice — the `org.openpdm.freecad`
-Official Plugin, bounded `.FCStd` analysis, and generic metadata/reference/
-relationship contribution — is implemented and automated-tested (26 focused
-tests; 106 backend tests passed, 4 skipped overall). Acceptance is recorded as
-Incomplete in `docs/PROTOTYPE_ACCEPTANCE.md` pending two specific items:
-* the manual local-service smoke check has not been run (the "Unsupported
-  STEP" and "Disabled plugin" rows of the acceptance matrix in
-  `docs/PHASE_5_FREECAD_PLUGIN.md` are still Pending);
-* repository-wide Ruff findings in generated plugin bindings (94 check
-  findings, 3 format candidates) must be resolved first.
+**Status:** First vertical slice complete and accepted. The
+`org.openpdm.freecad` Official Plugin, bounded `.FCStd` analysis, and generic
+metadata/reference/relationship contribution are implemented and
+automated-tested (26 focused tests; 106 backend tests passed, 4 skipped
+overall), and acceptance was recorded as a Pass in
+`docs/PROTOTYPE_ACCEPTANCE.md` on 2026-08-08 after the manual local-service
+smoke check and the repository-wide Ruff cleanup of generated plugin bindings
+both completed (see `docs/PHASE_5_FREECAD_PLUGIN.md`).
 
-Broader coverage (below) has not started and should not start before these
-two items close out the first vertical slice.
+Broader coverage (below) has not started.
 
 **Primary capabilities**
 
-* one minimal Official Plugin vertical slice for a mechanical engineering workflow — implemented, pending full acceptance (see Status above)
+* one minimal Official Plugin vertical slice for a mechanical engineering workflow — implemented and accepted (see Status above)
 * provider discovery and configuration through the existing plugin administration path — implemented
 * generic metadata extraction persisted through the Metadata Platform Module — implemented
 * dependency extraction represented through generic Asset relationships — implemented (API-only explicit mapping; no Web UI mapping control yet)
