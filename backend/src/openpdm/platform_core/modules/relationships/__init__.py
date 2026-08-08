@@ -1,14 +1,8 @@
 """Public Relationships Platform Module contract."""
 
-from __future__ import annotations
+from typing import Any, Protocol
 
-from typing import TYPE_CHECKING, Protocol
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-    from openpdm.extension_api import ReferenceContribution, RelationshipContribution
-    from openpdm.platform_core.modules.models import AssetReference, AssetRelationship, User
+from openpdm.extension_api import ReferenceContribution, RelationshipContribution
 
 
 class RelationshipsInterface(Protocol):
@@ -16,13 +10,13 @@ class RelationshipsInterface(Protocol):
 
     @staticmethod
     def persist_analysis_contribution(
-        db: Session,
+        db: Any,
         *,
         provider_identity: str,
         contribution_key: str,
         source_asset_id: str,
         contribution: ReferenceContribution | RelationshipContribution,
-        actor: User,
-    ) -> AssetReference | AssetRelationship:
+        actor: Any,
+    ) -> Any:
         """Persist one provider-owned generic contribution idempotently."""
         ...
