@@ -573,17 +573,13 @@ textarea {
 }
 
 .relationship-grid,
-.graph-summary-grid {
+.relationship-grid {
   display: grid;
   gap: 12px;
-}
-
-.relationship-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.relationship-column,
-.graph-summary-card {
+.relationship-column {
   background: rgba(14, 107, 88, 0.04);
   border: 1px solid rgba(136, 168, 157, 0.22);
   border-radius: 18px;
@@ -634,25 +630,44 @@ textarea {
   border-style: dashed;
 }
 
-.graph-summary-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.asset-graph-diagram {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  height: 420px;
+  width: 100%;
 }
 
-.graph-summary-card strong,
-.graph-summary-card span {
+.asset-graph-node {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.asset-graph-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.asset-graph-node.is-center {
+  border-color: var(--accent);
+  border-width: 2px;
+}
+
+.asset-graph-node strong {
   display: block;
+  font-size: 0.85rem;
 }
 
-.graph-summary-card strong {
+.asset-graph-node small {
   color: var(--muted);
-  font-size: 0.8rem;
-  margin-bottom: 6px;
-  text-transform: uppercase;
 }
 
-.graph-summary-card span {
-  font-size: 1rem;
-  font-weight: 700;
+.graph-diagram-caption {
+  margin-top: 10px;
 }
 
 .representation-list li {
@@ -717,7 +732,6 @@ textarea {
   }
 
   .relationship-grid,
-  .graph-summary-grid,
   .home-summary-grid,
   .plugin-grid {
     grid-template-columns: 1fr;

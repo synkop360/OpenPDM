@@ -3,6 +3,7 @@ import { formatRelationshipType, formatTimestamp } from "../../app/format";
 import { describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
 import type { AssetGraph, ReferenceRecord, Relationship } from "../../api";
+import { AssetGraphDiagram } from "./AssetGraphDiagram";
 
 function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
   const summary = describeProvenanceMetadata(metadata);
@@ -202,38 +203,22 @@ export function RelationshipsGraphSection({
         ) : null}
 
         {assetGraph.data ? (
-          <div className="graph-summary-grid">
-            <article className="graph-summary-card">
-              <strong>Nodes</strong>
-              <span>{assetGraph.data.nodes.length}</span>
-            </article>
-            <article className="graph-summary-card">
-              <strong>Relationships</strong>
-              <span>{assetGraph.data.relationships.length}</span>
-            </article>
-            <article className="graph-summary-card">
-              <strong>Direction</strong>
-              <span>{assetGraph.data.direction}</span>
-            </article>
-            <article className="graph-summary-card">
-              <strong>Max depth</strong>
-              <span>{assetGraph.data.max_depth}</span>
-            </article>
-            <article className="graph-summary-card">
-              <strong>Path target</strong>
-              <span>{assetGraph.data.target_asset_id ?? "Not requested"}</span>
-            </article>
-            <article className="graph-summary-card">
-              <strong>Path exists</strong>
-              <span>
-                {assetGraph.data.path_exists === null
-                  ? "Not evaluated"
-                  : assetGraph.data.path_exists
-                    ? "Yes"
-                    : "No"}
-              </span>
-            </article>
-          </div>
+          assetGraph.data.nodes.length > 0 ? (
+            <>
+              <AssetGraphDiagram graph={assetGraph.data} onSelectAsset={onSelectAsset} />
+              <p className="muted-text graph-diagram-caption">
+                {assetGraph.data.nodes.length} node{assetGraph.data.nodes.length === 1 ? "" : "s"},{" "}
+                {assetGraph.data.relationships.length} relationship
+                {assetGraph.data.relationships.length === 1 ? "" : "s"}, direction{" "}
+                {assetGraph.data.direction}, max depth {assetGraph.data.max_depth}.
+                {assetGraph.data.target_asset_id
+                  ? ` Path to ${assetGraph.data.target_asset_id} ${assetGraph.data.path_exists ? "exists" : "does not exist"}.`
+                  : ""}
+              </p>
+            </>
+          ) : (
+            <p className="empty-state">No related Assets within the bounded traversal depth.</p>
+          )
         ) : (
           <p className="empty-state">Graph summary is loading for this Asset.</p>
         )}

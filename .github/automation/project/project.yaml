@@ -6577,6 +6577,7 @@ roadmap:
           frontend, bug, refactor, feature, P1
         milestone: Web UI Ergonomics
         labels: [frontend, bug, refactor, feature, P1]
+        closed: true
         fields:
           Phase: Usable Prototype
           Epic: Web UI Ergonomics
@@ -6674,6 +6675,7 @@ roadmap:
               - ADR-0030 - Dependency Graph and Query Scope
               - ADR-0044 - Adopt The Web UI Operational Interaction Stack
             labels: [frontend, feature, decision, P2]
+            closed: true
             fields:
               Phase: Usable Prototype
               Epic: Web UI Ergonomics

@@ -22,6 +22,7 @@
     "@radix-ui/react-toast": "^1.2.19",
     "@radix-ui/react-tooltip": "^1.2.12",
     "@vitejs/plugin-react": "^4.3.4",
+    "@xyflow/react": "^12.11.2",
     "lucide-react": "^1.24.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
