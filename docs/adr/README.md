@@ -80,7 +80,7 @@ Recent ADRs:
 * ADR-0048 - Accept Provider Analysis Contributions (Accepted)
 * ADR-0049 - Set Analysis Provider Sandbox Fuel Budget (Accepted)
 * ADR-0050 - Adopt Asset-Addressable Deep-Linking URL Scheme
-* ADR-0051 - Adopt A Hand-Rolled Bounded SVG Asset Graph Visualization
+* ADR-0051 - Adopt React Flow For The Bounded Asset Graph Visualization
 
 ## Phase 5 Analysis Decisions
 
