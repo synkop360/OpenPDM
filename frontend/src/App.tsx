@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useRef, useState, type FormEvent } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -98,7 +98,7 @@ import {
   upgradePluginPackage,
 } from "./api";
 import { createLoadable, type Loadable } from "./app/loadable";
-import { parseAppRoute, type ProjectTab } from "./app/routes";
+import { parseAppRoute, projectAssetPath, type ProjectTab } from "./app/routes";
 import {
   ASSET_KEY,
   ORG_KEY,
@@ -273,10 +273,23 @@ function lockAge(createdAt: string): string {
   const hours = Math.floor(minutes / 60);
   return `${hours} hour${hours === 1 ? "" : "s"}`;
 }
+
+// Tabs whose content depends on which Engineering Asset is selected (the Assets tab's
+// detail sheet, and the Relationships tab's own asset picker plus incoming/outgoing/
+// references cards). Overview, Collaboration and Members show no asset-specific content,
+// so selectedAssetId is neither restored, defaulted, nor cleared there -- an empty route on
+// those tabs says nothing about asset selection either way.
+const ASSET_AWARE_PROJECT_TABS: ReadonlySet<ProjectTab> = new Set(["assets", "relationships"]);
+
 function OpenPdmApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { projectId: routeProjectId, projectTab, view } = parseAppRoute(location.pathname);
+  const {
+    projectId: routeProjectId,
+    projectTab,
+    view,
+    assetId: routeAssetId,
+  } = parseAppRoute(location.pathname);
   const assetSearchParams = new URLSearchParams(location.search);
   const assetFilterQuery = assetSearchParams.get("q") ?? "";
   const assetStatusFilter = assetSearchParams.get("status") ?? "";
@@ -435,6 +448,89 @@ function OpenPdmApp() {
       setSelectedProjectId(routeProjectId);
     }
   }, [routeProjectId, selectedProjectId]);
+
+  // Tracks an assetId this component itself just navigated to, so the sync effect below
+  // does not revert setSelectedAssetId(...) when it reads a `routeAssetId` from a render
+  // where `useLocation()` has not yet caught up with a `navigate()` issued in the same
+  // event handler. Cleared once the route confirms the pending value. `undefined` means
+  // "no pending self-initiated navigation" -- defer to the plain route-vs-state comparison.
+  const pendingAssetNavigation = useRef<string | null | undefined>(undefined);
+  // Whether the one-time localStorage-into-URL restore below has already been attempted.
+  // Seeded from whether the page's very first URL already named an asset: if it did, the
+  // user arrived with explicit context and the restore has nothing to contribute, so it's
+  // pre-marked "attempted" -- otherwise it would fire on the *next* time the route happens
+  // to have no asset (e.g. the user closing that very asset, or switching tabs right after),
+  // silently overriding a deliberate action with a stale localStorage value.
+  const assetRestoreAttempted = useRef(Boolean(routeAssetId));
+  // The asset id localStorage held at mount, captured once before any effect (e.g. the one
+  // that clears selectedAssetId when the Project changes, which also persists that clear
+  // back to localStorage) can overwrite it. The restore below reads this snapshot, not a
+  // fresh localStorage read, so it isn't racing its own persistence effect.
+  const initialStoredAssetId = useRef(selectedAssetId);
+  // Whether the most recent explicit selectAsset(...) call was a clear (assetId === null),
+  // e.g. the user closing the detail panel. The auto-default effect below checks this so it
+  // doesn't immediately re-select an Asset the user just deliberately deselected; reset
+  // whenever a real Asset is chosen or the Project changes, so a fresh context can default
+  // again.
+  const assetExplicitlyCleared = useRef(false);
+
+  const selectAsset = useCallback(
+    (assetId: string | null, options?: { tab?: ProjectTab; replace?: boolean }) => {
+      assetExplicitlyCleared.current = assetId === null;
+      pendingAssetNavigation.current = assetId;
+      setSelectedAssetId(assetId);
+      if (selectedProjectId) {
+        navigate(projectAssetPath(selectedProjectId, options?.tab ?? projectTab, assetId), {
+          replace: options?.replace,
+        });
+      }
+    },
+    [navigate, projectTab, selectedProjectId],
+  );
+
+  useEffect(() => {
+    if (pendingAssetNavigation.current !== undefined) {
+      if (routeAssetId === pendingAssetNavigation.current) {
+        pendingAssetNavigation.current = undefined;
+      }
+      return;
+    }
+    if (routeAssetId) {
+      if (routeAssetId !== selectedAssetId) {
+        setSelectedAssetId(routeAssetId);
+      }
+      return;
+    }
+    if (!selectedProjectId) {
+      // No Project context yet (e.g. still on Home, or Organizations/Projects still
+      // loading). Leave selectedAssetId as-is -- there is no route to reconcile against.
+      return;
+    }
+    // The URL has no asset segment. Give the last-viewed asset remembered in localStorage
+    // one chance to populate a selection (ADR-0050's fallback) -- on any Project tab, since
+    // tabs like Collaboration display state for "whichever Asset is current" without
+    // addressing one via their own URL. Only asset-aware tabs reflect the restored value in
+    // the URL, matching ProjectTabs' own carry-over rule; elsewhere it's a plain default.
+    if (!assetRestoreAttempted.current) {
+      assetRestoreAttempted.current = true;
+      const stored = initialStoredAssetId.current;
+      if (stored) {
+        if (ASSET_AWARE_PROJECT_TABS.has(projectTab)) {
+          selectAsset(stored, { tab: projectTab, replace: true });
+        } else {
+          setSelectedAssetId(stored);
+        }
+        return;
+      }
+    }
+    // Only an asset-aware tab's empty route is authoritative over an existing selection --
+    // that's the only place a missing segment unambiguously means "no Asset chosen" (e.g.
+    // after closing the detail panel, or navigating back to such a history entry). On other
+    // tabs, an empty route says nothing about asset selection either way.
+    if (ASSET_AWARE_PROJECT_TABS.has(projectTab) && selectedAssetId !== null) {
+      setSelectedAssetId(null);
+    }
+  }, [routeAssetId, selectedAssetId, selectAsset, selectedProjectId, projectTab]);
 
   useEffect(() => {
     if (
@@ -656,6 +752,7 @@ function OpenPdmApp() {
     setAssetCursor(null);
     setAssetCursorHistory([]);
     setSelectedAssetId(null);
+    assetExplicitlyCleared.current = false;
   }, [selectedProjectId]);
 
   useEffect(() => {
@@ -677,9 +774,6 @@ function OpenPdmApp() {
       .then((result) => {
         setAssets({ status: "ready", data: result.items, error: null });
         setAssetNextCursor(result.next_cursor);
-        if ((!selectedAssetId || !result.items.some((item) => item.id === selectedAssetId)) && result.items[0]) {
-          startTransition(() => setSelectedAssetId(result.items[0].id));
-        }
       })
       .catch((error: unknown) => {
         setAssets((current) => ({
@@ -698,6 +792,33 @@ function OpenPdmApp() {
     session.data?.token,
     view,
   ]);
+
+  // Default to the first Asset when viewing any Project tab with a loaded list and nothing
+  // selected -- Collaboration, for instance, shows state for "whichever Asset is current"
+  // without addressing one via its own URL. Driven by projectTab/assets.data directly (not
+  // the list fetch's own resolution) so it fires correctly regardless of whether the tab
+  // switch or the fetch resolves first. Only asset-aware tabs navigate to reflect the
+  // default in the URL; elsewhere it's a plain state update, matching how ProjectTabs only
+  // carries the current selection into asset-aware tabs when the user switches tabs.
+  useEffect(() => {
+    if (
+      view !== "project" ||
+      selectedAssetId ||
+      assetExplicitlyCleared.current ||
+      assets.status !== "ready" ||
+      !assets.data[0]
+    ) {
+      return;
+    }
+    const fallbackAssetId = assets.data[0].id;
+    startTransition(() => {
+      if (ASSET_AWARE_PROJECT_TABS.has(projectTab)) {
+        selectAsset(fallbackAssetId, { tab: projectTab, replace: true });
+      } else {
+        setSelectedAssetId(fallbackAssetId);
+      }
+    });
+  }, [view, projectTab, selectedAssetId, assets.status, assets.data, selectAsset]);
 
   useEffect(() => {
     const token = session.data?.token;
@@ -1316,7 +1437,7 @@ function OpenPdmApp() {
     try {
       const asset = await createAsset(session.data.token, selectedProjectId, assetForm);
       setAssetForm({ name: "", description: "" });
-      setSelectedAssetId(asset.id);
+      selectAsset(asset.id);
       setBanner("Engineering Asset created.");
       await refreshAssetPage(session.data.token, selectedProjectId);
     } catch (error: unknown) {
@@ -2276,7 +2397,7 @@ function OpenPdmApp() {
                               className="text-button"
                               onClick={() => {
                                 setSelectedAssetId(asset.id);
-                                navigate(`/projects/${asset.project_id}/assets`);
+                                navigate(projectAssetPath(asset.project_id, "assets", asset.id));
                               }}
                               type="button"
                             >
@@ -2591,9 +2712,15 @@ function OpenPdmApp() {
                     <span className="status-pill">{currentProjectRole ?? "Member"}</span>
                   </div>
                   <ProjectTabs
-                    onValueChange={(tab: ProjectTab) =>
-                      navigate(`/projects/${selectedProjectId}/${tab}`)
-                    }
+                    onValueChange={(tab: ProjectTab) => {
+                      if (selectedProjectId) {
+                        // Only tabs whose content addresses a specific asset carry the
+                        // current selection into their URL; other tabs stay bare even if
+                        // an asset happens to be selected in the background.
+                        const assetForTab = ASSET_AWARE_PROJECT_TABS.has(tab) ? selectedAssetId : null;
+                        navigate(projectAssetPath(selectedProjectId, tab, assetForTab));
+                      }
+                    }}
                     value={projectTab}
                   />
                 </header>
@@ -2611,7 +2738,7 @@ function OpenPdmApp() {
                         <h3>Recent Assets</h3>
                         <div className="compact-list">
                           {assets.data.slice(0, 6).map((asset) => (
-                            <button key={asset.id} onClick={() => { setSelectedAssetId(asset.id); navigate(`/projects/${selectedProjectId}/assets`); }} type="button">
+                            <button key={asset.id} onClick={() => selectAsset(asset.id, { tab: "assets" })} type="button">
                               <span>{asset.name}</span><small>{asset.status}</small>
                             </button>
                           ))}
@@ -2635,7 +2762,7 @@ function OpenPdmApp() {
                       <div><p className="eyebrow">Asset graph</p><h2 id="relationships-title">Relationships and references</h2><p className="muted-text">Directional graph edges and unresolved or external references remain visibly distinct.</p></div>
                       <label className="inline-filter">
                         Engineering Asset
-                        <select value={selectedAssetId ?? ""} onChange={(event) => setSelectedAssetId(event.target.value || null)}>
+                        <select value={selectedAssetId ?? ""} onChange={(event) => selectAsset(event.target.value || null)}>
                           <option value="">Select an Asset</option>
                           {assets.data.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                         </select>
@@ -2658,7 +2785,7 @@ function OpenPdmApp() {
                             <p className="muted-text">Other Assets pointing to this Asset.</p>
                             <div className="relationship-list">
                               {incomingRelationships.data.map((relationship) => (
-                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.source_asset_id) ?? relationship.source_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => setSelectedAssetId(relationship.source_asset_id)} type="button">Open source</button></article>
+                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.source_asset_id) ?? relationship.source_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => selectAsset(relationship.source_asset_id)} type="button">Open source</button></article>
                               ))}
                               {!incomingRelationships.data.length ? <p className="empty-state">No incoming relationships.</p> : null}
                             </div>
@@ -2668,7 +2795,7 @@ function OpenPdmApp() {
                             <p className="muted-text">This Asset pointing to other Assets.</p>
                             <div className="relationship-list">
                               {outgoingRelationships.data.map((relationship) => (
-                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.target_asset_id) ?? relationship.target_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => setSelectedAssetId(relationship.target_asset_id)} type="button">Open target</button></article>
+                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.target_asset_id) ?? relationship.target_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => selectAsset(relationship.target_asset_id)} type="button">Open target</button></article>
                               ))}
                               {!outgoingRelationships.data.length ? <p className="empty-state">No outgoing relationships.</p> : null}
                             </div>
@@ -2981,7 +3108,7 @@ function OpenPdmApp() {
                         <tbody>
                           {assets.data.map((asset) => (
                             <tr className={selectedAssetId === asset.id ? "is-selected" : ""} key={asset.id}>
-                              <td><button aria-current={selectedAssetId === asset.id ? "true" : undefined} className="text-button asset-name-button" onClick={() => setSelectedAssetId(asset.id)} type="button"><strong>{asset.name}</strong><small>{asset.description || "No description"}</small></button></td>
+                              <td><button aria-current={selectedAssetId === asset.id ? "true" : undefined} className="text-button asset-name-button" onClick={() => selectAsset(asset.id)} type="button"><strong>{asset.name}</strong><small>{asset.description || "No description"}</small></button></td>
                               <td><span className="status-pill">{asset.status}</span></td>
                               <td>{formatTimestamp(asset.updated_at)}</td>
                             </tr>
@@ -3009,7 +3136,7 @@ function OpenPdmApp() {
                   <p className="eyebrow">Lifecycle</p>
                   <h2>Asset detail and Revision history</h2>
                 </div>
-                <button aria-label="Close Asset detail" className="icon-button close-detail-button" onClick={() => setSelectedAssetId(null)} type="button"><X /></button>
+                <button aria-label="Close Asset detail" className="icon-button close-detail-button" onClick={() => selectAsset(null)} type="button"><X /></button>
               </header>
 
               <article className="detail-card notification-card">
@@ -3287,7 +3414,7 @@ function OpenPdmApp() {
                                 </div>
                                 <button
                                   className="secondary-button"
-                                  onClick={() => setSelectedAssetId(relationship.source_asset_id)}
+                                  onClick={() => selectAsset(relationship.source_asset_id)}
                                   type="button"
                                 >
                                   Open asset
@@ -3323,7 +3450,7 @@ function OpenPdmApp() {
                                 </div>
                                 <button
                                   className="secondary-button"
-                                  onClick={() => setSelectedAssetId(relationship.target_asset_id)}
+                                  onClick={() => selectAsset(relationship.target_asset_id)}
                                   type="button"
                                 >
                                   Open asset

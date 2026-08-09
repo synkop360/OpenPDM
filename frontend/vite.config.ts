@@ -11,8 +11,23 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 5173,
+      // Every path below is also a prefix the Web UI's own client-side routes can use
+      // (e.g. /projects/:id/:tab). A browser page navigation (hard refresh, bookmark,
+      // direct URL) must fall through to the SPA shell instead of being proxied to the
+      // backend, while fetch()/XHR API calls continue to be proxied as normal. See
+      // ADR-0050 (Adopt Asset-Addressable Deep-Linking URL Scheme).
       proxy: Object.fromEntries(
-        API_PROXY_PATHS.map((path) => [path, apiProxyTarget]),
+        API_PROXY_PATHS.map((path) => [
+          path,
+          {
+            target: apiProxyTarget,
+            bypass(req: { headers: { accept?: string } }) {
+              if (req.headers.accept?.includes("text/html")) {
+                return "/index.html";
+              }
+            },
+          },
+        ]),
       ),
     },
     preview: {

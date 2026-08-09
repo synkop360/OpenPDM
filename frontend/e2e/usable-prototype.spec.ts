@@ -58,6 +58,18 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   await expectNoPageOverflow(page);
 });
 
+test("a direct navigation to an Engineering Asset URL renders the SPA with that Asset selected", async ({ page }) => {
+  await mockPrototypeApi(page);
+  await mockPrototypeMutations(page);
+  await signInWithStoredSession(page);
+
+  await page.goto("/projects/project-1/assets/asset-1");
+  await expect(page.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Check out$/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/projects\/project-1\/assets\/asset-1$/);
+  await expectNoPageOverflow(page);
+});
+
 test("two users see lock conflict and collaboration notifications", async ({ browser }) => {
   const sharedState = createSharedPrototypeState();
   const owner = await browser.newContext();
