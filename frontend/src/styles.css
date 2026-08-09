@@ -273,16 +273,11 @@ h4 {
   background: var(--soft);
   border-radius: 9px;
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(180px, 0.7fr) 1fr;
+  gap: 8px;
   padding: 10px 12px;
 }
 
-.metadata-list dt {
-  color: var(--muted);
-}
-
-.metadata-list dd {
+.metadata-list p {
   margin: 0;
 }
 

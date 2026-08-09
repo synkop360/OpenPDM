@@ -1,4 +1,5 @@
 import { InlineAlert } from "../../components/feedback/InlineAlert";
+import { describeMetadataEntry } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
 import type {
   AnalysisResult,
@@ -104,14 +105,30 @@ export function MetadataAnalysisSection({
         ) : null}
 
         {assetMetadata.data.length > 0 ? (
-          <dl className="metadata-list">
+          <div className="metadata-list">
             {assetMetadata.data.map((entry) => (
               <div key={entry.id}>
-                <dt>{entry.key}</dt>
-                <dd>{typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value)}</dd>
+                <p>{describeMetadataEntry(entry)}</p>
+                <details className="manifest-review">
+                  <summary>Technical details</summary>
+                  <dl>
+                    <div>
+                      <dt>Key</dt>
+                      <dd><code>{entry.key}</code></dd>
+                    </div>
+                    <div>
+                      <dt>Source</dt>
+                      <dd><code>{entry.source}</code></dd>
+                    </div>
+                    <div>
+                      <dt>Value type</dt>
+                      <dd><code>{entry.value_type}</code></dd>
+                    </div>
+                  </dl>
+                </details>
               </div>
             ))}
-          </dl>
+          </div>
         ) : null}
       </article>
 

@@ -1,7 +1,31 @@
 import { InlineAlert } from "../../components/feedback/InlineAlert";
-import { formatMetadataSummary, formatRelationshipType, formatTimestamp } from "../../app/format";
+import { formatRelationshipType, formatTimestamp } from "../../app/format";
+import { describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
 import type { AssetGraph, ReferenceRecord, Relationship } from "../../api";
+
+function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
+  const summary = describeProvenanceMetadata(metadata);
+  if (!summary) {
+    return null;
+  }
+  return (
+    <>
+      <small>{summary}</small>
+      <details className="manifest-review">
+        <summary>Technical details</summary>
+        <dl>
+          {Object.entries(metadata).map(([key, value]) => (
+            <div key={key}>
+              <dt><code>{key}</code></dt>
+              <dd><code>{typeof value === "string" ? value : JSON.stringify(value)}</code></dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </>
+  );
+}
 
 export type RelationshipsGraphSectionProps = {
   assetGraph: Loadable<AssetGraph | null>;
@@ -67,9 +91,7 @@ export function RelationshipsGraphSection({
                           relationship.source_asset_id}
                       </p>
                       <small>{formatTimestamp(relationship.created_at)}</small>
-                      {formatMetadataSummary(relationship.metadata) ? (
-                        <small>{formatMetadataSummary(relationship.metadata)}</small>
-                      ) : null}
+                      <ProvenanceNote metadata={relationship.metadata} />
                     </div>
                     <button
                       className="secondary-button"
@@ -103,9 +125,7 @@ export function RelationshipsGraphSection({
                           relationship.target_asset_id}
                       </p>
                       <small>{formatTimestamp(relationship.created_at)}</small>
-                      {formatMetadataSummary(relationship.metadata) ? (
-                        <small>{formatMetadataSummary(relationship.metadata)}</small>
-                      ) : null}
+                      <ProvenanceNote metadata={relationship.metadata} />
                     </div>
                     <button
                       className="secondary-button"
@@ -151,9 +171,7 @@ export function RelationshipsGraphSection({
                   <strong>{reference.label || reference.reference_type}</strong>
                   <p>{reference.target_uri}</p>
                   <small>{reference.reference_type}</small>
-                  {formatMetadataSummary(reference.metadata) ? (
-                    <small>{formatMetadataSummary(reference.metadata)}</small>
-                  ) : null}
+                  <ProvenanceNote metadata={reference.metadata} />
                 </div>
               </article>
             ))}

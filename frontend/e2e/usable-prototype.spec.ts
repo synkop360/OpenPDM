@@ -47,7 +47,10 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   await expect(page.getByLabel("Representation to analyze")).toHaveValue("rep-1");
   await page.getByRole("button", { name: "Analyze representation" }).click();
   await expect(page.getByText("Analysis complete: 1 metadata, 0 references, 0 relationships.")).toBeVisible();
-  await expect(page.getByText("plugin.analysis.status")).toBeVisible();
+  const analysisStatusMetadataEntry = page.locator(".metadata-list > div").filter({ hasText: /Plugin analysis status is complete/i });
+  await expect(analysisStatusMetadataEntry).toBeVisible();
+  await analysisStatusMetadataEntry.getByText("Technical details").click();
+  await expect(analysisStatusMetadataEntry.getByText("plugin.analysis.status")).toBeVisible();
   await expect(page.getByRole("button", { name: /^(command|executable|launch)/i })).toHaveCount(0);
 
   await page.getByRole("button", { name: /^History & Collaboration$/i }).click();
@@ -160,8 +163,10 @@ test("Platform Administrator can demonstrate the generic plugin provider path", 
   await page.getByLabel(/Engineering Asset category/i).selectOption("assembly");
   await page.getByRole("button", { name: /Apply metadata/i }).click();
   await expect(page.getByText(/Asset Categories metadata applied/i)).toBeVisible();
-  await expect(page.getByText("classification.category")).toBeVisible();
-  await expect(page.locator(".metadata-list").getByText("assembly", { exact: true })).toBeVisible();
+  const categoryMetadataEntry = page.locator(".metadata-list > div").filter({ hasText: /Classification category is assembly/i });
+  await expect(categoryMetadataEntry).toBeVisible();
+  await categoryMetadataEntry.getByText("Technical details").click();
+  await expect(categoryMetadataEntry.getByText("classification.category")).toBeVisible();
 
   await page.goto("/administration/plugins");
   await page.getByRole("button", { name: /^Disable$/i }).click();
@@ -169,8 +174,10 @@ test("Platform Administrator can demonstrate the generic plugin provider path", 
   await expect(page.getByText(/Asset Categories disabled/i)).toBeVisible();
   await page.goto("/projects/project-1/assets");
   await expect(page.getByText(/No running Metadata Provider is available/i)).toBeVisible();
-  await expect(page.getByText("classification.category")).toBeVisible();
-  await expect(page.locator(".metadata-list").getByText("assembly", { exact: true })).toBeVisible();
+  const staleCategoryMetadataEntry = page.locator(".metadata-list > div").filter({ hasText: /Classification category is assembly/i });
+  await expect(staleCategoryMetadataEntry).toBeVisible();
+  await staleCategoryMetadataEntry.getByText("Technical details").click();
+  await expect(staleCategoryMetadataEntry.getByText("classification.category")).toBeVisible();
   await expectNoPageOverflow(page);
 });
 
