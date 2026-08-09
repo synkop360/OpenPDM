@@ -6616,6 +6616,7 @@ roadmap:
               - Loading, error and empty states are visually consistent across the application shell.
               - A retry affordance is available wherever the underlying data can be re-fetched.
             labels: [frontend, refactor, P2]
+            closed: true
             fields:
               Phase: Usable Prototype
               Epic: Web UI Ergonomics
