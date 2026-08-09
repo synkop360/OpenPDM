@@ -6291,6 +6291,27 @@ roadmap:
               Complexity: S
               ADR: ADR-0004, ADR-0005, ADR-0006, ADR-0007
 
+          - title: "Prototype Task: Fix start_all.py readiness check crashing on backend startup race"
+            body: |
+              ## Objective
+              Stop scripts/start_all.py from crashing before the Web UI starts when the backend container's port is open but the FastAPI process is not yet accepting requests (Alembic migrations still running).
+
+              ## Description
+              wait_for_backend() only catches urllib's HTTPError and URLError. While the backend container is mid-startup, Docker has the port bound but nothing is listening yet, which raises http.client.RemoteDisconnected -- a subclass of HTTPException, not URLError. That exception is uncaught, so it propagates out of main(), the whole script crashes with a traceback, and the compose stack is torn down before the Web UI dev server is ever started. Reported as needing two runs in practice: the first run hits this race and aborts, the second run succeeds because the backend is already warm.
+
+              ## Acceptance Criteria
+              - wait_for_backend() treats a mid-startup connection reset as a retryable not-ready state, not a fatal error.
+              - A single `python scripts/start_all.py` invocation reliably starts both the backend and the Web UI dev server on a fresh, cold container start, without requiring a second run.
+              - Existing readiness-check behavior (timeout, health polling) is otherwise unchanged.
+            labels: [prototype, deployment, bug, P0]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Reproducible Local Startup
+              Platform Area: Infrastructure
+              Complexity: S
+              ADR: ADR-0004, ADR-0005, ADR-0006, ADR-0007
+
       - title: "Prototype Epic: First-run Engineering Asset workspace"
         body: |
           ## Objective
