@@ -10,6 +10,26 @@ The roadmap should evolve as the project matures while preserving its long-term 
 
 ---
 
+# Current Status
+
+Phases 0 through 4 and the Near-Term Prototype Delivery Track are complete;
+prototype acceptance was recorded as a Pass on 2026-07-29 (see
+`docs/PROTOTYPE_ACCEPTANCE.md`).
+
+Phase 5 — Mechanical Engineering is in progress. The first vertical slice (the
+FreeCAD Official Plugin) is implemented, automated-tested, and its acceptance
+was recorded as a Pass on 2026-08-08, including the manual local-service smoke
+check (see `docs/PROTOTYPE_ACCEPTANCE.md#phase-5-mechanical-plugin-acceptance-result`
+and `docs/PHASE_5_FREECAD_PLUGIN.md`). Broader FreeCAD, BOM and native
+metadata coverage beyond the first vertical slice has not started.
+
+Phases 6 through 8 and the Personal Daily-Use Track have not started.
+
+Each phase below carries its own **Status** line, kept in sync with this
+summary.
+
+---
+
 # Development Philosophy
 
 OpenPDM is developed incrementally.
@@ -34,6 +54,10 @@ Project views and the governed plugin platform.
 
 Before expanding into domain-specific engineering integrations, OpenPDM should
 convert these slices into a coherent usable prototype.
+
+**Status:** Complete — accepted 2026-07-29 (`docs/PROTOTYPE_ACCEPTANCE.md`):
+90 backend tests passed (4 skipped), 53 frontend unit tests passed, 63 e2e
+tests passed, and the required manual smoke checks were completed.
 
 **Objective**
 
@@ -84,7 +108,52 @@ The prototype does not need:
 
 ---
 
+# Personal Daily-Use Track (Cross-Domain Impact)
+
+This track runs alongside the Near-Term Prototype Delivery Track but has a
+different objective: make OpenPDM usable **daily by one person** working
+across mechanical, electronics and software domains on their own product,
+ahead of any multi-user or enterprise concern.
+
+**Status:** Planned — not started.
+
+**Objective**
+
+Deliver an Asset Graph that is usable today by a single builder tracking a
+real, multi-discipline product (for example: a PCB, its enclosure and its
+firmware), so that a change to one Engineering Asset immediately surfaces the
+other Assets it may affect — with a Web UI comfortable enough for daily use,
+not just a demo.
+
+**Primary capabilities**
+
+* dogfood OpenPDM on one real personal product build instead of demo fixtures — let real friction drive the backlog, ahead of adding more generic capability
+* continuous Web UI usability work, in parallel with the backend items below rather than deferred behind them
+* decompose `frontend/src/App.tsx` into feature modules (mirroring the existing `frontend/src/features/transfers/` pattern) as part of that ongoing UI work, to keep iteration fast as the UI grows
+* surface possibly-affected dependent Assets when a new Revision is created, built on the existing Relationships and Collaboration/Notifications Platform Modules and the bounded dependent-tree queries already approved in ADR-0030
+* suggest Asset relationships from plugin-extracted document links — the FreeCAD analysis provider already extracts inter-document links; wire them into a review-and-confirm suggestion flow instead of fully manual graph editing
+* a minimal electronics analysis provider (KiCad), mirroring the existing FreeCAD provider's scope (component list, footprints, board outline), to close the current gap where only the mechanical side has automated support
+* a lightweight software/firmware linkage using the existing generic Reference model (ADR-0031, `reference_type = git_commit`) instead of duplicating source code as Blobs
+* documented local-daily-use ergonomics: a reliable one-command start/stop for the Compose stack (PostgreSQL, MinIO, backend) that survives restarts without re-seeding data
+
+**Explicit deferrals**
+
+* automatic/unattended relationship inference — Phase 3's bounded, explicit graph model stays authoritative; suggestions require human confirmation
+* additional CAD/ECAD tool coverage beyond FreeCAD and KiCad until both providers are proven on real personal use
+* any further multi-user, multi-organization or enterprise governance investment (RBAC depth, Platform Administrator workflows, compliance/audit features) — keep as-is, do not extend
+
+**Success criteria**
+
+The maintainer can, without code edits, create a Revision on a mechanical or
+electronic Asset in a real personal project and immediately see, in the Web
+UI, which other Assets (enclosure, firmware, etc.) may need review, as part
+of a comfortable daily workflow.
+
+---
+
 # Phase 0 — Foundation
+
+**Status:** Complete.
 
 **Objective**
 
@@ -107,6 +176,8 @@ Developers can build, test and run OpenPDM locally with a reproducible environme
 ---
 
 # Phase 1 — Platform Core (MVP)
+
+**Status:** Complete.
 
 **Objective**
 
@@ -141,6 +212,8 @@ A team can replace a shared network folder with OpenPDM while benefiting from ce
 
 # Phase 2 — Collaboration
 
+**Status:** Complete.
+
 **Objective**
 
 Transform OpenPDM into a collaborative platform.
@@ -172,6 +245,8 @@ Multiple users can safely collaborate on shared engineering assets.
 
 # Phase 3 — Relationships
 
+**Status:** Complete.
+
 **Objective**
 
 Introduce the Asset Graph.
@@ -195,6 +270,8 @@ Users can navigate and understand dependencies between assets regardless of thei
 ---
 
 # Phase 4 — Engineering Platform
+
+**Status:** Complete.
 
 **Objective**
 
@@ -233,14 +310,25 @@ Phase 5 should start only after the usable prototype track is stable enough to
 exercise plugin installation, provider discovery and generic metadata
 contribution through the Web UI.
 
+**Status:** First vertical slice complete and accepted. The
+`org.openpdm.freecad` Official Plugin, bounded `.FCStd` analysis, and generic
+metadata/reference/relationship contribution are implemented and
+automated-tested (26 focused tests; 106 backend tests passed, 4 skipped
+overall), and acceptance was recorded as a Pass in
+`docs/PROTOTYPE_ACCEPTANCE.md` on 2026-08-08 after the manual local-service
+smoke check and the repository-wide Ruff cleanup of generated plugin bindings
+both completed (see `docs/PHASE_5_FREECAD_PLUGIN.md`).
+
+Broader coverage (below) has not started.
+
 **Primary capabilities**
 
-* one minimal Official Plugin vertical slice for a mechanical engineering workflow
-* provider discovery and configuration through the existing plugin administration path
-* generic metadata extraction persisted through the Metadata Platform Module
-* dependency extraction represented through generic Asset relationships
-* documented import/export limits for the prototype provider
-* broader FreeCAD, BOM and native metadata coverage after the first vertical slice is demonstrably usable
+* one minimal Official Plugin vertical slice for a mechanical engineering workflow — implemented and accepted (see Status above)
+* provider discovery and configuration through the existing plugin administration path — implemented
+* generic metadata extraction persisted through the Metadata Platform Module — implemented
+* dependency extraction represented through generic Asset relationships — implemented (API-only explicit mapping; no Web UI mapping control yet)
+* documented import/export limits for the prototype provider — implemented
+* broader FreeCAD, BOM and native metadata coverage after the first vertical slice is demonstrably usable — not started
 
 When the first vertical slice requires a CAD application, FreeCAD is the
 preferred target. SOLIDWORKS-specific scope remains deferred unless a later ADR
@@ -254,6 +342,8 @@ workflow without requiring Platform Core engineering semantics.
 ---
 
 # Phase 6 — Engineering Workflows
+
+**Status:** Not started.
 
 **Objective**
 
@@ -276,6 +366,8 @@ Organizations can adapt OpenPDM to their engineering processes.
 
 # Phase 7 — Engineering Collaboration
 
+**Status:** Not started.
+
 **Objective**
 
 Expand OpenPDM beyond mechanical engineering.
@@ -297,6 +389,8 @@ Multiple engineering disciplines coexist within the same project.
 ---
 
 # Phase 8 — Digital Thread
+
+**Status:** Not started.
 
 **Objective**
 

@@ -137,7 +137,7 @@ function buildDummyCategoriesPlugin(enabled: boolean) {
     name: "Asset Categories",
     version: "0.1.0",
     plugin_type: "community",
-    capabilities: ["asset_provider", "metadata_provider", "option_provider"],
+    capabilities: ["analysis_provider", "asset_provider", "metadata_provider", "option_provider"],
     extension_api_versions: [1],
     lifecycle_state: "running",
     diagnostic_reason: null,
@@ -326,12 +326,31 @@ export async function mockPrototypeApi(
     state.metadata = contributed;
     return route.fulfill({ json: contributed });
   });
+  await page.route("**/plugins/asset-categories/providers/analysis", (route) => {
+    const contributed = {
+      metadata: [{
+        id: "metadata-analysis-status",
+        asset_id: "asset-1",
+        revision_id: null,
+        representation_id: null,
+        key: "plugin.analysis.status",
+        value: "complete",
+        value_type: "string",
+        source: "analysis:asset-categories",
+        created_at: "2026-07-28T00:12:00Z",
+      }],
+      references: [],
+      relationships: [],
+    };
+    state.metadata = [...state.metadata, ...contributed.metadata];
+    return route.fulfill({ json: contributed });
+  });
   await page.route("**/providers", (route) => route.fulfill({
     json: state.pluginEnabled
       ? [{
         id: "asset-categories",
         name: "Asset Categories",
-        capabilities: ["asset_provider", "metadata_provider", "option_provider"],
+        capabilities: ["analysis_provider", "asset_provider", "metadata_provider", "option_provider"],
       }]
       : [],
   }));

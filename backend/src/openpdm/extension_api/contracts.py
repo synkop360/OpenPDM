@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from base64 import b64decode
+from binascii import Error as Base64Error
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 EXTENSION_API_MAJOR_VERSION = 1
 EXTENSION_API_VERSION = "1"
@@ -19,6 +21,7 @@ class Capability(StrEnum):
     METADATA_PROVIDER = "metadata_provider"
     OPTION_PROVIDER = "option_provider"
     EVENT_HANDLER = "event_handler"
+    ANALYSIS_PROVIDER = "analysis_provider"
 
 
 class MetadataValueType(StrEnum):
@@ -50,6 +53,69 @@ class MetadataContribution(BaseModel):
     key: str = Field(min_length=1, max_length=255)
     value: object
     value_type: MetadataValueType
+
+
+class RepresentationAnalysisInput(BaseModel):
+    """Bounded, authorized representation content supplied for provider analysis."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    representation_id: str = Field(min_length=1, max_length=36)
+    asset_id: str = Field(min_length=1, max_length=36)
+    filename: str = Field(min_length=1, max_length=255)
+    media_type: str = Field(min_length=1, max_length=255)
+    size_bytes: int = Field(ge=0, le=5 * 1024 * 1024)
+    checksum_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    content_base64: str = Field(min_length=1, max_length=7_000_000)
+
+    @model_validator(mode="after")
+    def decoded_content_matches_declared_size(self) -> RepresentationAnalysisInput:
+        try:
+            content = b64decode(self.content_base64, validate=True)
+        except (Base64Error, ValueError) as exc:
+            raise ValueError("content_base64 must be valid base64.") from exc
+        if len(content) > 5 * 1024 * 1024:
+            raise ValueError("Decoded content exceeds the 5 MiB analysis limit.")
+        if len(content) != self.size_bytes:
+            raise ValueError("Decoded content size does not match size_bytes.")
+        return self
+
+
+class AnalysisMetadataContribution(MetadataContribution):
+    """A keyed generic metadata contribution supplied by an Analysis Provider."""
+
+    contribution_key: str = Field(min_length=1, max_length=255)
+
+
+class ReferenceContribution(BaseModel):
+    """A generic Reference supplied by an Analysis Provider."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contribution_key: str = Field(min_length=1, max_length=255)
+    source_asset_id: str = Field(min_length=1, max_length=36)
+    reference_type: str = Field(min_length=1, max_length=255)
+    target_uri: str = Field(min_length=1, max_length=2048)
+    label: str = Field(min_length=1, max_length=255)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class RelationshipContribution(BaseModel):
+    """A generic Asset Graph relationship supplied by an Analysis Provider."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contribution_key: str = Field(min_length=1, max_length=255)
+    source_asset_id: str = Field(min_length=1, max_length=36)
+    target_asset_id: str = Field(min_length=1, max_length=36)
+    relationship_type: str = Field(min_length=1, max_length=255)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def target_differs_from_source(self) -> RelationshipContribution:
+        if self.source_asset_id == self.target_asset_id:
+            raise ValueError("Relationship source and target Assets must differ.")
+        return self
 
 
 class AssetProviderCommand(BaseModel):
@@ -106,6 +172,11 @@ class InvocationResponse(BaseModel):
 
     success: bool
     metadata: list[MetadataContribution] = Field(default_factory=list, max_length=1000)
+    analysis_metadata: list[AnalysisMetadataContribution] = Field(
+        default_factory=list, max_length=1000
+    )
+    references: list[ReferenceContribution] = Field(default_factory=list, max_length=1000)
+    relationships: list[RelationshipContribution] = Field(default_factory=list, max_length=1000)
     commands: list[AssetProviderCommand] = Field(default_factory=list, max_length=100)
     option_sets: list[ProviderOptionSet] = Field(default_factory=list, max_length=20)
     error: ExtensionError | None = None

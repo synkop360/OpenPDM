@@ -6,6 +6,7 @@ These are not meant to be called directly by application code.
 """
 
 from typing import Any
+
 from componentize_py_types import Result
 
 def call_task_return(index: int, borrows: int, result: Any) -> None: ...

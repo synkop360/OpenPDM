@@ -163,7 +163,7 @@ Generate `OPENPDM_PLUGIN_CONFIGURATION_KEY` before storing plugin secrets:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Protect and back up this key outside the database. Losing it makes encrypted plugin configuration unreadable. Set `OPENPDM_PLUGIN_PACKAGE_ROOT` to persistent storage owned only by the backend process. Sandbox fuel, memory and timeout settings are bounded by application validation and should be reduced only after testing installed plugins.
+Protect and back up this key outside the database. Losing it makes encrypted plugin configuration unreadable. Set `OPENPDM_PLUGIN_PACKAGE_ROOT` to persistent storage owned only by the backend process. Sandbox fuel, memory and timeout settings are bounded by application validation and should be reduced only after testing installed plugins. `OPENPDM_PLUGIN_ANALYSIS_PROVIDER_FUEL` defaults to 200,000,000 and is capped at 500,000,000; it applies only to analysis providers. Other providers and event hooks continue to use `OPENPDM_PLUGIN_RUNTIME_FUEL`.
 
 Operational collection routes default to 50 results and enforce a maximum of 100. Their cursors are opaque and are invalid after changing resource scope, actor scope, filters, sort key or direction.
 

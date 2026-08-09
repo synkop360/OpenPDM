@@ -1,9 +1,10 @@
-import componentize_py_runtime
-import componentize_py_async_support
 import weakref
-
-from typing import TypeVar, Generic, Self, cast
 from types import TracebackType
+from typing import Generic, Self, TypeVar, cast
+
+import componentize_py_runtime
+
+import componentize_py_async_support
 from componentize_py_async_support import _ReturnCode
 
 
@@ -49,7 +50,7 @@ class ByteStreamReader:
 
         """
         if self.writer_dropped:
-            return bytes()
+            return b""
 
         handle = self.handle
         self.handle = None

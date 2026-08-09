@@ -8,31 +8,29 @@ be used directly by application code is the `spawn` function.
 """
 
 import asyncio
-import componentize_py_runtime
-import subprocess
-
-from os import PathLike
-from socket import AddressFamily, AddressInfo, SocketKind, socket
-from concurrent.futures import Executor
-from componentize_py_types import Result, Ok, Err
-from dataclasses import dataclass
-from typing import Any, Optional, TypeVar, TypeVarTuple, Callable, IO, Literal, cast
-from contextvars import ContextVar, Context
-from collections.abc import Coroutine, Awaitable, Sequence
+import contextlib
+from asyncio.base_events import Server
 from asyncio.protocols import BaseProtocol
 from asyncio.transports import (
+    DatagramTransport,
+    ReadTransport,
+    SubprocessTransport,
     Transport,
     WriteTransport,
-    DatagramTransport,
-    SubprocessTransport,
-    ReadTransport,
 )
-from asyncio.base_events import Server
+from collections.abc import Awaitable, Callable, Coroutine, Sequence
+from concurrent.futures import Executor
+from contextvars import Context, ContextVar
+from dataclasses import dataclass
+from os import PathLike
+from socket import AddressFamily, AddressInfo, SocketKind, socket
+from typing import IO, Any, Literal, TypeVar, TypeVarTuple, cast
 
-try:
+import componentize_py_runtime
+from componentize_py_types import Err, Ok, Result
+
+with contextlib.suppress(Exception):
     from ssl import SSLContext
-except:
-    pass
 
 
 @dataclass
@@ -86,7 +84,7 @@ async def _noop() -> None:
 class _Loop(asyncio.AbstractEventLoop):
     def __init__(self) -> None:
         self.running: bool = False
-        self.exception: Optional[Any] = None
+        self.exception: Any | None = None
 
     def poll(self, future_state: _FutureState) -> None:
         while True:
@@ -121,7 +119,7 @@ class _Loop(asyncio.AbstractEventLoop):
         return _noop()
 
     def call_exception_handler(self, context: dict[str, Any]) -> None:
-        self.exception = context.get("exception", None)
+        self.exception = context.get("exception")
 
     def call_soon(
         self, callback: Callable[[*_Ts], object], *args: *_Ts, context: Context | None = None

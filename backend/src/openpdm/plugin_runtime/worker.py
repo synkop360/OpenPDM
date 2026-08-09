@@ -23,7 +23,7 @@ class WorkerRequest(BaseModel):
     component: str = Field(min_length=1, max_length=31 * 1024 * 1024)
     export_name: str = Field(min_length=1, max_length=128)
     arguments: list[str] = Field(default_factory=list, max_length=8)
-    fuel: int = Field(gt=0, le=100_000_000)
+    fuel: int = Field(gt=0, le=500_000_000)
     memory_bytes: int = Field(gt=0, le=512 * 1024 * 1024)
 
 

@@ -42,6 +42,12 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   await expect(createdRevision.getByText("text/plain")).toBeVisible();
   await expect(page.getByRole("heading", { name: "revision.created" })).toBeVisible();
 
+  await expect(page.getByLabel("Representation to analyze")).toHaveValue("rep-1");
+  await page.getByRole("button", { name: "Analyze representation" }).click();
+  await expect(page.getByText("Analysis complete: 1 metadata, 0 references, 0 relationships.")).toBeVisible();
+  await expect(page.getByText("plugin.analysis.status")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^(command|executable|launch)/i })).toHaveCount(0);
+
   const downloadPromise = page.waitForEvent("download");
   await createdRevision.getByRole("button", { name: /^Download$/i }).click();
   const download = await downloadPromise;
@@ -116,7 +122,7 @@ test("Platform Administrator can demonstrate the generic plugin provider path", 
   await page.goto("/administration/plugins");
   await expect(page.getByRole("heading", { name: /Plugin administration/i })).toBeVisible();
   await expect(page.getByText(/Install Community Plugin/i)).toBeVisible();
-  await expect(page.getByText(/Asset Categories/i)).toBeVisible();
+  await expect(page.getByText(/Asset Categories/i).first()).toBeVisible();
   await expect(page.getByText(/metadata_provider/i)).toBeVisible();
   await page.getByText(/Review manifest and package evidence/i).click();
   await expect(page.getByText(/Extension API/i)).toBeVisible();
@@ -132,7 +138,7 @@ test("Platform Administrator can demonstrate the generic plugin provider path", 
 
   await page.goto("/projects/project-1/assets");
   await expect(page.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
-  await expect(page.getByText(/Asset Categories/i)).toBeVisible();
+  await expect(page.getByText(/Asset Categories/i).first()).toBeVisible();
   await page.getByLabel(/Engineering Asset category/i).selectOption("assembly");
   await page.getByRole("button", { name: /Apply metadata/i }).click();
   await expect(page.getByText(/Asset Categories metadata applied/i)).toBeVisible();

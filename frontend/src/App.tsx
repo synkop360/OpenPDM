@@ -25,6 +25,7 @@ import {
   ApiError,
   addOrganizationMember,
   addProjectMember,
+  type AnalysisResult,
   type AssetGraph,
   checkinAsset,
   checkoutAsset,
@@ -48,6 +49,7 @@ import {
   getPluginConfiguration,
   getProviderOptions,
   installPluginPackage,
+  invokeAnalysisProvider,
   listAssetReferences,
   listAssetRelationships,
   listAssetsPage,
@@ -346,6 +348,8 @@ function OpenPdmApp() {
   );
   const [providerOptions, setProviderOptions] = useState<Record<string, ProviderOptionSet[]>>({});
   const [providerSelections, setProviderSelections] = useState<Record<string, string>>({});
+  const [analysisRepresentationId, setAnalysisRepresentationId] = useState("");
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [assetMetadata, setAssetMetadata] = useState<Loadable<MetadataEntry[]>>(
     createLoadable<MetadataEntry[]>([]),
   );
@@ -382,6 +386,12 @@ function OpenPdmApp() {
     comment: "",
     representationName: "",
   });
+  const analysisRepresentations = assetHistory.data.flatMap((revision) =>
+    revision.representations.map((representation) => ({ representation, revision })),
+  );
+  const selectedAnalysisRepresentation = analysisRepresentations.find(
+    (item) => item.representation.id === analysisRepresentationId,
+  )?.representation ?? analysisRepresentations[0]?.representation ?? null;
   const [transfer, setTransfer] = useState<{
     phase: TransferPhase;
     receivedBytes: number;
@@ -394,6 +404,7 @@ function OpenPdmApp() {
     assetId: null, recovery: null });
   const transferOperation = useRef(0);
   const activeTransferOperation = useRef<{ id: number; controller: AbortController } | null>(null);
+  const analysisOperation = useRef(0);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(
     readStoredValue(ORG_KEY),
   );
@@ -707,6 +718,10 @@ function OpenPdmApp() {
   }, [selectedProjectId, session.data?.token, view]);
   useEffect(() => {
     const token = session.data?.token;
+    analysisOperation.current += 1;
+    setBusyAction((current) => current?.startsWith("provider-analysis-") ? null : current);
+    setAnalysisResult(null);
+    setAnalysisRepresentationId("");
     if (!token || !selectedAssetId || view !== "project") {
       setAssetDetail(createLoadable(null));
       setAssetHistory(createLoadable([]));
@@ -852,6 +867,7 @@ function OpenPdmApp() {
   const canManageProjectMembers = currentProjectRole === "Owner" || currentProjectRole === "Maintainer";
   const hasAssets = assets.data.length > 0;
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
+  const analysisBusy = busyAction?.startsWith("provider-analysis-") ?? false;
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
   const organizationOwnerCount = organizationMembers.data.filter((membership) => membership.role === "Owner").length;
   const projectOwnerCount = projectMembers.data.filter((membership) => membership.role === "Owner").length;
@@ -1735,6 +1751,51 @@ function OpenPdmApp() {
       setBanner(error instanceof Error ? error.message : "Metadata Provider invocation failed.");
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  async function handleInvokeAnalysisProvider(provider: ProviderDescriptor): Promise<void> {
+    if (
+      !session.data?.token ||
+      !selectedAssetId ||
+      !selectedProjectId ||
+      !selectedOrganizationId ||
+      !selectedAnalysisRepresentation
+    ) return;
+    const operation = analysisOperation.current + 1;
+    analysisOperation.current = operation;
+    setBusyAction(`provider-analysis-${provider.id}`);
+    setBanner(null);
+    setAnalysisResult(null);
+    try {
+      const result = await invokeAnalysisProvider(session.data.token, provider.id, {
+        representation_id: selectedAnalysisRepresentation.id,
+        project_id: selectedProjectId,
+        organization_id: selectedOrganizationId,
+      });
+      const [metadata, relationships, incoming, outgoing, references, graph] = await Promise.all([
+        listMetadata(session.data.token, "asset", selectedAssetId),
+        listAssetRelationships(session.data.token, selectedAssetId),
+        listIncomingAssetRelationships(session.data.token, selectedAssetId),
+        listOutgoingAssetRelationships(session.data.token, selectedAssetId),
+        listAssetReferences(session.data.token, selectedAssetId),
+        getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
+      ]);
+      if (operation !== analysisOperation.current) return;
+      setAssetMetadata({ status: "ready", data: metadata, error: null });
+      setAssetRelationships({ status: "ready", data: relationships, error: null });
+      setIncomingRelationships({ status: "ready", data: incoming, error: null });
+      setOutgoingRelationships({ status: "ready", data: outgoing, error: null });
+      setAssetReferences({ status: "ready", data: references, error: null });
+      setAssetGraph({ status: "ready", data: graph, error: null });
+      setAnalysisResult(result);
+      setBanner(`${provider.name} analysis completed.`);
+    } catch (error: unknown) {
+      if (operation !== analysisOperation.current) return;
+      setAnalysisResult(null);
+      setBanner(error instanceof Error ? error.message : "Analysis Provider invocation failed.");
+    } finally {
+      if (operation === analysisOperation.current) setBusyAction(null);
     }
   }
 
@@ -3110,6 +3171,72 @@ function OpenPdmApp() {
                       </dl>
                     ) : null}
                   </article>
+
+                  {providers.data.some((provider) =>
+                    provider.capabilities.includes("analysis_provider"),
+                  ) ? (
+                    <article className="detail-card provider-card">
+                      <div className="detail-row">
+                        <div>
+                          <h3>Representation analysis</h3>
+                          <p>Run a discovered provider against one existing Representation.</p>
+                        </div>
+                        {analysisResult ? (
+                          <span className="status-pill">
+                            {analysisResult.metadata.length + analysisResult.references.length + analysisResult.relationships.length} results
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <label>
+                        Representation to analyze
+                        <select
+                          disabled={analysisRepresentations.length === 0 || analysisBusy}
+                          value={selectedAnalysisRepresentation?.id ?? ""}
+                          onChange={(event) => setAnalysisRepresentationId(event.target.value)}
+                        >
+                          {analysisRepresentations.map(({ representation, revision }) => (
+                            <option key={representation.id} value={representation.id}>
+                              {representation.name} - Revision {revision.number}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {providers.data.filter((provider) =>
+                        provider.capabilities.includes("analysis_provider"),
+                      ).map((provider) => (
+                        <div className="provider-control" key={provider.id}>
+                          <div>
+                            <strong>{provider.name}</strong>
+                            <small>{provider.id}</small>
+                          </div>
+                          <button
+                            className="secondary-button"
+                            disabled={
+                              !selectedAnalysisRepresentation ||
+                              analysisBusy
+                            }
+                            onClick={() => void handleInvokeAnalysisProvider(provider)}
+                            type="button"
+                          >
+                            {busyAction === `provider-analysis-${provider.id}`
+                              ? "Analyzing..."
+                              : "Analyze representation"}
+                          </button>
+                        </div>
+                      ))}
+
+                      {analysisRepresentations.length === 0 ? (
+                        <p className="empty-state">No Representation is available for analysis yet.</p>
+                      ) : null}
+                      {analysisResult ? (
+                        <p className="muted-text" role="status">
+                          Analysis complete: {analysisResult.metadata.length} metadata, {analysisResult.references.length} references, {analysisResult.relationships.length} relationships.
+                        </p>
+                      ) : null}
+                    </article>
+                  ) : null}
 
                   <article className="detail-card relationship-card">
                     <div className="detail-row">

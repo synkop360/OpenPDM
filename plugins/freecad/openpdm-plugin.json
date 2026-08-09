@@ -1,0 +1,8 @@
+{
+  "id": "org.openpdm.freecad",
+  "name": "FreeCAD Analysis",
+  "version": "0.1.0",
+  "extension_api_versions": [1],
+  "capabilities": ["analysis_provider"],
+  "component": "freecad_plugin.wasm"
+}

@@ -17,11 +17,8 @@ from openpdm.infrastructure.database import (
 )
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.modules.models import (
-    BlobUploadChunk,
-    BlobUploadSession,
     NotificationRecord,
     PluginRecord,
-    ProjectAssetView,
     User,
 )
 
@@ -363,10 +360,8 @@ def test_project_asset_view_migration_is_upgradeable(tmp_path: Path) -> None:
     dispose_engines()
     initialize_disposable_database(Settings(database_url=database_url))
     engine = create_engine(database_url)
-    BlobUploadChunk.__table__.drop(engine)
-    BlobUploadSession.__table__.drop(engine)
-    ProjectAssetView.__table__.drop(engine)
     config = Config("alembic.ini")
-    command.stamp(config, "20260712_0004")
+    command.stamp(config, "head")
+    command.downgrade(config, "20260712_0004")
     command.upgrade(config, "head")
     assert "project_asset_views" in inspect(engine).get_table_names()

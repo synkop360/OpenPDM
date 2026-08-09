@@ -156,12 +156,63 @@ Graph reads accept `direction`, `max_depth` and optional `target_asset_id`. See 
 | `GET` | `/plugins/{plugin_id}/event-deliveries` | Inspect delivery, retry and failure state |
 | `POST` | `/plugins/{plugin_id}/providers/metadata` | Invoke a Metadata Provider for one authorized target |
 | `POST` | `/plugins/{plugin_id}/providers/assets/{project_id}` | Invoke an Asset Provider within one authorized Project |
+| `POST` | `/plugins/{plugin_id}/providers/analysis` | Invoke an Analysis Provider for one authorized Representation |
 | `GET` | `/providers` | Discover running provider plugins and their public capabilities |
 | `POST` | `/plugins/{plugin_id}/providers/options` | Retrieve bounded declarative option sets from an Option Provider |
 
 Plugin configuration responses include the bounded declarative `configuration_schema` used to render safe operator controls.
 
 `POST /plugins` remains as a compatibility error route and never installs metadata-only or native code. Package installation accepts `multipart/form-data` with a `package` file plus `plugin_type` and `discover_only` query parameters. Structurally valid incompatible packages receive an inspectable `incompatible` state but cannot be enabled. Authenticated applications discover only running providers through `GET /providers`. Option Providers return bounded text values and labels; they cannot inject HTML, scripts, styles or application components. See [Plugin Development](PLUGIN_DEVELOPMENT.md) and [Plugin Security](PLUGIN_SECURITY.md).
+
+### Analysis Providers
+
+`POST /plugins/{plugin_id}/providers/analysis` invokes a discovered, running
+`analysis_provider`. Its JSON body is:
+
+```json
+{
+  "representation_id": "representation-id",
+  "project_id": "project-id",
+  "organization_id": "organization-id",
+  "relationship_mappings": {
+    "provider-dependency-key": "target-asset-id"
+  }
+}
+```
+
+`organization_id` is optional. `relationship_mappings` is optional and accepts
+at most 100 provider dependency keys. The actor must be able to read the
+specified Representation and its owning Engineering Asset. The Representation
+must have a Blob, the requested Project must match its owning Asset, and every
+mapped target must be an accessible Engineering Asset in that same Project.
+The server supplies the provider with server-owned generic Representation
+identity, file metadata, checksum, and content. It does not accept content,
+storage locations, or credentials from the client.
+
+The generic Web UI currently invokes this endpoint without
+`relationship_mappings`. That unmapped Web UI path persists generic metadata
+and References only. Explicit dependency-to-Engineering-Asset mapping is
+available to API clients, but mapping controls are not part of the Web UI in
+this vertical slice.
+
+The decoded content limit is 5 MiB. An oversized Representation returns `413`
+with `Representation exceeds the analysis content limit.` A Representation
+without a Blob returns `409`; authorization failures return `403`; invalid
+mappings or provider contributions return `400`. The successful response is:
+
+```json
+{
+  "metadata": [],
+  "references": [],
+  "relationships": []
+}
+```
+
+Each array contains persisted generic records contributed by that invocation.
+Provider-stable contribution keys make repeated analysis idempotent. Generic
+References represent unresolved or external targets. A generic Asset
+relationship is created only for an explicit mapping; the Platform Core does
+not interpret provider-specific dependency semantics.
 
 ## Errors And Observability
 

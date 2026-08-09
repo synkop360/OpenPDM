@@ -6567,8 +6567,12 @@ roadmap:
           - The selected mechanical workflow is documented before implementation.
           - Mechanical meaning stays inside the Official Plugin and Extension API payloads.
           - Generic metadata is persisted through the Metadata Platform Module.
-          - Dependency extraction maps to generic Asset relationships.
+          - API clients may map dependency extraction to generic Asset relationships; the generic Web UI submits unmapped analyses and retains dependencies as generic References.
           - Import/export limits are explicit and testable.
+          - The FreeCAD Official Plugin analyzes only stored, bounded `.FCStd` Representations; its fixture corpus records source provenance and SHA-256 digests.
+          - The public analysis route and generic Web UI action are covered by automated tests from package installation through idempotent analysis; mapped relationship contribution is covered through the public API rather than a Web UI mapping control.
+          - No Web UI, backend, plugin runtime, or test path launches FreeCAD, FreeCADCmd, or another executable; desktop integration remains deferred.
+          - Analysis-provider implementation remains blocked until ADR-0047, ADR-0048 and ADR-0049 are Accepted and the project configuration is reapplied.
 
           ## Dependencies
           - Prototype Epic: Acceptance documentation and known limits
@@ -6583,8 +6587,31 @@ roadmap:
           Epic: Mechanical Official Plugin Vertical Slice
           Platform Area: Official Plugin
           Complexity: XL
-          ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0040
+          ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0040, ADR-0047, ADR-0048, ADR-0049
         sub_issues:
+          - title: "Phase 5 Task: Accept representation analysis Extension API decisions"
+            body: |
+              ## Objective
+              Review and accept the generic Extension API decisions required before Phase 5 representation analysis implementation begins.
+
+              ## Acceptance Criteria
+              - ADR-0047, ADR-0048 and ADR-0049 are marked Accepted by maintainers.
+              - The decisions preserve Platform Core domain-agnostic boundaries and the Extension API v1 compatibility rules.
+              - The project configuration is reapplied before any dependent implementation work begins.
+              - No mechanical or vendor-specific semantics are added to the Platform Core.
+
+              ## Dependencies
+              - ADR-0047 - Authorize Bounded Representation Analysis Inputs
+              - ADR-0048 - Accept Provider Analysis Contributions
+              - ADR-0049 - Set Analysis Provider Sandbox Fuel Budget
+            labels: [plugin, decision, P1]
+            fields:
+              Phase: Mechanical Engineering
+              Epic: Mechanical Official Plugin Vertical Slice
+              Platform Area: Extension API
+              Complexity: M
+              ADR: ADR-0047, ADR-0048, ADR-0049
+
           - title: "Phase 5 Task: Select and document the first mechanical plugin workflow"
             body: |
               ## Objective
@@ -6647,6 +6674,9 @@ roadmap:
               ## Acceptance Criteria
               - Developer and user-facing docs describe setup, sample data and expected results.
               - Import/export, file format and provider limits are explicit.
+              - The fixture corpus records its FreeCAD installation provenance, SHA-256 manifest, and redistribution-license caveat.
+              - The documented path builds, installs, enables, discovers, and invokes the Official Plugin through public APIs and the generic Web UI.
+              - FreeCAD, FreeCADCmd, and all executable launch behavior remain outside the Web UI, backend, plugin runtime, and test scope; desktop integration is deferred.
               - The demonstration reuses the stabilized prototype startup path.
               - CI or documented smoke tests cover the workflow.
             labels: [documentation, plugin, test, P1]
@@ -6655,7 +6685,7 @@ roadmap:
               Epic: Mechanical Official Plugin Vertical Slice
               Platform Area: Documentation
               Complexity: M
-              ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039
+              ADR: ADR-0002, ADR-0034, ADR-0036, ADR-0039, ADR-0047, ADR-0048, ADR-0049
 
   - phase: Engineering Workflows
     milestone: Engineering Workflows

@@ -1,0 +1,32 @@
+{
+  "origin": "C:\\Program Files\\FreeCAD 1.0\\data\\examples",
+  "fixtures": [
+    {
+      "filename": "AssemblyExample.FCStd",
+      "sha256": "af6a04bde29033d319d3ade02477ba13175f4e27b026c3d736d6ac82c80a40a2",
+      "label": "AssemblyExample",
+      "object_count": 53,
+      "document_link_count": 13
+    },
+    {
+      "filename": "BIMExample.FCStd",
+      "sha256": "dc661efececa7e548cd602becf8ecb4ffb72c3fee1e7cbeff0b41889ae665282"
+    },
+    {
+      "filename": "draft_test_objects.FCStd",
+      "sha256": "6fc3e674ca53e357fe1e75e801cae61030859c31c4cfbe32667c53220cdec081"
+    },
+    {
+      "filename": "EngineBlock.FCStd",
+      "sha256": "e83b1ca50318776dcd51eff22d474d3a2c832489a0018eb48b7ddee3c910825d"
+    },
+    {
+      "filename": "FEMExample.FCStd",
+      "sha256": "58faffc1eb993c7831afcb047157c87b43f9b601f0bbe3998532422a4799ec5d"
+    },
+    {
+      "filename": "PartDesignExample.FCStd",
+      "sha256": "306020ed8e32439d9e211ee474dcdd59bb95dcfc9c43bcc68771ea9c675c7c85"
+    }
+  ]
+}

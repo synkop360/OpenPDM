@@ -74,6 +74,43 @@ Evidence:
   * plugin package persistence after backend restart;
   * one real local file upload and browser download.
 
+## Phase 5 Mechanical Plugin Acceptance Result
+
+Date: 2026-07-29 (automated evidence); manual local-service smoke check
+completed 2026-08-08.
+Scope: the `org.openpdm.freecad` Official Plugin package, its bounded generic
+analysis-provider workflow, and existing-provider regression coverage.
+Result: Pass.
+
+The focused FreeCAD, generic analysis-provider, reference-plugin, and dummy
+categories-plugin checks passed (26 tests), as did the frontend lint, test,
+build, desktop Chromium browser, documentation, and project-validation gates.
+The built package was validated without starting FreeCAD or another CAD
+program.
+
+The complete backend suite passes with 106 passed and 4 skipped. Its
+migration-upgrade fixtures downgrade a disposable current schema before proving
+the forward upgrade. The repository-wide Ruff findings in the generated
+reference- and dummy-categories-plugin bindings are resolved: `uv run ruff
+check backend tests plugins scripts` and `uv run ruff format --check backend
+tests plugins scripts` both pass for those paths, both plugin packages still
+componentize, and their e2e coverage plus the full backend suite were rerun
+with no behavior change.
+
+The manual local-service smoke check defined in
+[the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#manual-local-service-smoke-check-record)
+was completed against the maintainer's running local stack on 2026-08-08:
+installing and enabling the plugin, running `Analyze representation` on
+`AssemblyExample.FCStd` both unmapped and with `document.link.Base` explicitly
+mapped, disabling the plugin, and rejecting the unsupported `Schenkel.stp`
+STEP fixture all matched the expected acceptance-matrix behavior, verified
+both through the live Web UI and directly in the database (`RelationshipCreated`
+domain event, `relationship.created` audit record). No external CAD process
+started at any point. See the workflow guide for the full record, including a
+non-blocking follow-up observation about plugin-activation timing margin. The
+complete matrix and exact command results are in
+[the Phase 5 workflow guide](PHASE_5_FREECAD_PLUGIN.md#phase-5-acceptance-matrix).
+
 ## Known Limits
 
 * No production high availability.

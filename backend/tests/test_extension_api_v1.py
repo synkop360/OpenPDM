@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from base64 import b64encode
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
@@ -12,10 +13,16 @@ from pydantic import ValidationError
 
 from openpdm.extension_api import (
     EXTENSION_API_MAJOR_VERSION,
+    AnalysisMetadataContribution,
     Capability,
     ConfigurationProperty,
     ConfigurationSchema,
+    InvocationResponse,
+    MetadataContribution,
     PluginManifest,
+    ReferenceContribution,
+    RelationshipContribution,
+    RepresentationAnalysisInput,
     build_plugin_package,
     extension_api_wit_path,
     scaffold_plugin,
@@ -134,6 +141,120 @@ def test_manifest_rejects_unknown_fields_and_undefined_required_configuration() 
         )
     with pytest.raises(ValidationError, match="undefined"):
         ConfigurationSchema(required=["missing"])
+
+
+def test_analysis_provider_is_additive_v1_capability() -> None:
+    value = manifest(capabilities=[Capability.ANALYSIS_PROVIDER])
+
+    assert value.capabilities == [Capability.ANALYSIS_PROVIDER]
+
+
+def test_existing_capabilities_remain_valid_with_analysis_provider() -> None:
+    capabilities = [
+        Capability.ASSET_PROVIDER,
+        Capability.METADATA_PROVIDER,
+        Capability.OPTION_PROVIDER,
+        Capability.EVENT_HANDLER,
+        Capability.ANALYSIS_PROVIDER,
+    ]
+
+    assert manifest(capabilities=capabilities).capabilities == capabilities
+
+
+def test_analysis_input_is_strict_and_bounded() -> None:
+    value = RepresentationAnalysisInput(
+        representation_id="representation-1",
+        asset_id="asset-1",
+        filename="design.bin",
+        media_type="application/octet-stream",
+        size_bytes=1,
+        checksum_sha256="a" * 64,
+        content_base64="YQ==",
+    )
+
+    assert value.asset_id == "asset-1"
+    with pytest.raises(ValidationError):
+        RepresentationAnalysisInput.model_validate({**value.model_dump(), "unknown": True})
+
+
+def test_analysis_input_rejects_oversized_decoded_content() -> None:
+    content = b64encode(b"x" * (5 * 1024 * 1024 + 1)).decode("ascii")
+
+    with pytest.raises(ValidationError, match="exceeds the 5 MiB"):
+        RepresentationAnalysisInput(
+            representation_id="representation-1",
+            asset_id="asset-1",
+            filename="design.bin",
+            media_type="application/octet-stream",
+            size_bytes=5 * 1024 * 1024,
+            checksum_sha256="a" * 64,
+            content_base64=content,
+        )
+
+
+def test_analysis_input_rejects_declared_size_mismatch() -> None:
+    with pytest.raises(ValidationError, match="does not match size_bytes"):
+        RepresentationAnalysisInput(
+            representation_id="representation-1",
+            asset_id="asset-1",
+            filename="design.bin",
+            media_type="application/octet-stream",
+            size_bytes=2,
+            checksum_sha256="a" * 64,
+            content_base64="YQ==",
+        )
+
+
+def test_analysis_contribution_requires_stable_key() -> None:
+    with pytest.raises(ValidationError):
+        ReferenceContribution(
+            source_asset_id="asset-1",
+            reference_type="plugin.ref",
+            target_uri="plugin://ref/1",
+            label="Reference",
+            metadata={},
+        )
+
+
+def test_analysis_metadata_contribution_requires_stable_key() -> None:
+    with pytest.raises(ValidationError):
+        AnalysisMetadataContribution(
+            target_type="asset",
+            target_id="asset-1",
+            key="plugin.key",
+            value="value",
+            value_type="string",
+        )
+
+    legacy_metadata = MetadataContribution(
+        target_type="asset",
+        target_id="asset-1",
+        key="plugin.key",
+        value="value",
+        value_type="string",
+    )
+    assert InvocationResponse(success=True, metadata=[legacy_metadata]).metadata == [
+        legacy_metadata
+    ]
+
+
+def test_relationship_contribution_is_strict() -> None:
+    relationship = RelationshipContribution(
+        contribution_key="dependency-1",
+        source_asset_id="asset-1",
+        target_asset_id="asset-2",
+        relationship_type="depends_on",
+        metadata={},
+    )
+
+    with pytest.raises(ValidationError):
+        RelationshipContribution.model_validate(
+            {**relationship.model_dump(), "unexpected": "value"}
+        )
+    with pytest.raises(ValidationError, match="must differ"):
+        RelationshipContribution.model_validate(
+            {**relationship.model_dump(), "target_asset_id": relationship.source_asset_id}
+        )
 
 
 def test_sdk_exposes_the_versioned_wit_contract() -> None:

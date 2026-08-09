@@ -3,6 +3,7 @@
 from .contracts import (
     EXTENSION_API_MAJOR_VERSION,
     EXTENSION_API_VERSION,
+    AnalysisMetadataContribution,
     AssetProviderCommand,
     Capability,
     EventEnvelope,
@@ -13,6 +14,9 @@ from .contracts import (
     MetadataValueType,
     ProviderOption,
     ProviderOptionSet,
+    ReferenceContribution,
+    RelationshipContribution,
+    RepresentationAnalysisInput,
 )
 from .manifest import ConfigurationProperty, ConfigurationSchema, PluginManifest
 from .package import ValidatedPluginPackage, validate_plugin_package
@@ -26,6 +30,7 @@ from .sdk import (
 __all__ = [
     "EXTENSION_API_MAJOR_VERSION",
     "EXTENSION_API_VERSION",
+    "AnalysisMetadataContribution",
     "AssetProviderCommand",
     "Capability",
     "ConfigurationProperty",
@@ -38,6 +43,9 @@ __all__ = [
     "MetadataValueType",
     "ProviderOption",
     "ProviderOptionSet",
+    "ReferenceContribution",
+    "RelationshipContribution",
+    "RepresentationAnalysisInput",
     "PluginManifest",
     "ValidatedPluginPackage",
     "build_plugin_package",

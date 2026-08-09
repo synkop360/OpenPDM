@@ -2,5 +2,6 @@ package openpdm:extension@1.0.0;
 
 world plugin {
     export activate: func();
+    // Invocation JSON may include bounded analysis_input for an analysis_provider.
     export invoke: func(request: string) -> string;
 }

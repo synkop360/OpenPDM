@@ -32,7 +32,7 @@ Secret configuration fields are encrypted with `OPENPDM_PLUGIN_CONFIGURATION_KEY
 Inspect `GET /plugins/{plugin_id}`:
 
 * `incompatible`: the manifest does not support Extension API v1;
-* `failed` with a fuel diagnostic: increase the bounded fuel setting only after reviewing the component;
+* `failed` with a fuel diagnostic: increase the applicable bounded fuel setting only after reviewing the component. Analysis providers use `OPENPDM_PLUGIN_ANALYSIS_PROVIDER_FUEL`; other providers and event hooks use `OPENPDM_PLUGIN_RUNTIME_FUEL`;
 * `failed` with an import diagnostic: the component requests an unsupported host capability;
 * package-integrity failure: restore the originally approved immutable package or reinstall it;
 * `409 Conflict` reporting a missing package: restore the approved package storage volume, or reinstall/upgrade the same plugin through the authenticated package API;
