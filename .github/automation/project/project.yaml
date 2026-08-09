@@ -6304,6 +6304,7 @@ roadmap:
               - A single `python scripts/start_all.py` invocation reliably starts both the backend and the Web UI dev server on a fresh, cold container start, without requiring a second run.
               - Existing readiness-check behavior (timeout, health polling) is otherwise unchanged.
             labels: [prototype, deployment, bug, P0]
+            closed: true
             fields:
               Phase: Usable Prototype
               Epic: Reproducible Local Startup

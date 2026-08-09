@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import importlib.util
 import os
 import shutil
@@ -50,7 +51,10 @@ def wait_for_backend(url: str, timeout: int = 60) -> bool:
             with urllib.request.urlopen(url, timeout=5) as resp:
                 if resp.status == 200:
                     return True
-        except (HTTPError, URLError):
+        except (HTTPError, URLError, ConnectionError, http.client.HTTPException, TimeoutError):
+            # The container port can be open before the server inside it is
+            # actually accepting requests (e.g. Alembic migrations still
+            # running), which resets the connection instead of refusing it.
             pass
         time.sleep(1)
     return False
