@@ -20,6 +20,7 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   await prototypeAsset.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await page.getByRole("button", { name: /^History & Collaboration$/i }).click();
 
   await page.getByRole("button", { name: /^Check out$/i }).click();
   await expect(page.getByText("locked", { exact: true })).toBeVisible();
@@ -42,12 +43,14 @@ test("usable prototype supports generic Engineering Asset collaboration path", a
   await expect(createdRevision.getByText("text/plain")).toBeVisible();
   await expect(page.getByRole("heading", { name: "revision.created" })).toBeVisible();
 
+  await page.getByRole("button", { name: /^Metadata & Analysis$/i }).click();
   await expect(page.getByLabel("Representation to analyze")).toHaveValue("rep-1");
   await page.getByRole("button", { name: "Analyze representation" }).click();
   await expect(page.getByText("Analysis complete: 1 metadata, 0 references, 0 relationships.")).toBeVisible();
   await expect(page.getByText("plugin.analysis.status")).toBeVisible();
   await expect(page.getByRole("button", { name: /^(command|executable|launch)/i })).toHaveCount(0);
 
+  await page.getByRole("button", { name: /^History & Collaboration$/i }).click();
   const downloadPromise = page.waitForEvent("download");
   await createdRevision.getByRole("button", { name: /^Download$/i }).click();
   const download = await downloadPromise;
@@ -65,6 +68,7 @@ test("a direct navigation to an Engineering Asset URL renders the SPA with that 
 
   await page.goto("/projects/project-1/assets/asset-1");
   await expect(page.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await page.getByRole("button", { name: /^History & Collaboration$/i }).click();
   await expect(page.getByRole("button", { name: /^Check out$/i })).toBeVisible();
   await expect(page).toHaveURL(/\/projects\/project-1\/assets\/asset-1$/);
   await expectNoPageOverflow(page);
@@ -90,11 +94,13 @@ test("two users see lock conflict and collaboration notifications", async ({ bro
 
   await ownerPage.goto("/projects/project-1/assets");
   await expect(ownerPage.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await ownerPage.getByRole("button", { name: /^History & Collaboration$/i }).click();
   await ownerPage.getByRole("button", { name: /^Check out$/i }).click();
   await expect(ownerPage.getByText("locked", { exact: true })).toBeVisible();
 
   await memberPage.goto("/projects/project-1/assets");
   await expect(memberPage.getByRole("heading", { name: /Asset detail and Revision history/i })).toBeVisible();
+  await memberPage.getByRole("button", { name: /^History & Collaboration$/i }).click();
   await expect(memberPage.getByText("locked", { exact: true })).toBeVisible();
   await expect(memberPage.getByRole("button", { name: /^Check out$/i })).toBeDisabled();
 

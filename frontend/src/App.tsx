@@ -97,6 +97,18 @@ import {
   updatePluginConfiguration,
   upgradePluginPackage,
 } from "./api";
+import {
+  collaborationGuidance,
+  collaborationRecoveryAction,
+  collaborationRequestId,
+  collaborationShouldRefresh,
+} from "./app/collaborationErrors";
+import {
+  formatNotificationEvent,
+  formatRelationshipType,
+  formatTimestamp,
+  notificationSummary,
+} from "./app/format";
 import { createLoadable, type Loadable } from "./app/loadable";
 import { parseAppRoute, projectAssetPath, type ProjectTab } from "./app/routes";
 import {
@@ -114,8 +126,9 @@ import { ConfirmDialog } from "./components/primitives/Dialog";
 import { AppShell } from "./components/shell/AppShell";
 import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
+import { AssetDetailPanel } from "./features/assets/AssetDetailPanel";
 import { useFoundationStatus } from "./hooks/useFoundationStatus";
-import { TransferStatus, type TransferPhase } from "./features/transfers/TransferStatus";
+import { type TransferPhase } from "./features/transfers/TransferStatus";
 import {
   clearTransferRecovery,
   canReuseCompletedBlob,
@@ -134,10 +147,6 @@ type ConfigurationProperty = {
   enum?: unknown[];
   secret?: boolean;
 };
-
-function formatTimestamp(value: string): string {
-  return new Date(value).toLocaleString();
-}
 
 function slugify(value: string): string {
   return value
@@ -161,89 +170,6 @@ async function triggerBrowserDownload(
   link.click();
   link.remove();
   URL.revokeObjectURL(objectUrl);
-}
-
-function collaborationGuidance(error: ApiError): string {
-  const contextualGuidance = error.context?.user_guidance;
-  if (typeof contextualGuidance === "string" && contextualGuidance.trim()) {
-    return contextualGuidance;
-  }
-  switch (error.code) {
-    case "asset_locked":
-      return "This Asset is already locked by another user. Wait for release or ask a Maintainer to coordinate.";
-    case "checkin_without_lock":
-      return "Check out the Asset before checking in changes.";
-    case "checkin_by_non_owner":
-      return "Only the current lock owner can check in changes for this Asset.";
-    case "unlock_not_allowed":
-      return "Only the lock owner can unlock this Asset unless a Maintainer or Owner force-unlocks.";
-    case "asset_archived":
-      return "Archived Assets cannot be changed through the collaboration flow.";
-    case "no_active_lock":
-      return "This Asset no longer has an active collaboration lock. Refresh the state and try again if needed.";
-    default:
-      return error.message;
-  }
-}
-
-function collaborationRecoveryAction(error: ApiError): string | null {
-  const value = error.context?.recovery_action;
-  return typeof value === "string" ? value : null;
-}
-
-function collaborationRequestId(error: ApiError): string | null {
-  const value = error.context?.request_id;
-  return typeof value === "string" ? value : null;
-}
-
-function collaborationShouldRefresh(error: ApiError): boolean {
-  return error.context?.should_refresh === true;
-}
-
-function formatNotificationEvent(eventType: string): string {
-  switch (eventType) {
-    case "asset.checked_out":
-      return "Asset locked";
-    case "asset.unlocked":
-      return "Asset unlocked";
-    case "asset.force_unlocked":
-      return "Force unlock";
-    case "revision.created":
-      return "Revision created";
-    case "collaboration.conflict_detected":
-      return "Conflict detected";
-    default:
-      return eventType;
-  }
-}
-
-function notificationSummary(notification: NotificationRecord): string {
-  if (notification.event_type === "collaboration.conflict_detected") {
-    const guidance = notification.details.user_guidance;
-    if (typeof guidance === "string" && guidance.trim()) {
-      return guidance;
-    }
-  }
-  const assetId = typeof notification.asset_id === "string" ? notification.asset_id : null;
-  if (assetId) {
-    return `Related Asset: ${assetId}`;
-  }
-  return "Project collaboration update.";
-}
-
-function formatRelationshipType(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
-function formatMetadataSummary(metadata: Record<string, unknown>): string | null {
-  const entries = Object.entries(metadata);
-  if (entries.length === 0) {
-    return null;
-  }
-  return entries
-    .slice(0, 3)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(" • ");
 }
 
 const ROLE_IMPACT: Record<string, string> = {
@@ -3121,672 +3047,60 @@ function OpenPdmApp() {
                 <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>Select a Project</h3><p>Choose a Project before browsing or creating Engineering Assets.</p></div>
               )}
             </section>
-            <section className={selectedAssetId ? "panel detail-panel asset-detail-sheet is-open" : "panel detail-panel asset-detail-sheet"}>
-              <header className="panel-header">
-                <div>
-                  <p className="eyebrow">Lifecycle</p>
-                  <h2>Asset detail and Revision history</h2>
-                </div>
-                <button aria-label="Close Asset detail" className="icon-button close-detail-button" onClick={() => selectAsset(null)} type="button"><X /></button>
-              </header>
-
-              <article className="detail-card notification-card">
-                <div className="detail-row">
-                  <div>
-                    <h3>Collaboration notifications</h3>
-                    <p>
-                      {unreadNotifications > 0
-                        ? `${unreadNotifications} unread notification${unreadNotifications === 1 ? "" : "s"}`
-                        : "No unread notifications"}
-                    </p>
-                  </div>
-                  <button
-                    className="secondary-button"
-                    disabled={busyAction === "refresh-notifications"}
-                    onClick={() => void handleRefreshNotifications()}
-                    type="button"
-                  >
-                    {busyAction === "refresh-notifications" ? "Refreshing..." : "Refresh"}
-                  </button>
-                </div>
-
-                {notifications.status === "error" ? (
-                  <InlineAlert tone="danger">{notifications.error}</InlineAlert>
-                ) : null}
-
-                {notifications.data.length > 0 ? (
-                  <div className="timeline">
-                    {notifications.data.map((notification) => (
-                      <article key={notification.id} className="timeline-card notification-item">
-                        <div className="timeline-header">
-                          <div>
-                            <h3>{formatNotificationEvent(notification.event_type)}</h3>
-                            <p>{notificationSummary(notification)}</p>
-                          </div>
-                          <small>{formatTimestamp(notification.created_at)}</small>
-                        </div>
-                        <div className="notification-meta">
-                          <span
-                            className={
-                              notification.is_read
-                                ? "status-pill notification-pill notification-read"
-                                : "status-pill notification-pill notification-unread"
-                            }
-                          >
-                            {notification.is_read ? "read" : "unread"}
-                          </span>
-                          {!notification.is_read ? (
-                            <button
-                              className="secondary-button"
-                              disabled={busyAction === `read-notification-${notification.id}`}
-                              onClick={() => void handleMarkNotificationRead(notification.id)}
-                              type="button"
-                            >
-                              {busyAction === `read-notification-${notification.id}`
-                                ? "Marking..."
-                                : "Mark as read"}
-                            </button>
-                          ) : null}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="empty-state">
-                    Collaboration notifications will appear here when approved Phase 2 events target
-                    your account.
-                  </p>
-                )}
-              </article>
-
-              {selectedAssetId && assetDetail.data ? (
-                <>
-                  <article className="detail-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>{assetDetail.data.name}</h3>
-                        <p>{assetDetail.data.description || "No description."}</p>
-                      </div>
-                      <span className="status-pill">{assetDetail.data.status}</span>
-                    </div>
-                    <p className="muted-text">
-                      Created {formatTimestamp(assetDetail.data.created_at)} and updated{" "}
-                      {formatTimestamp(assetDetail.data.updated_at)}.
-                    </p>
-                  </article>
-
-                  <article className="detail-card provider-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Plugin-provided metadata</h3>
-                        <p>Apply capabilities discovered through the public provider API.</p>
-                      </div>
-                      <span className="status-pill">{assetMetadata.data.length} entries</span>
-                    </div>
-
-                    {providers.data.filter((provider) =>
-                      provider.capabilities.includes("metadata_provider"),
-                    ).map((provider) => {
-                      const optionSet = providerOptions[provider.id]?.find(
-                        (item) => item.key === "category",
-                      );
-                      return (
-                        <div className="provider-control" key={provider.id}>
-                          <div>
-                            <strong>{provider.name}</strong>
-                            <small>{provider.id}</small>
-                          </div>
-                          {optionSet ? (
-                            <label>
-                              {optionSet.label}
-                              <select
-                                value={providerSelections[provider.id] ?? optionSet.options[0]?.value ?? ""}
-                                onChange={(event) =>
-                                  setProviderSelections((current) => ({
-                                    ...current,
-                                    [provider.id]: event.target.value,
-                                  }))
-                                }
-                              >
-                                {optionSet.options.map((option) => (
-                                  <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                              </select>
-                            </label>
-                          ) : null}
-                          <button
-                            className="secondary-button"
-                            disabled={busyAction === `provider-metadata-${provider.id}`}
-                            onClick={() => void handleApplyMetadataProvider(provider)}
-                            type="button"
-                          >
-                            {busyAction === `provider-metadata-${provider.id}` ? "Applying..." : "Apply metadata"}
-                          </button>
-                        </div>
-                      );
-                    })}
-
-                    {providers.data.every((provider) =>
-                      !provider.capabilities.includes("metadata_provider"),
-                    ) ? (
-                      providers.status === "error" ? (
-                        <InlineAlert tone="danger">{providers.error}</InlineAlert>
-                      ) : (
-                        <p className="empty-state">No running Metadata Provider is available.</p>
-                      )
-                    ) : null}
-
-                    {assetMetadata.data.length > 0 ? (
-                      <dl className="metadata-list">
-                        {assetMetadata.data.map((entry) => (
-                          <div key={entry.id}>
-                            <dt>{entry.key}</dt>
-                            <dd>{typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    ) : null}
-                  </article>
-
-                  {providers.data.some((provider) =>
-                    provider.capabilities.includes("analysis_provider"),
-                  ) ? (
-                    <article className="detail-card provider-card">
-                      <div className="detail-row">
-                        <div>
-                          <h3>Representation analysis</h3>
-                          <p>Run a discovered provider against one existing Representation.</p>
-                        </div>
-                        {analysisResult ? (
-                          <span className="status-pill">
-                            {analysisResult.metadata.length + analysisResult.references.length + analysisResult.relationships.length} results
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <label>
-                        Representation to analyze
-                        <select
-                          disabled={analysisRepresentations.length === 0 || analysisBusy}
-                          value={selectedAnalysisRepresentation?.id ?? ""}
-                          onChange={(event) => setAnalysisRepresentationId(event.target.value)}
-                        >
-                          {analysisRepresentations.map(({ representation, revision }) => (
-                            <option key={representation.id} value={representation.id}>
-                              {representation.name} - Revision {revision.number}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      {providers.data.filter((provider) =>
-                        provider.capabilities.includes("analysis_provider"),
-                      ).map((provider) => (
-                        <div className="provider-control" key={provider.id}>
-                          <div>
-                            <strong>{provider.name}</strong>
-                            <small>{provider.id}</small>
-                          </div>
-                          <button
-                            className="secondary-button"
-                            disabled={
-                              !selectedAnalysisRepresentation ||
-                              analysisBusy
-                            }
-                            onClick={() => void handleInvokeAnalysisProvider(provider)}
-                            type="button"
-                          >
-                            {busyAction === `provider-analysis-${provider.id}`
-                              ? "Analyzing..."
-                              : "Analyze representation"}
-                          </button>
-                        </div>
-                      ))}
-
-                      {analysisRepresentations.length === 0 ? (
-                        <p className="empty-state">No Representation is available for analysis yet.</p>
-                      ) : null}
-                      {analysisResult ? (
-                        <p className="muted-text" role="status">
-                          Analysis complete: {analysisResult.metadata.length} metadata, {analysisResult.references.length} references, {analysisResult.relationships.length} relationships.
-                        </p>
-                      ) : null}
-                    </article>
-                  ) : null}
-
-                  <article className="detail-card relationship-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Asset relationships</h3>
-                        <p>
-                          Explore explicit Asset-to-Asset links without adding engineering-domain
-                          semantics.
-                        </p>
-                      </div>
-                      <span className="status-pill">
-                        {assetRelationships.data.length} link
-                        {assetRelationships.data.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-
-                    {assetRelationships.status === "error" ||
-                    incomingRelationships.status === "error" ||
-                    outgoingRelationships.status === "error" ? (
-                      <InlineAlert tone="danger">
-                        {assetRelationships.error ??
-                          incomingRelationships.error ??
-                          outgoingRelationships.error}
-                      </InlineAlert>
-                    ) : null}
-
-                    <div className="relationship-grid">
-                      <section className="relationship-column">
-                        <div className="relationship-column-header">
-                          <h4>Incoming</h4>
-                          <span>{incomingRelationships.data.length}</span>
-                        </div>
-                        {incomingRelationships.data.length > 0 ? (
-                          <div className="relationship-list">
-                            {incomingRelationships.data.map((relationship) => (
-                              <article key={relationship.id} className="relationship-item">
-                                <div>
-                                  <strong>{formatRelationshipType(relationship.relationship_type)}</strong>
-                                  <p>
-                                    From{" "}
-                                    {assetNameById.get(relationship.source_asset_id) ??
-                                      relationship.source_asset_id}
-                                  </p>
-                                  <small>{formatTimestamp(relationship.created_at)}</small>
-                                  {formatMetadataSummary(relationship.metadata) ? (
-                                    <small>{formatMetadataSummary(relationship.metadata)}</small>
-                                  ) : null}
-                                </div>
-                                <button
-                                  className="secondary-button"
-                                  onClick={() => selectAsset(relationship.source_asset_id)}
-                                  type="button"
-                                >
-                                  Open asset
-                                </button>
-                              </article>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="empty-state">No Assets currently point to this Asset.</p>
-                        )}
-                      </section>
-
-                      <section className="relationship-column">
-                        <div className="relationship-column-header">
-                          <h4>Outgoing</h4>
-                          <span>{outgoingRelationships.data.length}</span>
-                        </div>
-                        {outgoingRelationships.data.length > 0 ? (
-                          <div className="relationship-list">
-                            {outgoingRelationships.data.map((relationship) => (
-                              <article key={relationship.id} className="relationship-item">
-                                <div>
-                                  <strong>{formatRelationshipType(relationship.relationship_type)}</strong>
-                                  <p>
-                                    To{" "}
-                                    {assetNameById.get(relationship.target_asset_id) ??
-                                      relationship.target_asset_id}
-                                  </p>
-                                  <small>{formatTimestamp(relationship.created_at)}</small>
-                                  {formatMetadataSummary(relationship.metadata) ? (
-                                    <small>{formatMetadataSummary(relationship.metadata)}</small>
-                                  ) : null}
-                                </div>
-                                <button
-                                  className="secondary-button"
-                                  onClick={() => selectAsset(relationship.target_asset_id)}
-                                  type="button"
-                                >
-                                  Open asset
-                                </button>
-                              </article>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="empty-state">This Asset has no outgoing relationships yet.</p>
-                        )}
-                      </section>
-                    </div>
-                  </article>
-
-                  <article className="detail-card relationship-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Generic references</h3>
-                        <p>
-                          References stay distinct from graph edges so unresolved or external pointers
-                          do not appear as Assets.
-                        </p>
-                      </div>
-                      <span className="status-pill">
-                        {assetReferences.data.length} reference
-                        {assetReferences.data.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-
-                    {assetReferences.status === "error" ? (
-                      <InlineAlert tone="danger">{assetReferences.error}</InlineAlert>
-                    ) : null}
-
-                    {assetReferences.data.length > 0 ? (
-                      <div className="reference-list">
-                        {assetReferences.data.map((reference) => (
-                          <article key={reference.id} className="relationship-item reference-item">
-                            <div>
-                              <strong>{reference.label || reference.reference_type}</strong>
-                              <p>{reference.target_uri}</p>
-                              <small>{reference.reference_type}</small>
-                              {formatMetadataSummary(reference.metadata) ? (
-                                <small>{formatMetadataSummary(reference.metadata)}</small>
-                              ) : null}
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="empty-state">
-                        No generic references are attached to this Asset yet.
-                      </p>
-                    )}
-                  </article>
-
-                  <article className="detail-card relationship-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Bounded graph summary</h3>
-                        <p>
-                          The Web UI uses the approved Phase 3 bounded graph read with direction{" "}
-                          <code>both</code> and depth <code>3</code>.
-                        </p>
-                      </div>
-                      <span className="status-pill">
-                        {assetGraph.data?.has_cycle ? "cycle detected" : "no cycle"}
-                      </span>
-                    </div>
-
-                    {assetGraph.status === "error" ? (
-                      <InlineAlert tone="danger">{assetGraph.error}</InlineAlert>
-                    ) : null}
-
-                    {assetGraph.data ? (
-                      <div className="graph-summary-grid">
-                        <article className="graph-summary-card">
-                          <strong>Nodes</strong>
-                          <span>{assetGraph.data.nodes.length}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Relationships</strong>
-                          <span>{assetGraph.data.relationships.length}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Direction</strong>
-                          <span>{assetGraph.data.direction}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Max depth</strong>
-                          <span>{assetGraph.data.max_depth}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Path target</strong>
-                          <span>{assetGraph.data.target_asset_id ?? "Not requested"}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Path exists</strong>
-                          <span>
-                            {assetGraph.data.path_exists === null
-                              ? "Not evaluated"
-                              : assetGraph.data.path_exists
-                                ? "Yes"
-                                : "No"}
-                          </span>
-                        </article>
-                      </div>
-                    ) : (
-                      <p className="empty-state">Graph summary is loading for this Asset.</p>
-                    )}
-                  </article>
-
-                  <article className="detail-card collaboration-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Collaboration state</h3>
-                        <p>
-                          {collaborationState.data
-                            ? `State: ${collaborationState.data.state}`
-                            : "Loading collaboration state..."}
-                        </p>
-                      </div>
-                      <span
-                        className={`status-pill collaboration-pill collaboration-${collaborationState.data?.state ?? "unknown"}`}
-                      >
-                        {collaborationState.data?.state ?? "loading"}
-                      </span>
-                    </div>
-                    {collaborationState.data?.lock ? (
-                      <p className="muted-text">
-                        Lock owner:{" "}
-                        {collaborationState.data.lock.owner_user_id === session.data?.user.id
-                          ? "You"
-                          : collaborationState.data.lock.owner_user_id}
-                      </p>
-                    ) : (
-                      <p className="muted-text">No active collaboration lock.</p>
-                    )}
-                    <div className="collaboration-actions">
-                      <button
-                        className="primary-button"
-                        disabled={busyAction === "checkout" || collaborationState.data?.state === "locked"}
-                        onClick={() => void handleCheckout()}
-                        type="button"
-                      >
-                        {busyAction === "checkout" ? "Checking out..." : "Check out"}
-                      </button>
-                      <button
-                        className="secondary-button"
-                        disabled={busyAction === "unlock" || !collaborationState.data?.can_unlock}
-                        onClick={() => void handleUnlock(false)}
-                        type="button"
-                      >
-                        {busyAction === "unlock" ? "Unlocking..." : "Unlock"}
-                      </button>
-                      <button
-                        className="secondary-button warning-button"
-                        disabled={busyAction === "force-unlock" || !collaborationState.data?.can_force_unlock}
-                        onClick={() => void handleUnlock(true)}
-                        type="button"
-                      >
-                        {busyAction === "force-unlock" ? "Force-unlocking..." : "Force unlock"}
-                      </button>
-                    </div>
-                  </article>
-
-                  <form className="form-grid compact-form" data-checkin-form onSubmit={handleUpload}>
-                    <h3>Check in a new Revision</h3>
-                    <label>
-                      Revision comment
-                      <input
-                        disabled={busyAction === "upload"}
-                        required
-                        value={uploadForm.comment}
-                        onChange={(event) =>
-                          setUploadForm((current) => ({ ...current, comment: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Representation name
-                      <input
-                        disabled={busyAction === "upload"}
-                        value={uploadForm.representationName}
-                        onChange={(event) =>
-                          setUploadForm((current) => ({
-                            ...current,
-                            representationName: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      File
-                      <input
-                        disabled={busyAction === "upload"}
-                        required
-                        type="file"
-                        onChange={(event) => handleUploadFileChange(event.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                    <button
-                      className="primary-button"
-                      disabled={busyAction === "upload" || !collaborationState.data?.can_checkin}
-                      type="submit"
-                    >
-                      {busyAction === "upload" ? "Checking in..." : "Check in revision"}
-                    </button>
-                    <p className="muted-text">
-                      Check-in is available only while you own the collaboration lock.
-                    </p>
-                    <TransferStatus
-                      phase={transfer.phase === "idle" && !collaborationState.data?.can_checkin ? "permission" : transfer.phase}
-                      receivedBytes={transfer.receivedBytes}
-                      totalBytes={transfer.totalBytes}
-                      message={transfer.message}
-                      onCancel={() => void handleCancelTransfer()}
-                      onRetry={handleRetryCheckin}
-                      onDiscard={() => void handleDiscardTransfer()}
-                      retryLabel={transfer.blob ? "Retry check-in" : "Retry transfer"}
-                    />
-                  </form>
-
-                  {collaborationState.status === "error" ? (
-                    <InlineAlert tone="danger">{collaborationState.error}</InlineAlert>
-                  ) : null}
-
-                  {collaborationError ? (
-                    <article className="detail-card recovery-card">
-                      <h3>Recovery guidance</h3>
-                      <p>{collaborationGuidance(collaborationError)}</p>
-                      {collaborationRequestId(collaborationError) ? (
-                        <p className="muted-text">
-                          Request ID: {collaborationRequestId(collaborationError)}
-                        </p>
-                      ) : null}
-                      <div className="collaboration-actions">
-                        {collaborationShouldRefresh(collaborationError) ? (
-                          <button
-                            className="secondary-button"
-                            disabled={busyAction === "refresh-state"}
-                            onClick={() => void handleRefreshAssetState()}
-                            type="button"
-                          >
-                            {busyAction === "refresh-state" ? "Refreshing..." : "Refresh asset state"}
-                          </button>
-                        ) : null}
-                        {collaborationRecoveryAction(collaborationError) === "checkout_asset" ? (
-                          <button
-                            className="secondary-button"
-                            disabled={
-                              busyAction === "checkout" || collaborationState.data?.state === "locked"
-                            }
-                            onClick={() => void handleCheckout()}
-                            type="button"
-                          >
-                            Check out now
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  ) : null}
-
-                  {assetTimeline.status === "error" ? (
-                    <InlineAlert tone="danger">{assetTimeline.error}</InlineAlert>
-                  ) : null}
-
-                  <div className="timeline">
-                    <h3>Collaboration timeline</h3>
-                    {assetTimeline.data.map((entry) => (
-                      <article
-                        key={`${entry.event_type}-${entry.occurred_at}-${entry.revision_id ?? "none"}`}
-                        className="timeline-card"
-                      >
-                        <div className="timeline-header">
-                          <div>
-                            <h3>{entry.event_type}</h3>
-                            <p>
-                              {describeActor(entry.actor_user_id)}
-                            </p>
-                          </div>
-                          <small>{formatTimestamp(entry.occurred_at)}</small>
-                        </div>
-                        {entry.revision_id ? (
-                          <p className="muted-text">Revision: {entry.revision_id}</p>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-
-                  {assetHistory.status === "error" ? (
-                    <InlineAlert tone="danger">{assetHistory.error}</InlineAlert>
-                  ) : null}
-
-                  <div className="timeline">
-                    <h3>Revision comments and history</h3>
-                    {assetHistory.data.map((revision) => (
-                      <article key={revision.id} className="timeline-card">
-                        <div className="timeline-header">
-                          <div>
-                            <h3>Revision {revision.number}</h3>
-                            <p>{revision.comment || "No revision comment."}</p>
-                          </div>
-                          <small>{formatTimestamp(revision.created_at)}</small>
-                        </div>
-                        {revision.representations.length > 0 ? (
-                          <ul className="representation-list">
-                            {revision.representations.map((representation) => (
-                              <li key={representation.id}>
-                                <div>
-                                  <strong>{representation.name}</strong>
-                                  <span>{representation.media_type}</span>
-                                  <small>{representation.blob?.filename ?? "No Blob attached"}</small>
-                                </div>
-                                {representation.blob_id && representation.blob ? (
-                                  <button
-                                    className="secondary-button"
-                                    disabled={busyAction === `download-${representation.blob_id}`}
-                                    onClick={() =>
-                                      void handleDownload(
-                                        representation.blob_id!,
-                                        representation.blob?.filename ?? `${representation.name}.bin`,
-                                      )
-                                    }
-                                    type="button"
-                                  >
-                                    {busyAction === `download-${representation.blob_id}`
-                                      ? "Preparing..."
-                                      : "Download"}
-                                  </button>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="muted-text">No Representations for this Revision yet.</p>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="empty-state">
-                  Select an Engineering Asset to inspect immutable Revision history and Blob-backed
-                  Representations.
-                </p>
-              )}
-            </section>
+            <AssetDetailPanel
+              analysisBusy={analysisBusy}
+              analysisRepresentations={analysisRepresentations}
+              analysisResult={analysisResult}
+              assetDetail={assetDetail}
+              assetGraph={assetGraph}
+              assetHistory={assetHistory}
+              assetMetadata={assetMetadata}
+              assetNameById={assetNameById}
+              assetReferences={assetReferences}
+              assetRelationships={assetRelationships}
+              assetTimeline={assetTimeline}
+              busyAction={busyAction}
+              collaborationError={collaborationError}
+              collaborationState={collaborationState}
+              currentUserId={session.data?.user.id}
+              describeActor={describeActor}
+              incomingRelationships={incomingRelationships}
+              notifications={notifications}
+              onAnalysisRepresentationChange={setAnalysisRepresentationId}
+              onApplyMetadataProvider={(provider) => void handleApplyMetadataProvider(provider)}
+              onCancelTransfer={() => void handleCancelTransfer()}
+              onCheckout={() => void handleCheckout()}
+              onClose={() => selectAsset(null)}
+              onDiscardTransfer={() => void handleDiscardTransfer()}
+              onDownload={(blobId, filename) => void handleDownload(blobId, filename)}
+              onInvokeAnalysisProvider={(provider) => void handleInvokeAnalysisProvider(provider)}
+              onMarkNotificationRead={(notificationId) => void handleMarkNotificationRead(notificationId)}
+              onProviderSelectionChange={(providerId, value) =>
+                setProviderSelections((current) => ({ ...current, [providerId]: value }))
+              }
+              onRefreshAssetState={() => void handleRefreshAssetState()}
+              onRefreshNotifications={() => void handleRefreshNotifications()}
+              onRetryCheckin={handleRetryCheckin}
+              onSelectAsset={(assetId) => selectAsset(assetId)}
+              onSubmitUpload={handleUpload}
+              onUnlock={(force) => void handleUnlock(force)}
+              onUploadCommentChange={(value) =>
+                setUploadForm((current) => ({ ...current, comment: value }))
+              }
+              onUploadFileChange={handleUploadFileChange}
+              onUploadRepresentationNameChange={(value) =>
+                setUploadForm((current) => ({ ...current, representationName: value }))
+              }
+              outgoingRelationships={outgoingRelationships}
+              providerOptions={providerOptions}
+              providers={providers}
+              providerSelections={providerSelections}
+              selectedAnalysisRepresentation={selectedAnalysisRepresentation}
+              selectedAssetId={selectedAssetId}
+              transfer={transfer}
+              unreadNotifications={unreadNotifications}
+              uploadForm={uploadForm}
+            />
                   </>
                 ) : null}
               </section>

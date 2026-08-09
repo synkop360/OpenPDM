@@ -6636,6 +6636,7 @@ roadmap:
               ## Dependencies
               - Web UI Ergonomics Task: Implement asset-addressable deep-linking URL scheme
             labels: [frontend, refactor, P2]
+            closed: true
             fields:
               Phase: Usable Prototype
               Epic: Web UI Ergonomics
