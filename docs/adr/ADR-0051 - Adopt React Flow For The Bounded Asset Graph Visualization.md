@@ -1,6 +1,6 @@
 # ADR-0051 - Adopt React Flow For The Bounded Asset Graph Visualization
 
-**Status:** Proposed
+**Status:** Accepted
 
 ---
 
