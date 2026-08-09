@@ -38,14 +38,3 @@ export function notificationSummary(notification: NotificationRecord): string {
 export function formatRelationshipType(value: string): string {
   return value.replace(/_/g, " ");
 }
-
-export function formatMetadataSummary(metadata: Record<string, unknown>): string | null {
-  const entries = Object.entries(metadata);
-  if (entries.length === 0) {
-    return null;
-  }
-  return entries
-    .slice(0, 3)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(" • ");
-}

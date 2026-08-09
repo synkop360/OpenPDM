@@ -6652,6 +6652,7 @@ roadmap:
               - Relationship and metadata list items read as a sentence a non-technical user can parse.
               - The underlying provider id, contribution key and other technical fields remain available behind an explicit disclosure, not deleted.
             labels: [frontend, refactor, P2]
+            closed: true
             fields:
               Phase: Usable Prototype
               Epic: Web UI Ergonomics
