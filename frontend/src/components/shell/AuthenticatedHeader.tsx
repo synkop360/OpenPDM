@@ -48,8 +48,13 @@ export function AuthenticatedHeader({
         <Bell />
         {unreadNotifications ? <span className="notification-count">{unreadNotifications}</span> : null}
       </button>
-      <div className="user-avatar" title={email}>
-        {displayName.slice(0, 2).toUpperCase()}
+      <div className="topbar-divider" />
+      <div className="user-identity" title={email}>
+        <div className="user-avatar">{displayName.slice(0, 2).toUpperCase()}</div>
+        <span className="user-identity-text">
+          <strong>{displayName}</strong>
+          <small>{email}</small>
+        </span>
       </div>
       <button className="icon-button" aria-label="Sign out" onClick={onSignOut} type="button">
         <LogOut />
