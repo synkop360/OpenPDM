@@ -466,9 +466,8 @@ describe("App", () => {
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Recent Assets" }));
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Collaboration feed" }));
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
-    expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
+    expect((await screen.findAllByText(/Wing Panel/i)).length).toBeGreaterThan(0);
     expect(window.location.pathname).toBe("/projects/project-1/assets/asset-1");
-    expect(await screen.findByRole("heading", { name: "Collaboration notifications" })).toBeInTheDocument();
     await switchAssetDetailTab("History & Collaboration");
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
@@ -480,7 +479,6 @@ describe("App", () => {
     await switchAssetDetailTab("Relationships & Graph");
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();
-    expect(await screen.findByText("Asset locked")).toBeInTheDocument();
     await switchAssetDetailTab("History & Collaboration");
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
@@ -836,7 +834,7 @@ describe("App", () => {
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
-    expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
+    expect((await screen.findAllByText("Wing Panel")).length).toBeGreaterThan(0);
     if (runDiscardRace) {
       fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
       await switchAssetDetailTab("History & Collaboration");
@@ -868,6 +866,7 @@ describe("App", () => {
 
   it("navigates to a related asset through the relationship exploration surface", async () => {
     await exerciseRelationshipAndDiscardRace("resolve", false);
+    fireEvent.click(screen.getByRole("button", { name: "Close Asset detail" }));
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
   });
 
@@ -883,7 +882,7 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Analyze representation" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled());
 
-    fireEvent.click(screen.getByRole("button", { name: /^Wing Panel/ }));
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
     expect(await screen.findByText((_content, element) =>
       element?.tagName.toLowerCase() === "p" && element.textContent === "Primary structure"))
       .toBeInTheDocument();

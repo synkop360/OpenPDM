@@ -3293,7 +3293,6 @@ function OpenPdmApp() {
               currentUserId={session.data?.user.id}
               describeActor={describeActor}
               incomingRelationships={incomingRelationships}
-              notifications={notifications}
               onAnalysisRepresentationChange={setAnalysisRepresentationId}
               onApplyMetadataProvider={(provider) => void handleApplyMetadataProvider(provider)}
               onCancelTransfer={() => void handleCancelTransfer()}
@@ -3302,12 +3301,10 @@ function OpenPdmApp() {
               onDiscardTransfer={() => void handleDiscardTransfer()}
               onDownload={(blobId, filename) => void handleDownload(blobId, filename)}
               onInvokeAnalysisProvider={(provider) => void handleInvokeAnalysisProvider(provider)}
-              onMarkNotificationRead={(notificationId) => void handleMarkNotificationRead(notificationId)}
               onProviderSelectionChange={(providerId, value) =>
                 setProviderSelections((current) => ({ ...current, [providerId]: value }))
               }
               onRefreshAssetState={() => void handleRefreshAssetState()}
-              onRefreshNotifications={() => void handleRefreshNotifications()}
               onRetryCheckin={handleRetryCheckin}
               onSelectAsset={(assetId) => selectAsset(assetId)}
               onSubmitUpload={handleUpload}
@@ -3326,7 +3323,6 @@ function OpenPdmApp() {
               selectedAnalysisRepresentation={selectedAnalysisRepresentation}
               selectedAssetId={selectedAssetId}
               transfer={transfer}
-              unreadNotifications={unreadNotifications}
               uploadForm={uploadForm}
             />
                   </>
