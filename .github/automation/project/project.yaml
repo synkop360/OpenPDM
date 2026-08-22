@@ -6682,6 +6682,28 @@ roadmap:
               Platform Area: Frontend
               Complexity: L
 
+          - title: "Web UI Ergonomics Task: Consolidate Asset lifecycle into tabs and add a complete project graph"
+            body: |
+              ## Objective
+              Fold the standalone "Lifecycle" panel header into the Asset detail tab bar, keep the per-Asset Relationships & Graph tab scoped to connected Assets only, and give the project-level Relationships tab a complete graph of every Asset and relationship in the Project.
+
+              ## Acceptance Criteria
+              - The Asset detail panel no longer shows a separate "Lifecycle / Asset detail and Revision history" header duplicating the asset summary above every tab.
+              - The per-Asset Relationships & Graph tab shows only connected-Asset content (incoming/outgoing relationships and the bounded graph diagram); Generic references move to Metadata & Analysis since references are explicitly not Assets.
+              - The project-level Relationships tab renders a Complete project graph covering every Asset and relationship in the Project, built without a new backend endpoint or widening ADR-0030's asset-rooted, depth-bounded traversal scope.
+
+              ## Dependencies
+              - Web UI Ergonomics Task: Restructure the Asset detail page into scoped sections
+              - Web UI Ergonomics Task: Decide and implement a visual Asset Graph
+              - ADR-0030 - Dependency Graph and Query Scope
+            labels: [frontend, refactor, P2]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: M
+
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.

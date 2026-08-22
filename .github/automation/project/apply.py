@@ -520,6 +520,18 @@ def sync_issues(
                 expected_statuses={201},
                 json=payload,
             )
+            if issue.get("closed"):
+                # The create-issue API cannot set state; a newly created issue that is
+                # already marked closed in project.yaml needs an immediate follow-up PATCH,
+                # otherwise it silently stays open until some unrelated field changes.
+                print(f"Closing newly created issue: {title}")
+                existing = rest_request(
+                    session,
+                    "PATCH",
+                    f"/repos/{owner}/{repo}/issues/{existing['number']}",
+                    expected_statuses={200},
+                    json={"state": "closed"},
+                )
         else:
             update_payload = dict(payload)
             update_payload["state"] = "closed" if issue.get("closed") else "open"
