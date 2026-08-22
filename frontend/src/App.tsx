@@ -124,7 +124,7 @@ import {
 import { useRouteFocus } from "./app/useRouteFocus";
 import { InlineAlert } from "./components/feedback/InlineAlert";
 import { ProjectTabs } from "./components/navigation/ProjectTabs";
-import { ConfirmDialog } from "./components/primitives/Dialog";
+import { ConfirmDialog, Dialog } from "./components/primitives/Dialog";
 import { AppShell } from "./components/shell/AppShell";
 import { AuthenticatedHeader, type BreadcrumbItem } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
@@ -322,14 +322,7 @@ function OpenPdmApp() {
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
-  const createAssetDetailsRef = useRef<HTMLDetailsElement>(null);
-  const createProjectFormRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (showCreateProjectForm) {
-      createProjectFormRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [showCreateProjectForm]);
+  const [showCreateAssetForm, setShowCreateAssetForm] = useState(false);
   const [organizationMemberForm, setOrganizationMemberForm] = useState({
     email: "",
     role: "Viewer",
@@ -2248,39 +2241,48 @@ function OpenPdmApp() {
                     <InlineAlert tone="danger">{projects.error}</InlineAlert>
                   ) : null}
 
-                  {selectedOrganizationId && hasProjects && showCreateProjectForm ? (
-                    <form className="form-grid compact-form" onSubmit={(event) => { void handleBootstrapProject(event); setShowCreateProjectForm(false); }} ref={createProjectFormRef}>
-                      <h3>New Project</h3>
-                      <label>
-                        Project name
-                        <input
-                          required
-                          value={bootstrapProject.name}
-                          onChange={(event) =>
-                            setBootstrapProject((current) => ({ ...current, name: event.target.value }))
-                          }
-                        />
-                      </label>
-                      <label>
-                        Description
-                        <textarea
-                          value={bootstrapProject.description}
-                          onChange={(event) =>
-                            setBootstrapProject((current) => ({
-                              ...current,
-                              description: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                      <button
-                        className="primary-button"
-                        disabled={busyAction === "create-project"}
-                        type="submit"
+                  {selectedOrganizationId && hasProjects ? (
+                    <Dialog
+                      description="Create a new Project in the selected Organization."
+                      onOpenChange={setShowCreateProjectForm}
+                      open={showCreateProjectForm}
+                      title="Create Project"
+                    >
+                      <form
+                        className="form-grid compact-form"
+                        onSubmit={(event) => { void handleBootstrapProject(event); setShowCreateProjectForm(false); }}
                       >
-                        {busyAction === "create-project" ? "Creating..." : "Create Project"}
-                      </button>
-                    </form>
+                        <label>
+                          Project name
+                          <input
+                            required
+                            value={bootstrapProject.name}
+                            onChange={(event) =>
+                              setBootstrapProject((current) => ({ ...current, name: event.target.value }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Description
+                          <textarea
+                            value={bootstrapProject.description}
+                            onChange={(event) =>
+                              setBootstrapProject((current) => ({
+                                ...current,
+                                description: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          className="primary-button"
+                          disabled={busyAction === "create-project"}
+                          type="submit"
+                        >
+                          {busyAction === "create-project" ? "Creating..." : "Create Project"}
+                        </button>
+                      </form>
+                    </Dialog>
                   ) : null}
 
                   {hasProjects ? (
@@ -2820,17 +2822,7 @@ function OpenPdmApp() {
                   </div>
                   {projectTab === "assets" ? (
                     <div className="project-header-actions">
-                      <button
-                        className="primary-button"
-                        onClick={() => {
-                          const details = createAssetDetailsRef.current;
-                          if (details) {
-                            details.open = true;
-                            details.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                          }
-                        }}
-                        type="button"
-                      >
+                      <button className="primary-button" onClick={() => setShowCreateAssetForm(true)} type="button">
                         <Plus /> New Asset
                       </button>
                     </div>
@@ -3219,9 +3211,16 @@ function OpenPdmApp() {
 
                   {assetViews.status === "error" ? <InlineAlert tone="danger">Saved views unavailable: {assetViews.error}</InlineAlert> : null}
 
-                  <details className="create-disclosure" ref={createAssetDetailsRef}>
-                    <summary>Create Engineering Asset</summary>
-                    <form className="form-grid compact-form" onSubmit={handleCreateAsset}>
+                  <Dialog
+                    description="Create a new Engineering Asset in this Project."
+                    onOpenChange={setShowCreateAssetForm}
+                    open={showCreateAssetForm}
+                    title="Create Engineering Asset"
+                  >
+                    <form
+                      className="form-grid compact-form"
+                      onSubmit={(event) => { void handleCreateAsset(event); setShowCreateAssetForm(false); }}
+                    >
                       <label>
                         Asset name
                         <input required value={assetForm.name} onChange={(event) => setAssetForm((current) => ({ ...current, name: event.target.value }))} />
@@ -3232,7 +3231,7 @@ function OpenPdmApp() {
                       </label>
                       <button className="primary-button" disabled={busyAction === "create-asset"} type="submit">{busyAction === "create-asset" ? "Creating…" : "Create Asset"}</button>
                     </form>
-                  </details>
+                  </Dialog>
 
                   {assets.status === "error" ? (
                     <InlineAlert
