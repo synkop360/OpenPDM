@@ -111,7 +111,7 @@ export function AssetDetailPanel({
 
       {selectedAssetId && assetDetail.data ? (
         <>
-          <article className="detail-card">
+          <article className="detail-card asset-summary-card">
             <div className="detail-row">
               <div>
                 <h3>{assetDetail.data.name}</h3>
@@ -125,7 +125,6 @@ export function AssetDetailPanel({
             </p>
           </article>
 
-          <p className="eyebrow">Lifecycle</p>
           <AssetDetailTabs onValueChange={setActiveTab} value={activeTab} />
 
           {activeTab === "metadata" ? (

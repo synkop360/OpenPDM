@@ -6,12 +6,14 @@ import {
   Bell,
   Boxes,
   ChevronRight,
+  ChevronsUpDown,
   FolderKanban,
   Inbox,
   Home,
   LogOut,
   Menu,
   Network,
+  Plus,
   RefreshCw,
   Save,
   Search,
@@ -125,7 +127,7 @@ import { InlineAlert } from "./components/feedback/InlineAlert";
 import { ProjectTabs } from "./components/navigation/ProjectTabs";
 import { ConfirmDialog } from "./components/primitives/Dialog";
 import { AppShell } from "./components/shell/AppShell";
-import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
+import { AuthenticatedHeader, type BreadcrumbItem } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
 import { AssetDetailPanel } from "./features/assets/AssetDetailPanel";
 import { AssetGraphDiagram } from "./features/assets/AssetGraphDiagram";
@@ -320,6 +322,7 @@ function OpenPdmApp() {
   });
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
+  const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
   const [organizationMemberForm, setOrganizationMemberForm] = useState({
     email: "",
     role: "Viewer",
@@ -2036,6 +2039,38 @@ function OpenPdmApp() {
     }
   }
 
+  const PROJECT_TAB_LABELS: Record<ProjectTab, string> = {
+    overview: "Overview",
+    assets: "Assets",
+    relationships: "Relationships",
+    collaboration: "Collaboration",
+    members: "Members",
+  };
+
+  const breadcrumbItems: BreadcrumbItem[] = (() => {
+    if (view === "project" && selectedProjectId) {
+      const items: BreadcrumbItem[] = [
+        { key: "projects", label: "Projects", onClick: () => navigate("/projects") },
+        {
+          key: "project",
+          label: projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project",
+          onClick: () => navigate(`/projects/${selectedProjectId}/overview`),
+        },
+      ];
+      if (projectTab !== "overview") {
+        items.push({ key: "tab", label: PROJECT_TAB_LABELS[projectTab] });
+      }
+      if (selectedAssetId && assetDetail.data && ASSET_AWARE_PROJECT_TABS.has(projectTab)) {
+        items.push({ key: "asset", label: assetDetail.data.name });
+      }
+      return items;
+    }
+    if (view === "notifications") return [{ key: "notifications", label: "Notifications" }];
+    if (view === "plugin-administration") return [{ key: "admin", label: "Plugin administration" }];
+    if (view === "projects") return [{ key: "projects", label: "Projects" }];
+    return [{ key: "home", label: "Home" }];
+  })();
+
   return (
     <AppShell
       announcement={banner}
@@ -2045,9 +2080,9 @@ function OpenPdmApp() {
             apiError={foundation.error}
             apiLabel={foundation.data?.phase ?? "Connecting to API"}
             apiStatus={foundation.status}
+            breadcrumb={breadcrumbItems}
             displayName={session.data.user.display_name}
             email={session.data.user.email}
-            onHome={() => navigate("/")}
             onNotifications={() => navigate("/notifications")}
             onOpenNavigation={() => setMobileNavigationOpen(true)}
             onSignOut={() => void handleSignOut()}
@@ -2056,6 +2091,255 @@ function OpenPdmApp() {
         ) : (
           <GuestHeader foundation={foundation} />
         )
+      }
+      sidebar={
+        isAuthenticated && session.data ? (
+          <>
+            {mobileNavigationOpen ? <button aria-label="Close navigation overlay" className="nav-scrim" onClick={() => setMobileNavigationOpen(false)} type="button" /> : null}
+            <aside className={mobileNavigationOpen ? "nav-panel is-open" : "nav-panel"}>
+              <div className="sidebar-brand-row">
+                <button className="sidebar-brand" onClick={() => { setMobileNavigationOpen(false); navigate("/"); }} type="button">
+                  <span className="sidebar-brand-mark"><Boxes /></span>
+                  <span><strong>OpenPDM</strong><small>Engineering collaboration</small></span>
+                </button>
+                <button aria-label="Close navigation" className="icon-button close-nav-button" onClick={() => setMobileNavigationOpen(false)} type="button"><X /></button>
+              </div>
+
+              <button className="sidebar-search" type="button">
+                <Search aria-hidden="true" /><span>Search or jump to…</span>
+                <span className="sidebar-search-hint">⌘K</span>
+              </button>
+
+              <div className="sidebar-nav-links">
+                <button
+                  className={view === "home" ? "sidebar-link is-active" : "sidebar-link"}
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
+                  type="button"
+                >
+                  <Home /> Home
+                </button>
+
+                <button
+                  className={view === "notifications" ? "sidebar-link is-active" : "sidebar-link"}
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/notifications"); }}
+                  type="button"
+                >
+                  <Inbox /> Notifications <span>{unreadNotifications}</span>
+                </button>
+
+                <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
+              </div>
+
+              {organizations.status === "error" ? (
+                <InlineAlert tone="danger">{organizations.error}</InlineAlert>
+              ) : null}
+
+              {!hasOrganizations ? (
+                <form className="form-grid compact-form" onSubmit={handleBootstrapOrganization}>
+                  <h3>Create your first Organization</h3>
+                  <label>
+                    Organization name
+                    <input
+                      required
+                      value={bootstrapOrg.name}
+                      onChange={(event) =>
+                        setBootstrapOrg((current) => ({
+                          ...current,
+                          name: event.target.value,
+                          slug: current.slug || slugify(event.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Slug
+                    <input
+                      required
+                      value={bootstrapOrg.slug}
+                      onChange={(event) =>
+                        setBootstrapOrg((current) => ({ ...current, slug: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <button
+                    className="primary-button"
+                    disabled={busyAction === "create-organization"}
+                    type="submit"
+                  >
+                    {busyAction === "create-organization" ? "Creating..." : "Create Organization"}
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <div className="sidebar-section">
+                    <span className="sidebar-section-label">Organization</span>
+                    <div className="sidebar-org-list">
+                      {organizations.data.map((membership) => {
+                        const organization = membership.organization;
+                        if (!organization) {
+                          return null;
+                        }
+                        return (
+                          <button
+                            className={
+                              selectedOrganizationId === organization.id
+                                ? "sidebar-switcher-card is-selected"
+                                : "sidebar-switcher-card"
+                            }
+                            key={membership.id}
+                            onClick={() => setSelectedOrganizationId(organization.id)}
+                            type="button"
+                          >
+                            <span className="sidebar-switcher-avatar">{organization.name.slice(0, 2).toUpperCase()}</span>
+                            <span className="sidebar-switcher-text">
+                              <strong>{organization.name}</strong>
+                              <small>{membership.role} · {organization.slug}</small>
+                            </span>
+                            {organizations.data.length > 1 ? <ChevronsUpDown aria-hidden="true" className="ic14" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {selectedOrganizationId && !hasProjects ? (
+                    <form className="form-grid compact-form" onSubmit={handleBootstrapProject}>
+                      <h3>Create the first Project</h3>
+                      <label>
+                        Project name
+                        <input
+                          required
+                          value={bootstrapProject.name}
+                          onChange={(event) =>
+                            setBootstrapProject((current) => ({ ...current, name: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <textarea
+                          value={bootstrapProject.description}
+                          onChange={(event) =>
+                            setBootstrapProject((current) => ({
+                              ...current,
+                              description: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="primary-button"
+                        disabled={busyAction === "create-project"}
+                        type="submit"
+                      >
+                        {busyAction === "create-project" ? "Creating..." : "Create Project"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {projects.status === "error" ? (
+                    <InlineAlert tone="danger">{projects.error}</InlineAlert>
+                  ) : null}
+
+                  {selectedOrganizationId && hasProjects && showCreateProjectForm ? (
+                    <form className="form-grid compact-form" onSubmit={(event) => { void handleBootstrapProject(event); setShowCreateProjectForm(false); }}>
+                      <h3>New Project</h3>
+                      <label>
+                        Project name
+                        <input
+                          required
+                          value={bootstrapProject.name}
+                          onChange={(event) =>
+                            setBootstrapProject((current) => ({ ...current, name: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <textarea
+                          value={bootstrapProject.description}
+                          onChange={(event) =>
+                            setBootstrapProject((current) => ({
+                              ...current,
+                              description: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="primary-button"
+                        disabled={busyAction === "create-project"}
+                        type="submit"
+                      >
+                        {busyAction === "create-project" ? "Creating..." : "Create Project"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {hasProjects ? (
+                    <div className="sidebar-section sidebar-section-flex">
+                      <div className="sidebar-section-header">
+                        <span className="sidebar-section-label">Projects</span>
+                        {selectedOrganizationId ? (
+                          <button
+                            aria-label="New Project"
+                            className="icon-button icon-button-sm"
+                            onClick={() => setShowCreateProjectForm((current) => !current)}
+                            title="New Project"
+                            type="button"
+                          >
+                            <Plus />
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="sidebar-project-list">
+                        {projects.data.map((project) => (
+                          <button
+                            className={
+                              selectedProjectId === project.id ? "sidebar-project-card is-selected" : "sidebar-project-card"
+                            }
+                            key={project.id}
+                            onClick={() => {
+                              setSelectedProjectId(project.id);
+                              setMobileNavigationOpen(false);
+                              navigate(`/projects/${project.id}/overview`);
+                            }}
+                            type="button"
+                          >
+                            <span className="sidebar-project-dot" />
+                            <span className="sidebar-project-text">
+                              <strong>{project.name}</strong>
+                              <small>{project.description || "No description"}</small>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+
+              <div className="sidebar-footer">
+                <button
+                  className={
+                    view === "plugin-administration"
+                      ? "sidebar-link is-active"
+                      : "sidebar-link"
+                  }
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/administration/plugins"); }}
+                  title={
+                    session.data?.user.is_platform_admin
+                      ? "Manage installed plugins"
+                      : "Platform Administrator authority is required"
+                  }
+                  type="button"
+                >
+                  <Package /> Plugin administration
+                </button>
+              </div>
+            </aside>
+          </>
+        ) : null
       }
     >
       {!isAuthenticated ? (
@@ -2137,186 +2421,6 @@ function OpenPdmApp() {
       ) : (
         <>
           <section className="workspace-grid">
-            {mobileNavigationOpen ? <button aria-label="Close navigation overlay" className="nav-scrim" onClick={() => setMobileNavigationOpen(false)} type="button" /> : null}
-            <aside className={mobileNavigationOpen ? "nav-panel is-open" : "nav-panel"}>
-              <header className="panel-header">
-                <div>
-                  <p className="eyebrow">Workspace</p>
-                  <h2>Navigation</h2>
-                </div>
-                <button aria-label="Close navigation" className="icon-button close-nav-button" onClick={() => setMobileNavigationOpen(false)} type="button"><X /></button>
-              </header>
-
-              <button
-                className={view === "home" ? "sidebar-link is-active" : "sidebar-link"}
-                onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
-                type="button"
-              >
-                <Home /> Home
-              </button>
-
-              <button
-                className={view === "notifications" ? "sidebar-link is-active" : "sidebar-link"}
-                onClick={() => { setMobileNavigationOpen(false); navigate("/notifications"); }}
-                type="button"
-              >
-                <Inbox /> Notifications <span>{unreadNotifications}</span>
-              </button>
-
-              <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
-
-              {organizations.status === "error" ? (
-                <InlineAlert tone="danger">{organizations.error}</InlineAlert>
-              ) : null}
-
-              {!hasOrganizations ? (
-                <form className="form-grid compact-form" onSubmit={handleBootstrapOrganization}>
-                  <h3>Create your first Organization</h3>
-                  <label>
-                    Organization name
-                    <input
-                      required
-                      value={bootstrapOrg.name}
-                      onChange={(event) =>
-                        setBootstrapOrg((current) => ({
-                          ...current,
-                          name: event.target.value,
-                          slug: current.slug || slugify(event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Slug
-                    <input
-                      required
-                      value={bootstrapOrg.slug}
-                      onChange={(event) =>
-                        setBootstrapOrg((current) => ({ ...current, slug: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button
-                    className="primary-button"
-                    disabled={busyAction === "create-organization"}
-                    type="submit"
-                  >
-                    {busyAction === "create-organization" ? "Creating..." : "Create Organization"}
-                  </button>
-                </form>
-              ) : (
-                <>
-                  <div className="resource-list">
-                    <h3>Organizations</h3>
-                    {organizations.data.map((membership) => {
-                      const organization = membership.organization;
-                      if (!organization) {
-                        return null;
-                      }
-                      return (
-                        <button
-                          key={membership.id}
-                          className={
-                            selectedOrganizationId === organization.id
-                              ? "resource-card is-selected"
-                              : "resource-card"
-                          }
-                          onClick={() => setSelectedOrganizationId(organization.id)}
-                          type="button"
-                        >
-                          <strong>{organization.name}</strong>
-                          <span>{membership.role}</span>
-                          <small>{organization.slug}</small>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {selectedOrganizationId && !hasProjects ? (
-                    <form className="form-grid compact-form" onSubmit={handleBootstrapProject}>
-                      <h3>Create the first Project</h3>
-                      <label>
-                        Project name
-                        <input
-                          required
-                          value={bootstrapProject.name}
-                          onChange={(event) =>
-                            setBootstrapProject((current) => ({ ...current, name: event.target.value }))
-                          }
-                        />
-                      </label>
-                      <label>
-                        Description
-                        <textarea
-                          value={bootstrapProject.description}
-                          onChange={(event) =>
-                            setBootstrapProject((current) => ({
-                              ...current,
-                              description: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                      <button
-                        className="primary-button"
-                        disabled={busyAction === "create-project"}
-                        type="submit"
-                      >
-                        {busyAction === "create-project" ? "Creating..." : "Create Project"}
-                      </button>
-                    </form>
-                  ) : null}
-
-                  {projects.status === "error" ? (
-                    <InlineAlert tone="danger">{projects.error}</InlineAlert>
-                  ) : null}
-
-                  {hasProjects ? (
-                    <div className="resource-list">
-                      <h3>Projects</h3>
-                      {projects.data.map((project) => (
-                        <button
-                          key={project.id}
-                          className={
-                            selectedProjectId === project.id ? "resource-card is-selected" : "resource-card"
-                          }
-                          onClick={() => {
-                            setSelectedProjectId(project.id);
-                            setMobileNavigationOpen(false);
-                            navigate(`/projects/${project.id}/overview`);
-                          }}
-                          type="button"
-                        >
-                          <strong>{project.name}</strong>
-                          <span>{project.description || "No description"}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                </>
-              )}
-
-              <div className="sidebar-footer">
-                <button
-                  className={
-                    view === "plugin-administration"
-                      ? "sidebar-link is-active"
-                      : "sidebar-link"
-                  }
-                  onClick={() => { setMobileNavigationOpen(false); navigate("/administration/plugins"); }}
-                  title={
-                    session.data?.user.is_platform_admin
-                      ? "Manage installed plugins"
-                      : "Platform Administrator authority is required"
-                  }
-                  type="button"
-                >
-                  <Package /> Plugin administration
-                </button>
-              </div>
-            </aside>
-
             {view === "home" || view === "projects" ? (
               <section className="panel home-panel content-span">
                 <header className="panel-header">
