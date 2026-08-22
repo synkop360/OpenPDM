@@ -323,6 +323,13 @@ function OpenPdmApp() {
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
   const createAssetDetailsRef = useRef<HTMLDetailsElement>(null);
+  const createProjectFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (showCreateProjectForm) {
+      createProjectFormRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [showCreateProjectForm]);
   const [organizationMemberForm, setOrganizationMemberForm] = useState({
     email: "",
     role: "Viewer",
@@ -2242,7 +2249,7 @@ function OpenPdmApp() {
                   ) : null}
 
                   {selectedOrganizationId && hasProjects && showCreateProjectForm ? (
-                    <form className="form-grid compact-form" onSubmit={(event) => { void handleBootstrapProject(event); setShowCreateProjectForm(false); }}>
+                    <form className="form-grid compact-form" onSubmit={(event) => { void handleBootstrapProject(event); setShowCreateProjectForm(false); }} ref={createProjectFormRef}>
                       <h3>New Project</h3>
                       <label>
                         Project name
@@ -2432,9 +2439,15 @@ function OpenPdmApp() {
                       Assets.
                     </p>
                   </div>
-                  <span className="status-pill">
-                    {unreadNotifications} unread
-                  </span>
+                  {view === "projects" && selectedOrganizationId ? (
+                    <button className="primary-button" onClick={() => setShowCreateProjectForm(true)} type="button">
+                      <Plus /> New Project
+                    </button>
+                  ) : (
+                    <span className="status-pill">
+                      {unreadNotifications} unread
+                    </span>
+                  )}
                 </header>
 
                 <div className="home-summary-grid">
