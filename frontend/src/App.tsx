@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Bell,
   Boxes,
-  ChevronRight,
   ChevronsUpDown,
   FolderKanban,
   Inbox,
@@ -323,6 +322,7 @@ function OpenPdmApp() {
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
+  const createAssetDetailsRef = useRef<HTMLDetailsElement>(null);
   const [organizationMemberForm, setOrganizationMemberForm] = useState({
     email: "",
     role: "Viewer",
@@ -2784,30 +2784,44 @@ function OpenPdmApp() {
             {view === "project" ? (
               <section aria-labelledby="project-workspace-title" className="panel project-workspace content-span">
                 <header className="project-header">
-                  <div className="project-heading-row">
-                    <div>
-                      <p className="breadcrumb">
-                        Projects <ChevronRight size={14} /> {projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project"}
-                      </p>
+                  <div className="project-heading-column">
+                    <div className="project-heading-row">
                       <h2 id="project-workspace-title">{projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project workspace"}</h2>
-                      <p className="muted-text">
+                      <span className="status-pill">{currentProjectRole ?? "Member"}</span>
+                      <p className="muted-text project-heading-description">
                         {projects.data.find((item) => item.id === selectedProjectId)?.description || "Engineering collaboration workspace"}
                       </p>
                     </div>
-                    <span className="status-pill">{currentProjectRole ?? "Member"}</span>
+                    <ProjectTabs
+                      onValueChange={(tab: ProjectTab) => {
+                        if (selectedProjectId) {
+                          // Only tabs whose content addresses a specific asset carry the
+                          // current selection into their URL; other tabs stay bare even if
+                          // an asset happens to be selected in the background.
+                          const assetForTab = ASSET_AWARE_PROJECT_TABS.has(tab) ? selectedAssetId : null;
+                          navigate(projectAssetPath(selectedProjectId, tab, assetForTab));
+                        }
+                      }}
+                      value={projectTab}
+                    />
                   </div>
-                  <ProjectTabs
-                    onValueChange={(tab: ProjectTab) => {
-                      if (selectedProjectId) {
-                        // Only tabs whose content addresses a specific asset carry the
-                        // current selection into their URL; other tabs stay bare even if
-                        // an asset happens to be selected in the background.
-                        const assetForTab = ASSET_AWARE_PROJECT_TABS.has(tab) ? selectedAssetId : null;
-                        navigate(projectAssetPath(selectedProjectId, tab, assetForTab));
-                      }
-                    }}
-                    value={projectTab}
-                  />
+                  {projectTab === "assets" ? (
+                    <div className="project-header-actions">
+                      <button
+                        className="primary-button"
+                        onClick={() => {
+                          const details = createAssetDetailsRef.current;
+                          if (details) {
+                            details.open = true;
+                            details.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                          }
+                        }}
+                        type="button"
+                      >
+                        <Plus /> New Asset
+                      </button>
+                    </div>
+                  ) : null}
                 </header>
 
                 {projectTab === "overview" ? (
@@ -3192,7 +3206,7 @@ function OpenPdmApp() {
 
                   {assetViews.status === "error" ? <InlineAlert tone="danger">Saved views unavailable: {assetViews.error}</InlineAlert> : null}
 
-                  <details className="create-disclosure">
+                  <details className="create-disclosure" ref={createAssetDetailsRef}>
                     <summary>Create Engineering Asset</summary>
                     <form className="form-grid compact-form" onSubmit={handleCreateAsset}>
                       <label>
