@@ -159,6 +159,11 @@ h4 {
   margin-bottom: 20px;
 }
 
+.panel-header-compact {
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 .segmented-control {
   background: rgba(14, 107, 88, 0.09);
   border-radius: 999px;

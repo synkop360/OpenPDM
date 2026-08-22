@@ -1,11 +1,12 @@
 import { InlineAlert } from "../../components/feedback/InlineAlert";
-import { describeMetadataEntry } from "../../app/provenance";
+import { describeMetadataEntry, describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
 import type {
   AnalysisResult,
   MetadataEntry,
   ProviderDescriptor,
   ProviderOptionSet,
+  ReferenceRecord,
   Representation,
   Revision,
 } from "../../api";
@@ -15,11 +16,35 @@ type AnalysisRepresentationOption = {
   revision: Revision;
 };
 
+function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
+  const summary = describeProvenanceMetadata(metadata);
+  if (!summary) {
+    return null;
+  }
+  return (
+    <>
+      <small>{summary}</small>
+      <details className="manifest-review">
+        <summary>Technical details</summary>
+        <dl>
+          {Object.entries(metadata).map(([key, value]) => (
+            <div key={key}>
+              <dt><code>{key}</code></dt>
+              <dd><code>{typeof value === "string" ? value : JSON.stringify(value)}</code></dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </>
+  );
+}
+
 export type MetadataAnalysisSectionProps = {
   analysisBusy: boolean;
   analysisRepresentations: AnalysisRepresentationOption[];
   analysisResult: AnalysisResult | null;
   assetMetadata: Loadable<MetadataEntry[]>;
+  assetReferences: Loadable<ReferenceRecord[]>;
   busyAction: string | null;
   onAnalysisRepresentationChange: (representationId: string) => void;
   onApplyMetadataProvider: (provider: ProviderDescriptor) => void;
@@ -36,6 +61,7 @@ export function MetadataAnalysisSection({
   analysisRepresentations,
   analysisResult,
   assetMetadata,
+  assetReferences,
   busyAction,
   onAnalysisRepresentationChange,
   onApplyMetadataProvider,
@@ -197,6 +223,45 @@ export function MetadataAnalysisSection({
           ) : null}
         </article>
       ) : null}
+
+      <article className="detail-card relationship-card">
+        <div className="detail-row">
+          <div>
+            <h3>Generic references</h3>
+            <p>
+              References stay distinct from graph edges so unresolved or external pointers
+              do not appear as Assets.
+            </p>
+          </div>
+          <span className="status-pill">
+            {assetReferences.data.length} reference
+            {assetReferences.data.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {assetReferences.status === "error" ? (
+          <InlineAlert tone="danger">{assetReferences.error}</InlineAlert>
+        ) : null}
+
+        {assetReferences.data.length > 0 ? (
+          <div className="reference-list">
+            {assetReferences.data.map((reference) => (
+              <article key={reference.id} className="relationship-item reference-item">
+                <div>
+                  <strong>{reference.label || reference.reference_type}</strong>
+                  <p>{reference.target_uri}</p>
+                  <small>{reference.reference_type}</small>
+                  <ProvenanceNote metadata={reference.metadata} />
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-state">
+            No generic references are attached to this Asset yet.
+          </p>
+        )}
+      </article>
     </>
   );
 }

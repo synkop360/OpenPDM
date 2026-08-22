@@ -2,7 +2,7 @@ import { InlineAlert } from "../../components/feedback/InlineAlert";
 import { formatRelationshipType, formatTimestamp } from "../../app/format";
 import { describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
-import type { AssetGraph, ReferenceRecord, Relationship } from "../../api";
+import type { AssetGraph, Relationship } from "../../api";
 import { AssetGraphDiagram } from "./AssetGraphDiagram";
 
 function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
@@ -31,7 +31,6 @@ function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
 export type RelationshipsGraphSectionProps = {
   assetGraph: Loadable<AssetGraph | null>;
   assetNameById: Map<string, string>;
-  assetReferences: Loadable<ReferenceRecord[]>;
   assetRelationships: Loadable<Relationship[]>;
   incomingRelationships: Loadable<Relationship[]>;
   onSelectAsset: (assetId: string) => void;
@@ -41,7 +40,6 @@ export type RelationshipsGraphSectionProps = {
 export function RelationshipsGraphSection({
   assetGraph,
   assetNameById,
-  assetReferences,
   assetRelationships,
   incomingRelationships,
   onSelectAsset,
@@ -143,45 +141,6 @@ export function RelationshipsGraphSection({
             )}
           </section>
         </div>
-      </article>
-
-      <article className="detail-card relationship-card">
-        <div className="detail-row">
-          <div>
-            <h3>Generic references</h3>
-            <p>
-              References stay distinct from graph edges so unresolved or external pointers
-              do not appear as Assets.
-            </p>
-          </div>
-          <span className="status-pill">
-            {assetReferences.data.length} reference
-            {assetReferences.data.length === 1 ? "" : "s"}
-          </span>
-        </div>
-
-        {assetReferences.status === "error" ? (
-          <InlineAlert tone="danger">{assetReferences.error}</InlineAlert>
-        ) : null}
-
-        {assetReferences.data.length > 0 ? (
-          <div className="reference-list">
-            {assetReferences.data.map((reference) => (
-              <article key={reference.id} className="relationship-item reference-item">
-                <div>
-                  <strong>{reference.label || reference.reference_type}</strong>
-                  <p>{reference.target_uri}</p>
-                  <small>{reference.reference_type}</small>
-                  <ProvenanceNote metadata={reference.metadata} />
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="empty-state">
-            No generic references are attached to this Asset yet.
-          </p>
-        )}
       </article>
 
       <article className="detail-card relationship-card">

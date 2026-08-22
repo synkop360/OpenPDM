@@ -27,6 +27,7 @@ import {
   addProjectMember,
   type AnalysisResult,
   type AssetGraph,
+  type GraphNode,
   checkinAsset,
   checkoutAsset,
   addRepresentation,
@@ -127,6 +128,7 @@ import { AppShell } from "./components/shell/AppShell";
 import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
 import { AssetDetailPanel } from "./features/assets/AssetDetailPanel";
+import { AssetGraphDiagram } from "./features/assets/AssetGraphDiagram";
 import { useFoundationStatus } from "./hooks/useFoundationStatus";
 import { type TransferPhase } from "./features/transfers/TransferStatus";
 import {
@@ -265,6 +267,9 @@ function OpenPdmApp() {
     createLoadable<ReferenceRecord[]>([]),
   );
   const [assetGraph, setAssetGraph] = useState<Loadable<AssetGraph | null>>(
+    createLoadable<AssetGraph | null>(null),
+  );
+  const [projectGraph, setProjectGraph] = useState<Loadable<AssetGraph | null>>(
     createLoadable<AssetGraph | null>(null),
   );
   const [collaborationState, setCollaborationState] = useState<Loadable<CollaborationState | null>>(
@@ -577,6 +582,67 @@ function OpenPdmApp() {
         }),
       );
   }, [projectTab, selectedProjectId, session.data?.token, view]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || !selectedProjectId || view !== "project" || projectTab !== "relationships") {
+      setProjectGraph(createLoadable(null));
+      return;
+    }
+    if (assets.data.length === 0) {
+      setProjectGraph({ status: "ready", data: null, error: null });
+      return;
+    }
+    let cancelled = false;
+    setProjectGraph((current) => ({ ...current, status: "loading", error: null }));
+    Promise.all(
+      assets.data.map((asset) => getAssetGraph(token, asset.id, { direction: "both", maxDepth: 10 })),
+    )
+      .then((graphs) => {
+        if (cancelled) {
+          return;
+        }
+        const nodesById = new Map<string, GraphNode>();
+        const relationshipsById = new Map<string, Relationship>();
+        let hasCycle = false;
+        for (const graph of graphs) {
+          for (const node of graph.nodes) {
+            nodesById.set(node.id, node);
+          }
+          for (const relationship of graph.relationships) {
+            relationshipsById.set(relationship.id, relationship);
+          }
+          hasCycle = hasCycle || graph.has_cycle;
+        }
+        setProjectGraph({
+          status: "ready",
+          data: {
+            asset_id: assets.data[0]?.id ?? "",
+            direction: "both",
+            max_depth: 10,
+            target_asset_id: null,
+            path_exists: null,
+            has_cycle: hasCycle,
+            nodes: Array.from(nodesById.values()),
+            relationships: Array.from(relationshipsById.values()),
+          },
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setProjectGraph({
+          status: "error",
+          data: null,
+          error: error instanceof Error ? error.message : "Project graph could not be loaded.",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assets.data, projectTab, selectedProjectId, session.data?.token, view]);
 
   useEffect(() => {
     const token = session.data?.token;
@@ -2683,6 +2749,38 @@ function OpenPdmApp() {
                         </select>
                       </label>
                     </header>
+
+                    <article className="detail-card relationship-card">
+                      <div className="detail-row">
+                        <div>
+                          <h3>Complete project graph</h3>
+                          <p className="muted-text">
+                            Every Engineering Asset and Asset-to-Asset relationship in this Project, merged from each
+                            Asset&apos;s bounded graph read.
+                          </p>
+                        </div>
+                        <span className="status-pill">
+                          {projectGraph.data?.has_cycle ? "cycle detected" : "no cycle"}
+                        </span>
+                      </div>
+                      {projectGraph.status === "error" ? (
+                        <InlineAlert tone="danger">{projectGraph.error}</InlineAlert>
+                      ) : null}
+                      {projectGraph.data && projectGraph.data.nodes.length > 0 ? (
+                        <>
+                          <AssetGraphDiagram graph={projectGraph.data} onSelectAsset={(assetId) => selectAsset(assetId)} />
+                          <p className="muted-text graph-diagram-caption">
+                            {projectGraph.data.nodes.length} node{projectGraph.data.nodes.length === 1 ? "" : "s"},{" "}
+                            {projectGraph.data.relationships.length} relationship
+                            {projectGraph.data.relationships.length === 1 ? "" : "s"} across this Project.
+                          </p>
+                        </>
+                      ) : projectGraph.status === "loading" ? (
+                        <p className="empty-state">Loading the complete project graph...</p>
+                      ) : (
+                        <p className="empty-state">No Assets have relationships in this Project yet.</p>
+                      )}
+                    </article>
 
                     {assetRelationships.status === "loading" || assetReferences.status === "loading" ? (
                       <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> Loading relationship context…</InlineAlert>

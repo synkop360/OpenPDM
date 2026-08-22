@@ -36,11 +36,7 @@ export function AssetDetailPanel({
 
   return (
     <section className={selectedAssetId ? "panel detail-panel asset-detail-sheet is-open" : "panel detail-panel asset-detail-sheet"}>
-      <header className="panel-header">
-        <div>
-          <p className="eyebrow">Lifecycle</p>
-          <h2>Asset detail and Revision history</h2>
-        </div>
+      <header className="panel-header panel-header-compact">
         <button aria-label="Close Asset detail" className="icon-button close-detail-button" onClick={onClose} type="button"><X /></button>
       </header>
 
@@ -129,6 +125,7 @@ export function AssetDetailPanel({
             </p>
           </article>
 
+          <p className="eyebrow">Lifecycle</p>
           <AssetDetailTabs onValueChange={setActiveTab} value={activeTab} />
 
           {activeTab === "metadata" ? (

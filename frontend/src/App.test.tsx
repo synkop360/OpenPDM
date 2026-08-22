@@ -476,9 +476,9 @@ describe("App", () => {
     expect(await screen.findByText("Asset Categories API Test Plugin")).toBeInTheDocument();
     expect(await screen.findByLabelText("Asset category")).toBeInTheDocument();
     expect(screen.queryByText("No running Metadata Provider is available.")).not.toBeInTheDocument();
+    expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
     await switchAssetDetailTab("Relationships & Graph");
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
-    expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();
     expect(await screen.findByText("Asset locked")).toBeInTheDocument();
     await switchAssetDetailTab("History & Collaboration");
@@ -505,8 +505,8 @@ describe("App", () => {
       }),
     ]));
     expect(await screen.findByText("plugin.analysis.status")).toBeInTheDocument();
-    await switchAssetDetailTab("Relationships & Graph");
     expect(await screen.findByText("Analysis reference")).toBeInTheDocument();
+    await switchAssetDetailTab("Relationships & Graph");
     expect(screen.getByText("2 links")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^(command|executable|launch)/i })).not.toBeInTheDocument();
     await switchAssetDetailTab("Metadata & Analysis");
