@@ -171,6 +171,26 @@ Startup failure notes:
 * missing uv prevents Python dependency installation and backend development commands;
 * missing Node.js, pnpm or npm prevents the Vite Web UI from starting.
 
+### Seed The Default Official Plugins
+
+`start_all.py` only starts the stack; it never installs plugins on its own,
+since plugin installation and activation are Platform-Administrator-only
+operations (ADR-0035, ADR-0037). To have the default set of Official Plugins
+installed and enabled, run this once against a running backend:
+
+```bash
+uv run python scripts/seed_official_plugins.py
+```
+
+It registers (or signs back into) a seed local account, which ADR-0035
+promotes to Platform Administrator automatically as the first user of an
+empty deployment, then installs and enables each plugin listed in that
+script's `DEFAULT_PLUGINS` (currently just the reference plugin) through the
+same public API a human would use from the Plugin Administration screen. The
+seed account's credentials can be overridden with `OPENPDM_SEED_ADMIN_EMAIL`,
+`OPENPDM_SEED_ADMIN_PASSWORD` and `OPENPDM_SEED_ADMIN_DISPLAY_NAME` (see
+`.env.example`). Safe to re-run; it skips plugins that are already installed.
+
 ## Runtime Configuration
 
 Backend environment variables use the `OPENPDM_` prefix. The common development settings are documented in `.env.example`; they cover database and S3 connections, plugin package storage, sandbox limits, plugin configuration encryption, the backend host port and optional successful graph-query auditing. Cross-origin browser access defaults to the local Vite development and preview origins and can be overridden with `OPENPDM_API_CORS_ORIGINS`.
