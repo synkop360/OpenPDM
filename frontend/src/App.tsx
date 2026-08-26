@@ -79,6 +79,7 @@ import {
   type ReferenceRecord,
   type Relationship,
   unlockAsset,
+  updateAssetStatus,
   cancelBlobUploadSession,
   type Asset,
   type BlobRecord,
@@ -323,6 +324,7 @@ function OpenPdmApp() {
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
   const [showCreateAssetForm, setShowCreateAssetForm] = useState(false);
+  const [showCheckInForm, setShowCheckInForm] = useState(false);
   const [organizationMemberForm, setOrganizationMemberForm] = useState({
     email: "",
     role: "Viewer",
@@ -1719,6 +1721,27 @@ function OpenPdmApp() {
       } else {
         setBanner(error instanceof Error ? error.message : "Unlock failed.");
       }
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleUpdateAssetStatus(nextStatus: "draft" | "active" | "archived"): Promise<void> {
+    if (!session.data?.token || !selectedAssetId) {
+      return;
+    }
+    setBusyAction("update-status");
+    setBanner(null);
+    try {
+      const updated = await updateAssetStatus(session.data.token, selectedAssetId, nextStatus);
+      setAssetDetail({ status: "ready", data: updated, error: null });
+      setAssets((current) => ({
+        ...current,
+        data: current.data.map((asset) => (asset.id === updated.id ? updated : asset)),
+      }));
+      setBanner(`Status updated to ${nextStatus}.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Status update failed.");
     } finally {
       setBusyAction(null);
     }
@@ -3304,11 +3327,13 @@ function OpenPdmApp() {
               onProviderSelectionChange={(providerId, value) =>
                 setProviderSelections((current) => ({ ...current, [providerId]: value }))
               }
+              onOpenCheckIn={() => setShowCheckInForm(true)}
               onRefreshAssetState={() => void handleRefreshAssetState()}
               onRetryCheckin={handleRetryCheckin}
               onSelectAsset={(assetId) => selectAsset(assetId)}
               onSubmitUpload={handleUpload}
               onUnlock={(force) => void handleUnlock(force)}
+              onUpdateStatus={(nextStatus) => void handleUpdateAssetStatus(nextStatus)}
               onUploadCommentChange={(value) =>
                 setUploadForm((current) => ({ ...current, comment: value }))
               }
@@ -3322,6 +3347,8 @@ function OpenPdmApp() {
               providerSelections={providerSelections}
               selectedAnalysisRepresentation={selectedAnalysisRepresentation}
               selectedAssetId={selectedAssetId}
+              onCheckInFormOpenChange={setShowCheckInForm}
+              showCheckInForm={showCheckInForm}
               transfer={transfer}
               uploadForm={uploadForm}
             />

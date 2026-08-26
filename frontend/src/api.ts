@@ -569,6 +569,19 @@ export async function createAsset(
   });
 }
 
+export async function updateAssetStatus(
+  token: string,
+  assetId: string,
+  status: "draft" | "active" | "archived",
+): Promise<Asset> {
+  return request<Asset>(`/assets/${assetId}/status`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ status }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function createRevision(
   token: string,
   assetId: string,

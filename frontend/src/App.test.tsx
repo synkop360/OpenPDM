@@ -511,14 +511,14 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Analyze representation" })[0]);
     expect(screen.queryByText("Analysis complete: 1 metadata, 1 references, 1 relationships.")).not.toBeInTheDocument();
     expect(await screen.findByText("Analysis unavailable.")).toBeInTheDocument();
-    await switchAssetDetailTab("History & Collaboration");
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
     expect(await screen.findByText("Resume transfer")).toBeInTheDocument();
     const recoveredFile = new File([new Uint8Array(1234)], "native.fcstd", {
       type: "application/octet-stream", lastModified: 42,
     });
     fireEvent.change(screen.getByLabelText("Revision comment"), { target: { value: "Recovered transfer" } });
     fireEvent.change(screen.getByLabelText("File"), { target: { files: [recoveredFile] } });
-    fireEvent.submit(screen.getByRole("heading", { name: "Check in a new Revision" }).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", { name: "Check in revision" }).closest("form")!);
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) =>
       String(input) === "/assets/asset-1/checkin")).toBe(true));
     expect(await screen.findByText("Check-in complete")).toBeInTheDocument();
@@ -837,8 +837,9 @@ describe("App", () => {
     expect((await screen.findAllByText("Wing Panel")).length).toBeGreaterThan(0);
     if (runDiscardRace) {
       fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
-      await switchAssetDetailTab("History & Collaboration");
+      fireEvent.click(await screen.findByRole("button", { name: "Check in" }));
       expect(await screen.findByText("Select wing.step to resume the interrupted transfer.")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
       await switchAssetDetailTab("Relationships & Graph");
     } else {
       await switchAssetDetailTab("Relationships & Graph");
@@ -852,8 +853,8 @@ describe("App", () => {
         .toBeInTheDocument();
       return;
     }
-    await switchAssetDetailTab("History & Collaboration");
-    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Discard transfer" }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input, init]) =>
       String(input) === "/blobs/upload-sessions/old-session" && init?.method === "DELETE")).toBe(true));
     fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[1]);

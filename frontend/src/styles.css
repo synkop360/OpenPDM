@@ -1477,6 +1477,34 @@ textarea {
   padding: 4px 20px 16px;
 }
 
+.status-pill-select {
+  appearance: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  min-height: 0;
+  padding: 3px 22px 3px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a3aaa7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 6px center;
+  background-repeat: no-repeat;
+}
+
+.status-pill-select:hover,
+.status-pill-select:focus-visible {
+  border-color: var(--border-strong);
+}
+
+.asset-action-row {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+
+.asset-action-row .secondary-button {
+  flex: 1;
+  justify-content: center;
+}
+
 .asset-detail-sheet .project-tabs {
   border-top: 0;
   flex: none;

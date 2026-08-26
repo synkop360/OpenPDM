@@ -1,4 +1,3 @@
-import type { FormEvent } from "react";
 import { InlineAlert } from "../../components/feedback/InlineAlert";
 import {
   collaborationGuidance,
@@ -8,22 +7,7 @@ import {
 } from "../../app/collaborationErrors";
 import { formatTimestamp } from "../../app/format";
 import type { Loadable } from "../../app/loadable";
-import { TransferStatus, type TransferPhase } from "../transfers/TransferStatus";
-import type { ApiError, BlobRecord, CollaborationState, Revision, TimelineEntry } from "../../api";
-
-type UploadForm = {
-  comment: string;
-  file: File | null;
-  representationName: string;
-};
-
-type TransferState = {
-  blob: BlobRecord | null;
-  message: string | null;
-  phase: TransferPhase;
-  receivedBytes: number;
-  totalBytes: number;
-};
+import type { ApiError, CollaborationState, Revision, TimelineEntry } from "../../api";
 
 export type HistoryCollaborationSectionProps = {
   assetHistory: Loadable<Revision[]>;
@@ -33,19 +17,10 @@ export type HistoryCollaborationSectionProps = {
   collaborationState: Loadable<CollaborationState | null>;
   currentUserId: string | undefined;
   describeActor: (userId: string | null) => string;
-  onCancelTransfer: () => void;
   onCheckout: () => void;
-  onDiscardTransfer: () => void;
   onDownload: (blobId: string, filename: string) => void;
   onRefreshAssetState: () => void;
-  onRetryCheckin: () => void;
-  onSubmitUpload: (event: FormEvent<HTMLFormElement>) => void;
   onUnlock: (force: boolean) => void;
-  onUploadCommentChange: (value: string) => void;
-  onUploadFileChange: (file: File | null) => void;
-  onUploadRepresentationNameChange: (value: string) => void;
-  transfer: TransferState;
-  uploadForm: UploadForm;
 };
 
 export function HistoryCollaborationSection({
@@ -56,19 +31,10 @@ export function HistoryCollaborationSection({
   collaborationState,
   currentUserId,
   describeActor,
-  onCancelTransfer,
   onCheckout,
-  onDiscardTransfer,
   onDownload,
   onRefreshAssetState,
-  onRetryCheckin,
-  onSubmitUpload,
   onUnlock,
-  onUploadCommentChange,
-  onUploadFileChange,
-  onUploadRepresentationNameChange,
-  transfer,
-  uploadForm,
 }: HistoryCollaborationSectionProps) {
   return (
     <>
@@ -100,22 +66,6 @@ export function HistoryCollaborationSection({
         )}
         <div className="collaboration-actions">
           <button
-            className="secondary-button"
-            disabled={busyAction === "checkout" || collaborationState.data?.state === "locked"}
-            onClick={() => onCheckout()}
-            type="button"
-          >
-            {busyAction === "checkout" ? "Checking out..." : "Check out"}
-          </button>
-          <button
-            className="secondary-button"
-            disabled={busyAction === "unlock" || !collaborationState.data?.can_unlock}
-            onClick={() => onUnlock(false)}
-            type="button"
-          >
-            {busyAction === "unlock" ? "Unlocking..." : "Unlock"}
-          </button>
-          <button
             className="secondary-button warning-button"
             disabled={busyAction === "force-unlock" || !collaborationState.data?.can_force_unlock}
             onClick={() => onUnlock(true)}
@@ -125,56 +75,6 @@ export function HistoryCollaborationSection({
           </button>
         </div>
       </article>
-
-      <form className="form-grid compact-form" data-checkin-form onSubmit={onSubmitUpload}>
-        <h3>Check in a new Revision</h3>
-        <label>
-          Revision comment
-          <input
-            disabled={busyAction === "upload"}
-            required
-            value={uploadForm.comment}
-            onChange={(event) => onUploadCommentChange(event.target.value)}
-          />
-        </label>
-        <label>
-          Representation name
-          <input
-            disabled={busyAction === "upload"}
-            value={uploadForm.representationName}
-            onChange={(event) => onUploadRepresentationNameChange(event.target.value)}
-          />
-        </label>
-        <label>
-          File
-          <input
-            disabled={busyAction === "upload"}
-            required
-            type="file"
-            onChange={(event) => onUploadFileChange(event.target.files?.[0] ?? null)}
-          />
-        </label>
-        <button
-          className="primary-button"
-          disabled={busyAction === "upload" || !collaborationState.data?.can_checkin}
-          type="submit"
-        >
-          {busyAction === "upload" ? "Checking in..." : "Check in revision"}
-        </button>
-        <p className="muted-text">
-          Check-in is available only while you own the collaboration lock.
-        </p>
-        <TransferStatus
-          phase={transfer.phase === "idle" && !collaborationState.data?.can_checkin ? "permission" : transfer.phase}
-          receivedBytes={transfer.receivedBytes}
-          totalBytes={transfer.totalBytes}
-          message={transfer.message}
-          onCancel={() => onCancelTransfer()}
-          onRetry={onRetryCheckin}
-          onDiscard={() => onDiscardTransfer()}
-          retryLabel={transfer.blob ? "Retry check-in" : "Retry transfer"}
-        />
-      </form>
 
       {collaborationState.status === "error" ? (
         <InlineAlert tone="danger">{collaborationState.error}</InlineAlert>
