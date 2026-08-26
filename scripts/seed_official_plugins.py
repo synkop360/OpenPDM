@@ -129,6 +129,25 @@ def seed_plugin(
     print(f"{plugin_id} enabled (lifecycle_state={enable.json()['lifecycle_state']}).")
 
 
+def list_installed_plugin_ids(base_url: str, headers: dict[str, str]) -> set[str]:
+    response = requests.get(f"{base_url}/plugins", headers=headers, timeout=15)
+    response.raise_for_status()
+    return {item["id"] for item in response.json()}
+
+
+def seed_default_plugins(base_url: str) -> None:
+    """Register/sign in as the seed administrator and install+enable DEFAULT_PLUGINS.
+
+    Importable so other scripts (e.g. start_all.py) can reuse this without
+    duplicating the install/enable flow.
+    """
+    token = ensure_admin_session(base_url)
+    headers = {"Authorization": f"Bearer {token}"}
+    installed_ids = list_installed_plugin_ids(base_url, headers)
+    for plugin in DEFAULT_PLUGINS:
+        seed_plugin(base_url, headers, plugin, installed_ids)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -138,15 +157,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    token = ensure_admin_session(args.backend_url)
-    headers = {"Authorization": f"Bearer {token}"}
-
-    existing = requests.get(f"{args.backend_url}/plugins", headers=headers, timeout=15)
-    existing.raise_for_status()
-    installed_ids = {item["id"] for item in existing.json()}
-
-    for plugin in DEFAULT_PLUGINS:
-        seed_plugin(args.backend_url, headers, plugin, installed_ids)
+    seed_default_plugins(args.backend_url)
 
     print("\nDefault Official Plugins are installed and enabled.")
     return 0

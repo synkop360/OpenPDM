@@ -76,3 +76,88 @@ def test_missing_prerequisite_messages_are_actionable() -> None:
     assert any("uv is required to install Python dependencies" in message for message in messages)
     assert any("Node.js is required for the Vite Web UI" in message for message in messages)
     assert any("pnpm is preferred for Web UI" in message for message in messages)
+
+
+class _FakeCompletedProcess:
+    def __init__(self, stdout: str, returncode: int = 0) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+
+
+def test_get_compose_service_states_parses_json_array(monkeypatch) -> None:
+    payload = (
+        '[{"Service": "postgres", "State": "running"}, '
+        '{"Service": "minio", "State": "running"}, '
+        '{"Service": "backend", "State": "exited"}]'
+    )
+    monkeypatch.setattr(
+        start_all.subprocess,
+        "run",
+        lambda *args, **kwargs: _FakeCompletedProcess(payload),
+    )
+
+    states = start_all.get_compose_service_states()
+
+    assert states == {"postgres": "running", "minio": "running", "backend": "exited"}
+
+
+def test_get_compose_service_states_parses_newline_delimited_json(monkeypatch) -> None:
+    payload = (
+        '{"Service": "postgres", "State": "running"}\n' '{"Service": "minio", "State": "running"}\n'
+    )
+    monkeypatch.setattr(
+        start_all.subprocess,
+        "run",
+        lambda *args, **kwargs: _FakeCompletedProcess(payload),
+    )
+
+    states = start_all.get_compose_service_states()
+
+    assert states == {"postgres": "running", "minio": "running"}
+
+
+def test_get_compose_service_states_returns_empty_when_docker_unavailable(monkeypatch) -> None:
+    def raise_missing(*args, **kwargs):
+        raise FileNotFoundError("docker not found")
+
+    monkeypatch.setattr(start_all.subprocess, "run", raise_missing)
+
+    assert start_all.get_compose_service_states() == {}
+
+
+def test_get_compose_service_states_returns_empty_when_stack_not_created(monkeypatch) -> None:
+    monkeypatch.setattr(
+        start_all.subprocess,
+        "run",
+        lambda *args, **kwargs: _FakeCompletedProcess("", returncode=1),
+    )
+
+    assert start_all.get_compose_service_states() == {}
+
+
+def test_status_line_non_tty_prints_plain_lines(capsys) -> None:
+    status = start_all.StatusLine()
+    status._is_tty = False
+
+    status.spin("Waiting...")
+    status.ok("Backend is healthy.")
+    status.warn("Something needs attention.")
+    status.fail("Something failed.")
+
+    output = capsys.readouterr().out
+    assert "Waiting..." in output
+    assert "[OK] Backend is healthy." in output
+    assert "[WARN] Something needs attention." in output
+    assert "[FAIL] Something failed." in output
+
+
+def test_ensure_default_plugins_is_never_fatal(monkeypatch) -> None:
+    def raise_error():
+        raise RuntimeError("network hiccup")
+
+    monkeypatch.setattr(start_all, "load_seed_plugins_module", raise_error)
+    status = start_all.StatusLine()
+    status._is_tty = False
+
+    # Must not raise: plugin seeding is a best-effort convenience step.
+    start_all.ensure_default_plugins(status)
