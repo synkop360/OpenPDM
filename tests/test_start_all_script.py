@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import importlib.util
 import sys
 from pathlib import Path
+from urllib.error import URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -67,6 +69,53 @@ def test_start_all_documents_service_readiness_commands() -> None:
     assert "http://127.0.0.1:8000/health" in script
     assert "http://127.0.0.1:8000/foundation" in script
     assert "VITE_API_PROXY_TARGET=http://localhost:8000" in script
+
+
+class _FakeResponse:
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        return None
+
+
+def test_wait_for_backend_retries_past_a_mid_startup_connection_reset(monkeypatch) -> None:
+    # The container port can be open before the server inside it is actually
+    # accepting requests (e.g. Alembic migrations still running), which
+    # raises http.client.RemoteDisconnected instead of a URLError/HTTPError.
+    attempts = [
+        http.client.RemoteDisconnected("Remote end closed connection without response"),
+        ConnectionResetError("connection reset"),
+        URLError("connection refused"),
+        _FakeResponse(200),
+    ]
+
+    def fake_urlopen(url, timeout):
+        result = attempts.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(start_all.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(start_all.time, "sleep", lambda seconds: None)
+
+    assert start_all.wait_for_backend("http://localhost:18000/health", timeout=5) is True
+    assert attempts == []
+
+
+def test_wait_for_backend_gives_up_after_the_timeout(monkeypatch) -> None:
+    def fake_urlopen(url, timeout):
+        raise http.client.RemoteDisconnected("Remote end closed connection without response")
+
+    times = iter([0, 1, 2, 3, 4, 5, 6])
+    monkeypatch.setattr(start_all.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(start_all.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(start_all.time, "time", lambda: next(times))
+
+    assert start_all.wait_for_backend("http://localhost:18000/health", timeout=5) is False
 
 
 def test_missing_prerequisite_messages_are_actionable() -> None:

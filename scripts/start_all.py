@@ -91,8 +91,9 @@ def wait_for_backend(url: str, timeout: int = 60, status: StatusLine | None = No
             with urllib.request.urlopen(url, timeout=5) as resp:
                 if resp.status == 200:
                     return True
-        # A container's port can accept connections slightly before the
-        # server inside is actually ready to answer HTTP requests; keep
+        # The container port can be open before the server inside it is
+        # actually accepting requests (e.g. Alembic migrations still
+        # running), which resets the connection instead of refusing it. Keep
         # polling through that race instead of treating it as fatal.
         except (HTTPError, URLError, ConnectionError, http.client.HTTPException, TimeoutError):
             pass
