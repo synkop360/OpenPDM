@@ -177,6 +177,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run", action="store_true", help="Print the commands that would be run"
     )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the desktop GUI (scripts/launcher_gui.py) instead of the CLI flow",
+    )
     return parser.parse_args()
 
 
@@ -343,6 +348,17 @@ def ensure_default_plugins(status: StatusLine) -> None:
 
 def main() -> int:
     args = parse_args()
+
+    if args.gui:
+        spec = importlib.util.spec_from_file_location(
+            "openpdm_launcher_gui", ROOT / "scripts" / "launcher_gui.py"
+        )
+        if spec is None or spec.loader is None:
+            print("Unable to load scripts/launcher_gui.py", file=sys.stderr)
+            return 1
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.main()
 
     if args.skip_compose and args.skip_frontend:
         print(
