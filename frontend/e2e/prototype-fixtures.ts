@@ -254,9 +254,15 @@ export async function mockPrototypeApi(
       },
     });
   });
-  await page.route("**/assets/asset-1", (route) => route.fulfill({
-    json: { id: "asset-1", project_id: "project-1", name: "Prototype Asset", description: "Generic Engineering Asset", status: "draft", metadata: {}, created_at: "2026-07-28T00:00:00Z" },
-  }));
+  await page.route("**/assets/asset-1", (route) => {
+    // The Web UI addresses an Engineering Asset as a URL path segment (ADR-0050), so a
+    // direct navigation to a deep asset URL matches this same glob pattern as the API
+    // call it mocks; let the document request fall through to the real page.
+    if (route.request().resourceType() === "document") return route.fallback();
+    return route.fulfill({
+      json: { id: "asset-1", project_id: "project-1", name: "Prototype Asset", description: "Generic Engineering Asset", status: "draft", metadata: {}, created_at: "2026-07-28T00:00:00Z" },
+    });
+  });
   await page.route("**/assets/asset-1/history", (route) => route.fulfill({
     json: state.history,
   }));
@@ -672,7 +678,12 @@ export async function mockFirstRunPrototypeApi(page: Page) {
     }
     return route.fulfill({ json: { items: hasAsset ? [asset] : [], next_cursor: null } });
   });
-  await page.route("**/assets/asset-1", (route) => route.fulfill({ json: asset }));
+  await page.route("**/assets/asset-1", (route) => {
+    // See the matching comment in mockPrototypeApi: this glob also matches a direct
+    // navigation to the Web UI's own asset detail URL (ADR-0050).
+    if (route.request().resourceType() === "document") return route.fallback();
+    return route.fulfill({ json: asset });
+  });
   await page.route("**/assets/asset-1/history", (route) => route.fulfill({ json: [checkedInRevision, initialRevision] }));
   await page.route("**/assets/asset-1/collaboration-state", (route) => route.fulfill({
     json: {

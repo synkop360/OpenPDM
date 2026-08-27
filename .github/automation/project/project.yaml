@@ -232,6 +232,9 @@ milestones:
   - title: Prototype Acceptance and Limits
     description: Document supported prototype workflows, known limits, deferrals and smoke checks.
 
+  - title: Web UI Ergonomics
+    description: Fix navigation, error-handling and readability gaps found operating the delivered prototype Web UI, and add a visual Asset Graph.
+
   - title: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
 
@@ -6600,6 +6603,156 @@ roadmap:
               Complexity: M
               ADR: ADR-0041, ADR-0042, ADR-0043, ADR-0044, ADR-0045, ADR-0046
 
+      - title: "Web UI Ergonomics Epic: Fix navigation, error handling and add a visual Asset Graph"
+        body: |
+          ## Objective
+          Close the concrete ergonomics gaps found operating the delivered Web UI Operational Experience, and give the Asset Graph a real visual representation.
+
+          ## Description
+          Hands-on review of the running prototype surfaced six issues: a raw backend 404 on direct or refreshed navigation to Project and Asset URLs; an internal routing error leaking to users as "Saved views unavailable"; a single long undifferentiated Asset detail page; no clear primary action per page; raw internal metadata and relationship keys shown as primary text; and no visual representation of the already-computed bounded Asset Graph. This epic closes each gap without expanding Platform Core scope or introducing new public API surface beyond what ADR-0050 already decided.
+
+          ## Acceptance Criteria
+          - Engineering Assets are addressable by URL (deep-linkable, survive refresh) per ADR-0050, without regressing existing Organization/Project routing.
+          - The Web UI's hand-rolled error and loading blocks are replaced by the existing tested InlineAlert/LoadablePanel components.
+          - The Asset detail page is organized into scoped sections instead of one long scroll, and each page has one clear primary action.
+          - Relationship and metadata provenance reads as plain language with technical details available on demand, not as raw namespaced keys.
+          - The bounded Asset Graph renders as an actual node-link diagram, chosen via its own ADR (hand-rolled SVG versus a rendering dependency) before implementation.
+
+          ## Dependencies
+          - ADR-0050 - Adopt Asset-Addressable Deep-Linking URL Scheme
+          - Prototype Epic: Acceptance documentation and known limits
+
+          ## Suggested Labels
+          frontend, bug, refactor, feature, P1
+        milestone: Web UI Ergonomics
+        labels: [frontend, bug, refactor, feature, P1]
+        closed: true
+        fields:
+          Phase: Usable Prototype
+          Epic: Web UI Ergonomics
+          Platform Area: Frontend
+          Complexity: XL
+          ADR: ADR-0050
+        sub_issues:
+          - title: "Web UI Ergonomics Task: Implement asset-addressable deep-linking URL scheme"
+            body: |
+              ## Objective
+              Extend the Web UI's route grammar with an Engineering Asset id segment, fix the dev-proxy/SPA route collision that returned a raw backend 404 for direct or refreshed navigation, and make the URL authoritative over the existing localStorage-based asset recall rather than routing around it.
+
+              ## Acceptance Criteria
+              - Direct navigation, hard refresh and browser back/forward to an Asset URL all resolve correctly against the running local stack.
+              - The "Saved views unavailable" routing error no longer appears.
+              - Tabs whose content does not depend on the selected Asset (Overview, Collaboration, Members) stay bare; Assets and Relationships carry the selection.
+              - Existing Vitest and Playwright suites pass with no regressions.
+
+              ## Dependencies
+              - ADR-0050 - Adopt Asset-Addressable Deep-Linking URL Scheme
+            labels: [frontend, bug, P1]
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: L
+              ADR: ADR-0050
+            closed: true
+
+          - title: "Web UI Ergonomics Task: Adopt InlineAlert and LoadablePanel across the application shell"
+            body: |
+              ## Objective
+              Replace App.tsx's hand-rolled error and loading blocks with the existing InlineAlert and LoadablePanel components wrapping the existing Loadable state, instead of ad hoc per-call-site JSX.
+
+              ## Acceptance Criteria
+              - No raw routing or API error text reaches the user; failures render through InlineAlert with a consistent tone.
+              - Loading, error and empty states are visually consistent across the application shell.
+              - A retry affordance is available wherever the underlying data can be re-fetched.
+            labels: [frontend, refactor, P2]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: M
+
+          - title: "Web UI Ergonomics Task: Restructure the Asset detail page into scoped sections"
+            body: |
+              ## Objective
+              Reuse the ProjectTabs pattern to split the Asset detail page's single long scroll into scoped sections, and give each page one visually clear primary action.
+
+              ## Acceptance Criteria
+              - Metadata and analysis, relationships and graph, and revision history read as separate scoped sections rather than one continuous scroll.
+              - Each section or page has one visually primary action, with the rest demoted.
+              - Whether a features/assets/ decomposition needs its own ADR is evaluated before this task starts, not assumed.
+
+              ## Dependencies
+              - Web UI Ergonomics Task: Implement asset-addressable deep-linking URL scheme
+            labels: [frontend, refactor, P2]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: L
+
+          - title: "Web UI Ergonomics Task: Show relationship and metadata provenance in plain language"
+            body: |
+              ## Objective
+              Replace raw namespaced key dumps (for example freecad.link_name, analysis_provider_id, analysis_contribution_key) with a plain-language sentence plus a collapsed technical-details disclosure.
+
+              ## Acceptance Criteria
+              - Relationship and metadata list items read as a sentence a non-technical user can parse.
+              - The underlying provider id, contribution key and other technical fields remain available behind an explicit disclosure, not deleted.
+            labels: [frontend, refactor, P2]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: S
+
+          - title: "Web UI Ergonomics Task: Decide and implement a visual Asset Graph"
+            body: |
+              ## Objective
+              Write and gain acceptance for an ADR weighing a hand-rolled bounded SVG diagram against a graph-rendering dependency, then replace the six-tile graph summary card with the chosen visualization built from the already-fetched Asset Graph data.
+
+              ## Acceptance Criteria
+              - The ADR is Accepted before any rendering implementation begins.
+              - The chosen approach respects ADR-0030's bounded, non-analytics traversal scope.
+              - No new backend API call is introduced; the existing getAssetGraph response is reused.
+              - If a new frontend dependency is chosen, it is justified against ADR-0044's existing dependency-minimalism precedent.
+
+              ## Dependencies
+              - ADR-0030 - Dependency Graph and Query Scope
+              - ADR-0044 - Adopt The Web UI Operational Interaction Stack
+            labels: [frontend, feature, decision, P2]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: L
+
+          - title: "Web UI Ergonomics Task: Consolidate Asset lifecycle into tabs and add a complete project graph"
+            body: |
+              ## Objective
+              Fold the standalone "Lifecycle" panel header into the Asset detail tab bar, keep the per-Asset Relationships & Graph tab scoped to connected Assets only, and give the project-level Relationships tab a complete graph of every Asset and relationship in the Project.
+
+              ## Acceptance Criteria
+              - The Asset detail panel no longer shows a separate "Lifecycle / Asset detail and Revision history" header duplicating the asset summary above every tab.
+              - The per-Asset Relationships & Graph tab shows only connected-Asset content (incoming/outgoing relationships and the bounded graph diagram); Generic references move to Metadata & Analysis since references are explicitly not Assets.
+              - The project-level Relationships tab renders a Complete project graph covering every Asset and relationship in the Project, built without a new backend endpoint or widening ADR-0030's asset-rooted, depth-bounded traversal scope.
+
+              ## Dependencies
+              - Web UI Ergonomics Task: Restructure the Asset detail page into scoped sections
+              - Web UI Ergonomics Task: Decide and implement a visual Asset Graph
+              - ADR-0030 - Dependency Graph and Query Scope
+            labels: [frontend, refactor, P2]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Web UI Ergonomics
+              Platform Area: Frontend
+              Complexity: M
+
   - phase: Mechanical Engineering
     milestone: Mechanical Engineering
     description: Deliver the first mechanical engineering capabilities.
@@ -6631,6 +6784,7 @@ roadmap:
           feature, plugin, documentation, test, P1
         milestone: Mechanical Prototype Vertical Slice
         labels: [feature, plugin, documentation, test, P1]
+        closed: true
         fields:
           Phase: Mechanical Engineering
           Epic: Mechanical Official Plugin Vertical Slice
@@ -6654,6 +6808,7 @@ roadmap:
               - ADR-0048 - Accept Provider Analysis Contributions
               - ADR-0049 - Set Analysis Provider Sandbox Fuel Budget
             labels: [plugin, decision, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6672,6 +6827,7 @@ roadmap:
               - A new ADR is proposed if the workflow requires a new architectural decision.
               - Broader CAD, BOM and native metadata scope remains explicitly deferred.
             labels: [plugin, documentation, decision, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6690,6 +6846,7 @@ roadmap:
               - Malformed or unsupported files fail with bounded diagnostics.
               - Automated tests cover successful extraction and failure isolation.
             labels: [feature, plugin, test, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6708,6 +6865,7 @@ roadmap:
               - Cycles, unresolved references and authorization failures are handled safely.
               - Web UI graph surfaces can inspect the resulting relationships.
             labels: [feature, plugin, core, test, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice
@@ -6729,6 +6887,7 @@ roadmap:
               - The demonstration reuses the stabilized prototype startup path.
               - CI or documented smoke tests cover the workflow.
             labels: [documentation, plugin, test, P1]
+            closed: true
             fields:
               Phase: Mechanical Engineering
               Epic: Mechanical Official Plugin Vertical Slice

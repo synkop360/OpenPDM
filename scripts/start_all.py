@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import http.client
 import importlib.util
+import itertools
+import json
 import os
 import shutil
 import subprocess
@@ -22,6 +24,8 @@ COMPOSE_BACKEND_URL = "http://localhost:18000"
 DIRECT_BACKEND_URL = "http://127.0.0.1:8000"
 FRONTEND_URL = "http://localhost:5173"
 FRONTEND_PROXY_TARGET = "VITE_API_PROXY_TARGET=http://localhost:8000"
+
+COMPOSE_SERVICES = ("postgres", "minio", "backend")
 
 READINESS_CHECKS = [
     ("Backend health", "http://localhost:18000/health"),
@@ -44,26 +48,117 @@ PREREQUISITE_HINTS = {
 }
 
 
-def wait_for_backend(url: str, timeout: int = 60) -> bool:
+class StatusLine:
+    """A single console line that updates in place, degrading to plain prints on non-tty output."""
+
+    _SPINNER = "|/-\\"
+
+    def __init__(self) -> None:
+        self._is_tty = sys.stdout.isatty()
+        self._last_len = 0
+        self._frames = itertools.cycle(self._SPINNER)
+
+    def spin(self, text: str) -> None:
+        frame = next(self._frames) if self._is_tty else ""
+        self._write(f"{frame + ' ' if frame else ''}{text}", newline=False)
+
+    def ok(self, text: str) -> None:
+        self._write(f"[OK] {text}", newline=True)
+
+    def warn(self, text: str) -> None:
+        self._write(f"[WARN] {text}", newline=True)
+
+    def fail(self, text: str) -> None:
+        self._write(f"[FAIL] {text}", newline=True)
+
+    def info(self, text: str) -> None:
+        self._write(text, newline=True)
+
+    def _write(self, text: str, *, newline: bool) -> None:
+        if self._is_tty:
+            pad = max(0, self._last_len - len(text))
+            end = "\n" if newline else ""
+            print(f"\r{text}{' ' * pad}", end=end, flush=True)
+            self._last_len = 0 if newline else len(text)
+        elif newline or not self._is_tty:
+            print(text, flush=True)
+
+
+def wait_for_backend(url: str, timeout: int = 60, status: StatusLine | None = None) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=5) as resp:
                 if resp.status == 200:
                     return True
+        # The container port can be open before the server inside it is
+        # actually accepting requests (e.g. Alembic migrations still
+        # running), which resets the connection instead of refusing it. Keep
+        # polling through that race instead of treating it as fatal.
         except (HTTPError, URLError, ConnectionError, http.client.HTTPException, TimeoutError):
-            # The container port can be open before the server inside it is
-            # actually accepting requests (e.g. Alembic migrations still
-            # running), which resets the connection instead of refusing it.
             pass
+        if status is not None:
+            remaining = max(0, int(deadline - time.time()))
+            status.spin(f"Waiting for backend to become healthy... ({remaining}s left)")
         time.sleep(1)
     return False
+
+
+def get_compose_service_states() -> dict[str, str]:
+    """Return {service: state} for the Compose stack, e.g. {"postgres": "running"}.
+
+    Returns an empty dict if Docker/Compose is unavailable or the stack has
+    never been created, so callers can treat that the same as "not running".
+    """
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "-f", "deployment/compose.yaml", "ps", "--format", "json"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {}
+    raw = result.stdout.strip()
+    if result.returncode != 0 or not raw:
+        return {}
+
+    entries: list[dict[str, str]] = []
+    try:
+        parsed = json.loads(raw)
+        entries = parsed if isinstance(parsed, list) else [parsed]
+    except json.JSONDecodeError:
+        # Compose v2 emits newline-delimited JSON on some platforms/versions.
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return {entry.get("Service", "?"): entry.get("State", "unknown") for entry in entries}
 
 
 def load_dev_module():
     spec = importlib.util.spec_from_file_location("openpdm_dev", ROOT / "scripts" / "dev.py")
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to import scripts/dev.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_seed_plugins_module():
+    spec = importlib.util.spec_from_file_location(
+        "openpdm_seed_plugins", ROOT / "scripts" / "seed_official_plugins.py"
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to import scripts/seed_official_plugins.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -78,7 +173,31 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--skip-frontend", action="store_true", help="Start only the compose stack")
     parser.add_argument(
+        "--skip-plugins",
+        action="store_true",
+        help="Do not check or install the default Official Plugins",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="Print the commands that would be run"
+    )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the desktop GUI (scripts/launcher_gui.py) instead of the CLI flow",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="With --gui, show raw Docker Compose and Vite dev-server output in the log "
+        "instead of just status messages, Docker messages and the Vite server address",
+    )
+    parser.add_argument(
+        "--check-interval",
+        type=int,
+        default=300,
+        metavar="SECONDS",
+        help="With --gui, how often to re-check whether the Docker containers still exist "
+        "(default: 300s / 5 minutes)",
     )
     return parser.parse_args()
 
@@ -216,8 +335,47 @@ def stop_process(process: subprocess.Popen[str], label: str) -> None:
         process.wait(timeout=5)
 
 
+def ensure_default_plugins(status: StatusLine) -> None:
+    """Best-effort: install/enable the default Official Plugins if not already present.
+
+    Never fatal to startup — a failure here (e.g. Docker networking hiccup,
+    a seed account with a locally-changed password) is reported and skipped
+    rather than blocking the rest of the stack from coming up.
+    """
+    status.spin("Checking Official Plugins...")
+    try:
+        seed = load_seed_plugins_module()
+        token = seed.ensure_admin_session(COMPOSE_BACKEND_URL)
+        headers = {"Authorization": f"Bearer {token}"}
+        installed_ids = seed.list_installed_plugin_ids(COMPOSE_BACKEND_URL, headers)
+        pending = [
+            p
+            for p in seed.DEFAULT_PLUGINS
+            if json.loads((p["dir"] / "openpdm-plugin.json").read_text(encoding="utf-8"))["id"]
+            not in installed_ids
+        ]
+        if pending:
+            status.info(f"Installing {len(pending)} default Official Plugin(s)...")
+        for plugin in seed.DEFAULT_PLUGINS:
+            seed.seed_plugin(COMPOSE_BACKEND_URL, headers, plugin, installed_ids)
+        status.ok(f"Official Plugins ready ({len(seed.DEFAULT_PLUGINS)} enabled).")
+    except Exception as exc:  # noqa: BLE001 - best-effort convenience step, never fatal
+        status.warn(f"Official Plugins check skipped: {exc}")
+
+
 def main() -> int:
     args = parse_args()
+
+    if args.gui:
+        spec = importlib.util.spec_from_file_location(
+            "openpdm_launcher_gui", ROOT / "scripts" / "launcher_gui.py"
+        )
+        if spec is None or spec.loader is None:
+            print("Unable to load scripts/launcher_gui.py", file=sys.stderr)
+            return 1
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.main(debug=args.debug, check_interval=args.check_interval)
 
     if args.skip_compose and args.skip_frontend:
         print(
@@ -243,23 +401,41 @@ def main() -> int:
         print_readiness_checks()
         return 0
 
+    status = StatusLine()
     processes: list[tuple[str, subprocess.Popen[str]]] = []
     try:
         if not args.skip_compose:
-            processes.append(
-                (
-                    "compose",
-                    start_process(
-                        "compose stack",
-                        build_dev_helper_command("compose_up"),
-                        ROOT,
-                    ),
-                )
+            service_states = get_compose_service_states()
+            print("Compose service status:")
+            for service in COMPOSE_SERVICES:
+                state = service_states.get(service, "not created")
+                print(f"- {service}: {state}")
+
+            already_running = all(
+                service_states.get(service) == "running" for service in COMPOSE_SERVICES
             )
-            print("Waiting for backend to become healthy...")
-            ok = wait_for_backend(f"{COMPOSE_BACKEND_URL}/health", timeout=300)
+            if already_running:
+                print("Compose stack is already running; not restarting it.")
+            else:
+                processes.append(
+                    (
+                        "compose",
+                        start_process(
+                            "compose stack",
+                            build_dev_helper_command("compose_up"),
+                            ROOT,
+                        ),
+                    )
+                )
+
+            ok = wait_for_backend(f"{COMPOSE_BACKEND_URL}/health", timeout=300, status=status)
             if not ok:
                 raise RuntimeError("Backend did not become healthy within timeout")
+            status.ok("Backend is healthy.")
+
+            if not args.skip_plugins:
+                ensure_default_plugins(status)
+
         if not args.skip_frontend:
             if not frontend_available:
                 print(

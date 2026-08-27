@@ -3,14 +3,20 @@
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --surface-canvas: #0d0f10;
+  --surface-sidebar: #131517;
+  --surface-content: #111314;
   --surface-panel: #181a1c;
+  --surface-panel-right: #161819;
   --surface-raised: #202224;
   --surface-muted: #292b2d;
   --text-primary: #f3f5f4;
   --text-secondary: #a3aaa7;
+  --text-tertiary: #7d8482;
+  --border-subtle: #26292b;
   --border-default: #34383a;
   --border-strong: #4b5250;
   --action-primary: #4f8fe8;
+  --action-primary-hover: #6ba2ee;
   --action-primary-muted: rgb(79 143 232 / 16%);
   --status-success: #50b68c;
   --status-warning: #e8aa55;
@@ -18,7 +24,9 @@
   --status-info: #73a9f2;
   --focus-ring: #9cc5ff;
   --radius-control: 8px;
-  --radius-panel: 12px;
+  --radius-panel: 10px;
+  --control-height: 34px;
+  --control-height-sm: 28px;
   --motion-fast: 140ms;
   --shadow-panel: 0 18px 60px rgb(0 0 0 / 28%);
 

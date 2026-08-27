@@ -1,17 +1,18 @@
-import { startTransition, useEffect, useRef, useState, type FormEvent } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Activity,
   ArrowLeft,
   ArrowRight,
   Bell,
   Boxes,
-  ChevronRight,
+  ChevronsUpDown,
   FolderKanban,
   Inbox,
   Home,
   LogOut,
   Menu,
   Network,
+  Plus,
   RefreshCw,
   Save,
   Search,
@@ -27,6 +28,7 @@ import {
   addProjectMember,
   type AnalysisResult,
   type AssetGraph,
+  type GraphNode,
   checkinAsset,
   checkoutAsset,
   addRepresentation,
@@ -60,6 +62,7 @@ import {
   listOrganizationMembers,
   listOutgoingAssetRelationships,
   listPlugins,
+  listPlatformAdministrators,
   listOrganizations,
   listProjectsForUser,
   listProjectMembers,
@@ -71,12 +74,14 @@ import {
   removeOrganizationMember,
   removeProjectMember,
   removePlugin,
+  setPlatformAdministratorByEmail,
   setPluginState,
   signIn,
   signOut,
   type ReferenceRecord,
   type Relationship,
   unlockAsset,
+  updateAssetStatus,
   cancelBlobUploadSession,
   type Asset,
   type BlobRecord,
@@ -94,11 +99,24 @@ import {
   type Revision,
   type SessionInfo,
   type TimelineEntry,
+  type User,
   updatePluginConfiguration,
   upgradePluginPackage,
 } from "./api";
+import {
+  collaborationGuidance,
+  collaborationRecoveryAction,
+  collaborationRequestId,
+  collaborationShouldRefresh,
+} from "./app/collaborationErrors";
+import {
+  formatNotificationEvent,
+  formatRelationshipType,
+  formatTimestamp,
+  notificationSummary,
+} from "./app/format";
 import { createLoadable, type Loadable } from "./app/loadable";
-import { parseAppRoute, type ProjectTab } from "./app/routes";
+import { parseAppRoute, projectAssetPath, type ProjectTab } from "./app/routes";
 import {
   ASSET_KEY,
   ORG_KEY,
@@ -108,13 +126,16 @@ import {
   writeStoredValue,
 } from "./app/storage";
 import { useRouteFocus } from "./app/useRouteFocus";
+import { InlineAlert } from "./components/feedback/InlineAlert";
 import { ProjectTabs } from "./components/navigation/ProjectTabs";
-import { ConfirmDialog } from "./components/primitives/Dialog";
+import { ConfirmDialog, Dialog } from "./components/primitives/Dialog";
 import { AppShell } from "./components/shell/AppShell";
-import { AuthenticatedHeader } from "./components/shell/AuthenticatedHeader";
+import { AuthenticatedHeader, type BreadcrumbItem } from "./components/shell/AuthenticatedHeader";
 import { GuestHeader } from "./components/shell/GuestHeader";
+import { AssetDetailPanel } from "./features/assets/AssetDetailPanel";
+import { AssetGraphDiagram } from "./features/assets/AssetGraphDiagram";
 import { useFoundationStatus } from "./hooks/useFoundationStatus";
-import { TransferStatus, type TransferPhase } from "./features/transfers/TransferStatus";
+import { type TransferPhase } from "./features/transfers/TransferStatus";
 import {
   clearTransferRecovery,
   canReuseCompletedBlob,
@@ -133,10 +154,6 @@ type ConfigurationProperty = {
   enum?: unknown[];
   secret?: boolean;
 };
-
-function formatTimestamp(value: string): string {
-  return new Date(value).toLocaleString();
-}
 
 function slugify(value: string): string {
   return value
@@ -160,89 +177,6 @@ async function triggerBrowserDownload(
   link.click();
   link.remove();
   URL.revokeObjectURL(objectUrl);
-}
-
-function collaborationGuidance(error: ApiError): string {
-  const contextualGuidance = error.context?.user_guidance;
-  if (typeof contextualGuidance === "string" && contextualGuidance.trim()) {
-    return contextualGuidance;
-  }
-  switch (error.code) {
-    case "asset_locked":
-      return "This Asset is already locked by another user. Wait for release or ask a Maintainer to coordinate.";
-    case "checkin_without_lock":
-      return "Check out the Asset before checking in changes.";
-    case "checkin_by_non_owner":
-      return "Only the current lock owner can check in changes for this Asset.";
-    case "unlock_not_allowed":
-      return "Only the lock owner can unlock this Asset unless a Maintainer or Owner force-unlocks.";
-    case "asset_archived":
-      return "Archived Assets cannot be changed through the collaboration flow.";
-    case "no_active_lock":
-      return "This Asset no longer has an active collaboration lock. Refresh the state and try again if needed.";
-    default:
-      return error.message;
-  }
-}
-
-function collaborationRecoveryAction(error: ApiError): string | null {
-  const value = error.context?.recovery_action;
-  return typeof value === "string" ? value : null;
-}
-
-function collaborationRequestId(error: ApiError): string | null {
-  const value = error.context?.request_id;
-  return typeof value === "string" ? value : null;
-}
-
-function collaborationShouldRefresh(error: ApiError): boolean {
-  return error.context?.should_refresh === true;
-}
-
-function formatNotificationEvent(eventType: string): string {
-  switch (eventType) {
-    case "asset.checked_out":
-      return "Asset locked";
-    case "asset.unlocked":
-      return "Asset unlocked";
-    case "asset.force_unlocked":
-      return "Force unlock";
-    case "revision.created":
-      return "Revision created";
-    case "collaboration.conflict_detected":
-      return "Conflict detected";
-    default:
-      return eventType;
-  }
-}
-
-function notificationSummary(notification: NotificationRecord): string {
-  if (notification.event_type === "collaboration.conflict_detected") {
-    const guidance = notification.details.user_guidance;
-    if (typeof guidance === "string" && guidance.trim()) {
-      return guidance;
-    }
-  }
-  const assetId = typeof notification.asset_id === "string" ? notification.asset_id : null;
-  if (assetId) {
-    return `Related Asset: ${assetId}`;
-  }
-  return "Project collaboration update.";
-}
-
-function formatRelationshipType(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
-function formatMetadataSummary(metadata: Record<string, unknown>): string | null {
-  const entries = Object.entries(metadata);
-  if (entries.length === 0) {
-    return null;
-  }
-  return entries
-    .slice(0, 3)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(" • ");
 }
 
 const ROLE_IMPACT: Record<string, string> = {
@@ -273,10 +207,23 @@ function lockAge(createdAt: string): string {
   const hours = Math.floor(minutes / 60);
   return `${hours} hour${hours === 1 ? "" : "s"}`;
 }
+
+// Tabs whose content depends on which Engineering Asset is selected (the Assets tab's
+// detail sheet, and the Relationships tab's own asset picker plus incoming/outgoing/
+// references cards). Overview, Collaboration and Members show no asset-specific content,
+// so selectedAssetId is neither restored, defaulted, nor cleared there -- an empty route on
+// those tabs says nothing about asset selection either way.
+const ASSET_AWARE_PROJECT_TABS: ReadonlySet<ProjectTab> = new Set(["assets", "relationships"]);
+
 function OpenPdmApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { projectId: routeProjectId, projectTab, view } = parseAppRoute(location.pathname);
+  const {
+    projectId: routeProjectId,
+    projectTab,
+    view,
+    assetId: routeAssetId,
+  } = parseAppRoute(location.pathname);
   const assetSearchParams = new URLSearchParams(location.search);
   const assetFilterQuery = assetSearchParams.get("q") ?? "";
   const assetStatusFilter = assetSearchParams.get("status") ?? "";
@@ -327,6 +274,9 @@ function OpenPdmApp() {
   const [assetGraph, setAssetGraph] = useState<Loadable<AssetGraph | null>>(
     createLoadable<AssetGraph | null>(null),
   );
+  const [projectGraph, setProjectGraph] = useState<Loadable<AssetGraph | null>>(
+    createLoadable<AssetGraph | null>(null),
+  );
   const [collaborationState, setCollaborationState] = useState<Loadable<CollaborationState | null>>(
     createLoadable<CollaborationState | null>(null),
   );
@@ -343,6 +293,10 @@ function OpenPdmApp() {
   const [notificationProjectFilter, setNotificationProjectFilter] = useState("");
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [plugins, setPlugins] = useState<Loadable<PluginRecord[]>>(createLoadable<PluginRecord[]>([]));
+  const [platformAdministrators, setPlatformAdministrators] = useState<Loadable<User[]>>(
+    createLoadable<User[]>([]),
+  );
+  const [platformAdminEmail, setPlatformAdminEmail] = useState("");
   const [providers, setProviders] = useState<Loadable<ProviderDescriptor[]>>(
     createLoadable<ProviderDescriptor[]>([]),
   );
@@ -375,6 +329,9 @@ function OpenPdmApp() {
   });
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
+  const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
+  const [showCreateAssetForm, setShowCreateAssetForm] = useState(false);
+  const [showCheckInForm, setShowCheckInForm] = useState(false);
   const [organizationMemberForm, setOrganizationMemberForm] = useState({
     email: "",
     role: "Viewer",
@@ -435,6 +392,89 @@ function OpenPdmApp() {
       setSelectedProjectId(routeProjectId);
     }
   }, [routeProjectId, selectedProjectId]);
+
+  // Tracks an assetId this component itself just navigated to, so the sync effect below
+  // does not revert setSelectedAssetId(...) when it reads a `routeAssetId` from a render
+  // where `useLocation()` has not yet caught up with a `navigate()` issued in the same
+  // event handler. Cleared once the route confirms the pending value. `undefined` means
+  // "no pending self-initiated navigation" -- defer to the plain route-vs-state comparison.
+  const pendingAssetNavigation = useRef<string | null | undefined>(undefined);
+  // Whether the one-time localStorage-into-URL restore below has already been attempted.
+  // Seeded from whether the page's very first URL already named an asset: if it did, the
+  // user arrived with explicit context and the restore has nothing to contribute, so it's
+  // pre-marked "attempted" -- otherwise it would fire on the *next* time the route happens
+  // to have no asset (e.g. the user closing that very asset, or switching tabs right after),
+  // silently overriding a deliberate action with a stale localStorage value.
+  const assetRestoreAttempted = useRef(Boolean(routeAssetId));
+  // The asset id localStorage held at mount, captured once before any effect (e.g. the one
+  // that clears selectedAssetId when the Project changes, which also persists that clear
+  // back to localStorage) can overwrite it. The restore below reads this snapshot, not a
+  // fresh localStorage read, so it isn't racing its own persistence effect.
+  const initialStoredAssetId = useRef(selectedAssetId);
+  // Whether the most recent explicit selectAsset(...) call was a clear (assetId === null),
+  // e.g. the user closing the detail panel. The auto-default effect below checks this so it
+  // doesn't immediately re-select an Asset the user just deliberately deselected; reset
+  // whenever a real Asset is chosen or the Project changes, so a fresh context can default
+  // again.
+  const assetExplicitlyCleared = useRef(false);
+
+  const selectAsset = useCallback(
+    (assetId: string | null, options?: { tab?: ProjectTab; replace?: boolean }) => {
+      assetExplicitlyCleared.current = assetId === null;
+      pendingAssetNavigation.current = assetId;
+      setSelectedAssetId(assetId);
+      if (selectedProjectId) {
+        navigate(projectAssetPath(selectedProjectId, options?.tab ?? projectTab, assetId), {
+          replace: options?.replace,
+        });
+      }
+    },
+    [navigate, projectTab, selectedProjectId],
+  );
+
+  useEffect(() => {
+    if (pendingAssetNavigation.current !== undefined) {
+      if (routeAssetId === pendingAssetNavigation.current) {
+        pendingAssetNavigation.current = undefined;
+      }
+      return;
+    }
+    if (routeAssetId) {
+      if (routeAssetId !== selectedAssetId) {
+        setSelectedAssetId(routeAssetId);
+      }
+      return;
+    }
+    if (!selectedProjectId) {
+      // No Project context yet (e.g. still on Home, or Organizations/Projects still
+      // loading). Leave selectedAssetId as-is -- there is no route to reconcile against.
+      return;
+    }
+    // The URL has no asset segment. Give the last-viewed asset remembered in localStorage
+    // one chance to populate a selection (ADR-0050's fallback) -- on any Project tab, since
+    // tabs like Collaboration display state for "whichever Asset is current" without
+    // addressing one via their own URL. Only asset-aware tabs reflect the restored value in
+    // the URL, matching ProjectTabs' own carry-over rule; elsewhere it's a plain default.
+    if (!assetRestoreAttempted.current) {
+      assetRestoreAttempted.current = true;
+      const stored = initialStoredAssetId.current;
+      if (stored) {
+        if (ASSET_AWARE_PROJECT_TABS.has(projectTab)) {
+          selectAsset(stored, { tab: projectTab, replace: true });
+        } else {
+          setSelectedAssetId(stored);
+        }
+        return;
+      }
+    }
+    // Only an asset-aware tab's empty route is authoritative over an existing selection --
+    // that's the only place a missing segment unambiguously means "no Asset chosen" (e.g.
+    // after closing the detail panel, or navigating back to such a history entry). On other
+    // tabs, an empty route says nothing about asset selection either way.
+    if (ASSET_AWARE_PROJECT_TABS.has(projectTab) && selectedAssetId !== null) {
+      setSelectedAssetId(null);
+    }
+  }, [routeAssetId, selectedAssetId, selectAsset, selectedProjectId, projectTab]);
 
   useEffect(() => {
     if (
@@ -557,6 +597,67 @@ function OpenPdmApp() {
 
   useEffect(() => {
     const token = session.data?.token;
+    if (!token || !selectedProjectId || view !== "project" || projectTab !== "relationships") {
+      setProjectGraph(createLoadable(null));
+      return;
+    }
+    if (assets.data.length === 0) {
+      setProjectGraph({ status: "ready", data: null, error: null });
+      return;
+    }
+    let cancelled = false;
+    setProjectGraph((current) => ({ ...current, status: "loading", error: null }));
+    Promise.all(
+      assets.data.map((asset) => getAssetGraph(token, asset.id, { direction: "both", maxDepth: 10 })),
+    )
+      .then((graphs) => {
+        if (cancelled) {
+          return;
+        }
+        const nodesById = new Map<string, GraphNode>();
+        const relationshipsById = new Map<string, Relationship>();
+        let hasCycle = false;
+        for (const graph of graphs) {
+          for (const node of graph.nodes) {
+            nodesById.set(node.id, node);
+          }
+          for (const relationship of graph.relationships) {
+            relationshipsById.set(relationship.id, relationship);
+          }
+          hasCycle = hasCycle || graph.has_cycle;
+        }
+        setProjectGraph({
+          status: "ready",
+          data: {
+            asset_id: assets.data[0]?.id ?? "",
+            direction: "both",
+            max_depth: 10,
+            target_asset_id: null,
+            path_exists: null,
+            has_cycle: hasCycle,
+            nodes: Array.from(nodesById.values()),
+            relationships: Array.from(relationshipsById.values()),
+          },
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setProjectGraph({
+          status: "error",
+          data: null,
+          error: error instanceof Error ? error.message : "Project graph could not be loaded.",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assets.data, projectTab, selectedProjectId, session.data?.token, view]);
+
+  useEffect(() => {
+    const token = session.data?.token;
     if (!token) {
       setNotifications(createLoadable([]));
       setNotificationNextCursor(null);
@@ -597,6 +698,23 @@ function OpenPdmApp() {
           status: "error",
           data: [],
           error: error instanceof Error ? error.message : "Plugins could not be loaded.",
+        }),
+      );
+  }, [session.data?.token, session.data?.user.is_platform_admin, view]);
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || view !== "plugin-administration" || !session.data?.user.is_platform_admin) {
+      setPlatformAdministrators(createLoadable([]));
+      return;
+    }
+    setPlatformAdministrators((current) => ({ ...current, status: "loading", error: null }));
+    listPlatformAdministrators(token)
+      .then((result) => setPlatformAdministrators({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setPlatformAdministrators({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Platform Administrators could not be loaded.",
         }),
       );
   }, [session.data?.token, session.data?.user.is_platform_admin, view]);
@@ -656,6 +774,7 @@ function OpenPdmApp() {
     setAssetCursor(null);
     setAssetCursorHistory([]);
     setSelectedAssetId(null);
+    assetExplicitlyCleared.current = false;
   }, [selectedProjectId]);
 
   useEffect(() => {
@@ -677,9 +796,6 @@ function OpenPdmApp() {
       .then((result) => {
         setAssets({ status: "ready", data: result.items, error: null });
         setAssetNextCursor(result.next_cursor);
-        if ((!selectedAssetId || !result.items.some((item) => item.id === selectedAssetId)) && result.items[0]) {
-          startTransition(() => setSelectedAssetId(result.items[0].id));
-        }
       })
       .catch((error: unknown) => {
         setAssets((current) => ({
@@ -698,6 +814,33 @@ function OpenPdmApp() {
     session.data?.token,
     view,
   ]);
+
+  // Default to the first Asset when viewing any Project tab with a loaded list and nothing
+  // selected -- Collaboration, for instance, shows state for "whichever Asset is current"
+  // without addressing one via its own URL. Driven by projectTab/assets.data directly (not
+  // the list fetch's own resolution) so it fires correctly regardless of whether the tab
+  // switch or the fetch resolves first. Only asset-aware tabs navigate to reflect the
+  // default in the URL; elsewhere it's a plain state update, matching how ProjectTabs only
+  // carries the current selection into asset-aware tabs when the user switches tabs.
+  useEffect(() => {
+    if (
+      view !== "project" ||
+      selectedAssetId ||
+      assetExplicitlyCleared.current ||
+      assets.status !== "ready" ||
+      !assets.data[0]
+    ) {
+      return;
+    }
+    const fallbackAssetId = assets.data[0].id;
+    startTransition(() => {
+      if (ASSET_AWARE_PROJECT_TABS.has(projectTab)) {
+        selectAsset(fallbackAssetId, { tab: projectTab, replace: true });
+      } else {
+        setSelectedAssetId(fallbackAssetId);
+      }
+    });
+  }, [view, projectTab, selectedAssetId, assets.status, assets.data, selectAsset]);
 
   useEffect(() => {
     const token = session.data?.token;
@@ -1316,7 +1459,7 @@ function OpenPdmApp() {
     try {
       const asset = await createAsset(session.data.token, selectedProjectId, assetForm);
       setAssetForm({ name: "", description: "" });
-      setSelectedAssetId(asset.id);
+      selectAsset(asset.id);
       setBanner("Engineering Asset created.");
       await refreshAssetPage(session.data.token, selectedProjectId);
     } catch (error: unknown) {
@@ -1607,6 +1750,27 @@ function OpenPdmApp() {
     }
   }
 
+  async function handleUpdateAssetStatus(nextStatus: "draft" | "active" | "archived"): Promise<void> {
+    if (!session.data?.token || !selectedAssetId) {
+      return;
+    }
+    setBusyAction("update-status");
+    setBanner(null);
+    try {
+      const updated = await updateAssetStatus(session.data.token, selectedAssetId, nextStatus);
+      setAssetDetail({ status: "ready", data: updated, error: null });
+      setAssets((current) => ({
+        ...current,
+        data: current.data.map((asset) => (asset.id === updated.id ? updated : asset)),
+      }));
+      setBanner(`Status updated to ${nextStatus}.`);
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Status update failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleRefreshAssetState(): Promise<void> {
     if (!session.data?.token || !selectedAssetId || !selectedProjectId) {
       return;
@@ -1686,6 +1850,12 @@ function OpenPdmApp() {
     if (!session.data?.token || !session.data.user.is_platform_admin) return;
     const result = await listPlugins(session.data.token);
     setPlugins({ status: "ready", data: result, error: null });
+  }
+
+  async function refreshPlatformAdministrators(): Promise<void> {
+    if (!session.data?.token || !session.data.user.is_platform_admin) return;
+    const result = await listPlatformAdministrators(session.data.token);
+    setPlatformAdministrators({ status: "ready", data: result, error: null });
   }
 
   async function refreshProviders(): Promise<void> {
@@ -1816,6 +1986,46 @@ function OpenPdmApp() {
     }
   }
 
+  async function handleGrantPlatformAdministrator(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !platformAdminEmail.trim()) return;
+    setBusyAction("grant-platform-admin");
+    setBanner(null);
+    try {
+      const granted = await setPlatformAdministratorByEmail(
+        session.data.token,
+        platformAdminEmail.trim(),
+        true,
+      );
+      await refreshPlatformAdministrators();
+      setPlatformAdminEmail("");
+      setBanner(`${granted.display_name} is now a Platform Administrator.`);
+    } catch (error: unknown) {
+      setBanner(
+        error instanceof Error ? error.message : "Platform Administrator authority could not be granted.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRevokePlatformAdministrator(user: User): Promise<void> {
+    if (!session.data?.token) return;
+    setBusyAction(`revoke-platform-admin-${user.id}`);
+    setBanner(null);
+    try {
+      await setPlatformAdministratorByEmail(session.data.token, user.email, false);
+      await refreshPlatformAdministrators();
+      setBanner(`${user.display_name} is no longer a Platform Administrator.`);
+    } catch (error: unknown) {
+      setBanner(
+        error instanceof Error ? error.message : "Platform Administrator authority could not be revoked.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handlePluginState(plugin: PluginRecord): Promise<void> {
     if (!session.data?.token) return;
     setBusyAction(`plugin-state-${plugin.id}`);
@@ -1922,6 +2132,38 @@ function OpenPdmApp() {
     }
   }
 
+  const PROJECT_TAB_LABELS: Record<ProjectTab, string> = {
+    overview: "Overview",
+    assets: "Assets",
+    relationships: "Relationships",
+    collaboration: "Collaboration",
+    members: "Members",
+  };
+
+  const breadcrumbItems: BreadcrumbItem[] = (() => {
+    if (view === "project" && selectedProjectId) {
+      const items: BreadcrumbItem[] = [
+        { key: "projects", label: "Projects", onClick: () => navigate("/projects") },
+        {
+          key: "project",
+          label: projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project",
+          onClick: () => navigate(`/projects/${selectedProjectId}/overview`),
+        },
+      ];
+      if (projectTab !== "overview") {
+        items.push({ key: "tab", label: PROJECT_TAB_LABELS[projectTab] });
+      }
+      if (selectedAssetId && assetDetail.data && ASSET_AWARE_PROJECT_TABS.has(projectTab)) {
+        items.push({ key: "asset", label: assetDetail.data.name });
+      }
+      return items;
+    }
+    if (view === "notifications") return [{ key: "notifications", label: "Notifications" }];
+    if (view === "plugin-administration") return [{ key: "admin", label: "Plugin administration" }];
+    if (view === "projects") return [{ key: "projects", label: "Projects" }];
+    return [{ key: "home", label: "Home" }];
+  })();
+
   return (
     <AppShell
       announcement={banner}
@@ -1931,9 +2173,9 @@ function OpenPdmApp() {
             apiError={foundation.error}
             apiLabel={foundation.data?.phase ?? "Connecting to API"}
             apiStatus={foundation.status}
+            breadcrumb={breadcrumbItems}
             displayName={session.data.user.display_name}
             email={session.data.user.email}
-            onHome={() => navigate("/")}
             onNotifications={() => navigate("/notifications")}
             onOpenNavigation={() => setMobileNavigationOpen(true)}
             onSignOut={() => void handleSignOut()}
@@ -1942,6 +2184,264 @@ function OpenPdmApp() {
         ) : (
           <GuestHeader foundation={foundation} />
         )
+      }
+      sidebar={
+        isAuthenticated && session.data ? (
+          <>
+            {mobileNavigationOpen ? <button aria-label="Close navigation overlay" className="nav-scrim" onClick={() => setMobileNavigationOpen(false)} type="button" /> : null}
+            <aside className={mobileNavigationOpen ? "nav-panel is-open" : "nav-panel"}>
+              <div className="sidebar-brand-row">
+                <button className="sidebar-brand" onClick={() => { setMobileNavigationOpen(false); navigate("/"); }} type="button">
+                  <span className="sidebar-brand-mark"><Boxes /></span>
+                  <span><strong>OpenPDM</strong><small>Engineering collaboration</small></span>
+                </button>
+                <button aria-label="Close navigation" className="icon-button close-nav-button" onClick={() => setMobileNavigationOpen(false)} type="button"><X /></button>
+              </div>
+
+              <button className="sidebar-search" type="button">
+                <Search aria-hidden="true" /><span>Search or jump to…</span>
+                <span className="sidebar-search-hint">⌘K</span>
+              </button>
+
+              <div className="sidebar-nav-links">
+                <button
+                  className={view === "home" ? "sidebar-link is-active" : "sidebar-link"}
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
+                  type="button"
+                >
+                  <Home /> Home
+                </button>
+
+                <button
+                  className={view === "notifications" ? "sidebar-link is-active" : "sidebar-link"}
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/notifications"); }}
+                  type="button"
+                >
+                  <Inbox /> Notifications <span>{unreadNotifications}</span>
+                </button>
+
+                <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
+              </div>
+
+              {organizations.status === "error" ? (
+                <InlineAlert tone="danger">{organizations.error}</InlineAlert>
+              ) : null}
+
+              {!hasOrganizations ? (
+                <form className="form-grid compact-form" onSubmit={handleBootstrapOrganization}>
+                  <h3>Create your first Organization</h3>
+                  <label>
+                    Organization name
+                    <input
+                      required
+                      value={bootstrapOrg.name}
+                      onChange={(event) =>
+                        setBootstrapOrg((current) => ({
+                          ...current,
+                          name: event.target.value,
+                          slug: current.slug || slugify(event.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Slug
+                    <input
+                      required
+                      value={bootstrapOrg.slug}
+                      onChange={(event) =>
+                        setBootstrapOrg((current) => ({ ...current, slug: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <button
+                    className="primary-button"
+                    disabled={busyAction === "create-organization"}
+                    type="submit"
+                  >
+                    {busyAction === "create-organization" ? "Creating..." : "Create Organization"}
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <div className="sidebar-section">
+                    <span className="sidebar-section-label">Organization</span>
+                    <div className="sidebar-org-list">
+                      {organizations.data.map((membership) => {
+                        const organization = membership.organization;
+                        if (!organization) {
+                          return null;
+                        }
+                        return (
+                          <button
+                            className={
+                              selectedOrganizationId === organization.id
+                                ? "sidebar-switcher-card is-selected"
+                                : "sidebar-switcher-card"
+                            }
+                            key={membership.id}
+                            onClick={() => setSelectedOrganizationId(organization.id)}
+                            type="button"
+                          >
+                            <span className="sidebar-switcher-avatar">{organization.name.slice(0, 2).toUpperCase()}</span>
+                            <span className="sidebar-switcher-text">
+                              <strong>{organization.name}</strong>
+                              <small>{membership.role} · {organization.slug}</small>
+                            </span>
+                            {organizations.data.length > 1 ? <ChevronsUpDown aria-hidden="true" className="ic14" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {selectedOrganizationId && !hasProjects ? (
+                    <form className="form-grid compact-form" onSubmit={handleBootstrapProject}>
+                      <h3>Create the first Project</h3>
+                      <label>
+                        Project name
+                        <input
+                          required
+                          value={bootstrapProject.name}
+                          onChange={(event) =>
+                            setBootstrapProject((current) => ({ ...current, name: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <textarea
+                          value={bootstrapProject.description}
+                          onChange={(event) =>
+                            setBootstrapProject((current) => ({
+                              ...current,
+                              description: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="primary-button"
+                        disabled={busyAction === "create-project"}
+                        type="submit"
+                      >
+                        {busyAction === "create-project" ? "Creating..." : "Create Project"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {projects.status === "error" ? (
+                    <InlineAlert tone="danger">{projects.error}</InlineAlert>
+                  ) : null}
+
+                  {selectedOrganizationId && hasProjects ? (
+                    <Dialog
+                      description="Create a new Project in the selected Organization."
+                      onOpenChange={setShowCreateProjectForm}
+                      open={showCreateProjectForm}
+                      title="Create Project"
+                    >
+                      <form
+                        className="form-grid compact-form"
+                        onSubmit={(event) => { void handleBootstrapProject(event); setShowCreateProjectForm(false); }}
+                      >
+                        <label>
+                          Project name
+                          <input
+                            required
+                            value={bootstrapProject.name}
+                            onChange={(event) =>
+                              setBootstrapProject((current) => ({ ...current, name: event.target.value }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Description
+                          <textarea
+                            value={bootstrapProject.description}
+                            onChange={(event) =>
+                              setBootstrapProject((current) => ({
+                                ...current,
+                                description: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          className="primary-button"
+                          disabled={busyAction === "create-project"}
+                          type="submit"
+                        >
+                          {busyAction === "create-project" ? "Creating..." : "Create Project"}
+                        </button>
+                      </form>
+                    </Dialog>
+                  ) : null}
+
+                  {hasProjects ? (
+                    <div className="sidebar-section sidebar-section-flex">
+                      <div className="sidebar-section-header">
+                        <span className="sidebar-section-label">Projects</span>
+                        {selectedOrganizationId ? (
+                          <button
+                            aria-label="New Project"
+                            className="icon-button icon-button-sm"
+                            onClick={() => setShowCreateProjectForm((current) => !current)}
+                            title="New Project"
+                            type="button"
+                          >
+                            <Plus />
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="sidebar-project-list">
+                        {projects.data.map((project) => (
+                          <button
+                            className={
+                              selectedProjectId === project.id ? "sidebar-project-card is-selected" : "sidebar-project-card"
+                            }
+                            key={project.id}
+                            onClick={() => {
+                              setSelectedProjectId(project.id);
+                              setMobileNavigationOpen(false);
+                              navigate(`/projects/${project.id}/overview`);
+                            }}
+                            type="button"
+                          >
+                            <span className="sidebar-project-dot" />
+                            <span className="sidebar-project-text">
+                              <strong>{project.name}</strong>
+                              <small>{project.description || "No description"}</small>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+
+              <div className="sidebar-footer">
+                <button
+                  className={
+                    view === "plugin-administration"
+                      ? "sidebar-link is-active"
+                      : "sidebar-link"
+                  }
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/administration/plugins"); }}
+                  title={
+                    session.data?.user.is_platform_admin
+                      ? "Manage installed plugins"
+                      : "Platform Administrator authority is required"
+                  }
+                  type="button"
+                >
+                  <Package /> Plugin administration
+                </button>
+              </div>
+            </aside>
+          </>
+        ) : null
       }
     >
       {!isAuthenticated ? (
@@ -2007,16 +2507,8 @@ function OpenPdmApp() {
                 }
               />
             </label>
-            {authError ? (
-              <p className="error-message" role="alert">
-                {authError}
-              </p>
-            ) : null}
-            {session.error ? (
-              <p className="error-message" role="alert">
-                {session.error}
-              </p>
-            ) : null}
+            {authError ? <InlineAlert tone="danger">{authError}</InlineAlert> : null}
+            {session.error ? <InlineAlert tone="danger">{session.error}</InlineAlert> : null}
             <button className="primary-button" disabled={busyAction !== null} type="submit">
               {busyAction === "sign-in"
                 ? "Signing in..."
@@ -2031,190 +2523,6 @@ function OpenPdmApp() {
       ) : (
         <>
           <section className="workspace-grid">
-            {mobileNavigationOpen ? <button aria-label="Close navigation overlay" className="nav-scrim" onClick={() => setMobileNavigationOpen(false)} type="button" /> : null}
-            <aside className={mobileNavigationOpen ? "nav-panel is-open" : "nav-panel"}>
-              <header className="panel-header">
-                <div>
-                  <p className="eyebrow">Workspace</p>
-                  <h2>Navigation</h2>
-                </div>
-                <button aria-label="Close navigation" className="icon-button close-nav-button" onClick={() => setMobileNavigationOpen(false)} type="button"><X /></button>
-              </header>
-
-              <button
-                className={view === "home" ? "sidebar-link is-active" : "sidebar-link"}
-                onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
-                type="button"
-              >
-                <Home /> Home
-              </button>
-
-              <button
-                className={view === "notifications" ? "sidebar-link is-active" : "sidebar-link"}
-                onClick={() => { setMobileNavigationOpen(false); navigate("/notifications"); }}
-                type="button"
-              >
-                <Inbox /> Notifications <span>{unreadNotifications}</span>
-              </button>
-
-              <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
-
-              {organizations.status === "error" ? (
-                <p className="error-message" role="alert">
-                  {organizations.error}
-                </p>
-              ) : null}
-
-              {!hasOrganizations ? (
-                <form className="form-grid compact-form" onSubmit={handleBootstrapOrganization}>
-                  <h3>Create your first Organization</h3>
-                  <label>
-                    Organization name
-                    <input
-                      required
-                      value={bootstrapOrg.name}
-                      onChange={(event) =>
-                        setBootstrapOrg((current) => ({
-                          ...current,
-                          name: event.target.value,
-                          slug: current.slug || slugify(event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Slug
-                    <input
-                      required
-                      value={bootstrapOrg.slug}
-                      onChange={(event) =>
-                        setBootstrapOrg((current) => ({ ...current, slug: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button
-                    className="primary-button"
-                    disabled={busyAction === "create-organization"}
-                    type="submit"
-                  >
-                    {busyAction === "create-organization" ? "Creating..." : "Create Organization"}
-                  </button>
-                </form>
-              ) : (
-                <>
-                  <div className="resource-list">
-                    <h3>Organizations</h3>
-                    {organizations.data.map((membership) => {
-                      const organization = membership.organization;
-                      if (!organization) {
-                        return null;
-                      }
-                      return (
-                        <button
-                          key={membership.id}
-                          className={
-                            selectedOrganizationId === organization.id
-                              ? "resource-card is-selected"
-                              : "resource-card"
-                          }
-                          onClick={() => setSelectedOrganizationId(organization.id)}
-                          type="button"
-                        >
-                          <strong>{organization.name}</strong>
-                          <span>{membership.role}</span>
-                          <small>{organization.slug}</small>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {selectedOrganizationId && !hasProjects ? (
-                    <form className="form-grid compact-form" onSubmit={handleBootstrapProject}>
-                      <h3>Create the first Project</h3>
-                      <label>
-                        Project name
-                        <input
-                          required
-                          value={bootstrapProject.name}
-                          onChange={(event) =>
-                            setBootstrapProject((current) => ({ ...current, name: event.target.value }))
-                          }
-                        />
-                      </label>
-                      <label>
-                        Description
-                        <textarea
-                          value={bootstrapProject.description}
-                          onChange={(event) =>
-                            setBootstrapProject((current) => ({
-                              ...current,
-                              description: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                      <button
-                        className="primary-button"
-                        disabled={busyAction === "create-project"}
-                        type="submit"
-                      >
-                        {busyAction === "create-project" ? "Creating..." : "Create Project"}
-                      </button>
-                    </form>
-                  ) : null}
-
-                  {projects.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {projects.error}
-                    </p>
-                  ) : null}
-
-                  {hasProjects ? (
-                    <div className="resource-list">
-                      <h3>Projects</h3>
-                      {projects.data.map((project) => (
-                        <button
-                          key={project.id}
-                          className={
-                            selectedProjectId === project.id ? "resource-card is-selected" : "resource-card"
-                          }
-                          onClick={() => {
-                            setSelectedProjectId(project.id);
-                            setMobileNavigationOpen(false);
-                            navigate(`/projects/${project.id}/overview`);
-                          }}
-                          type="button"
-                        >
-                          <strong>{project.name}</strong>
-                          <span>{project.description || "No description"}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                </>
-              )}
-
-              <div className="sidebar-footer">
-                <button
-                  className={
-                    view === "plugin-administration"
-                      ? "sidebar-link is-active"
-                      : "sidebar-link"
-                  }
-                  onClick={() => { setMobileNavigationOpen(false); navigate("/administration/plugins"); }}
-                  title={
-                    session.data?.user.is_platform_admin
-                      ? "Manage installed plugins"
-                      : "Platform Administrator authority is required"
-                  }
-                  type="button"
-                >
-                  <Package /> Plugin administration
-                </button>
-              </div>
-            </aside>
-
             {view === "home" || view === "projects" ? (
               <section className="panel home-panel content-span">
                 <header className="panel-header">
@@ -2226,9 +2534,15 @@ function OpenPdmApp() {
                       Assets.
                     </p>
                   </div>
-                  <span className="status-pill">
-                    {unreadNotifications} unread
-                  </span>
+                  {view === "projects" && selectedOrganizationId ? (
+                    <button className="primary-button" onClick={() => setShowCreateProjectForm(true)} type="button">
+                      <Plus /> New Project
+                    </button>
+                  ) : (
+                    <span className="status-pill">
+                      {unreadNotifications} unread
+                    </span>
+                  )}
                 </header>
 
                 <div className="home-summary-grid">
@@ -2276,7 +2590,7 @@ function OpenPdmApp() {
                               className="text-button"
                               onClick={() => {
                                 setSelectedAssetId(asset.id);
-                                navigate(`/projects/${asset.project_id}/assets`);
+                                navigate(projectAssetPath(asset.project_id, "assets", asset.id));
                               }}
                               type="button"
                             >
@@ -2290,7 +2604,7 @@ function OpenPdmApp() {
                   ) : null}                </div>
 
                 {view === "home" && (organizations.status === "loading" || projects.status === "loading" || assets.status === "loading" || notifications.status === "loading") ? (
-                  <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> Refreshing operational context…</div>
+                  <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> Refreshing operational context…</InlineAlert>
                 ) : null}
                 {view === "home" && (organizations.status === "error" || projects.status === "error" || assets.status === "error" || notifications.status === "error") ? (
                   <article className="detail-card recovery-card" role="alert">
@@ -2432,17 +2746,19 @@ function OpenPdmApp() {
                 </div>
 
                 {notifications.status === "error" ? (
-                  <div className="state-banner state-error" role="alert">
-                    <strong>{notifications.data.length ? "Showing stale notifications" : "Notifications unavailable"}</strong>
+                  <InlineAlert
+                    title={notifications.data.length ? "Showing stale notifications" : "Notifications unavailable"}
+                    tone="danger"
+                  >
                     <span>{notifications.error}</span>
                     <button className="secondary-button" onClick={() => void handleRefreshNotifications()} type="button">Retry</button>
-                  </div>
+                  </InlineAlert>
                 ) : null}
                 {notifications.status === "loading" ? (
-                  <div className="state-banner" role="status">
+                  <InlineAlert tone="info">
                     <RefreshCw aria-hidden="true" />
                     <span>{notifications.data.length ? "Refreshing while the current page stays available…" : "Loading notifications…"}</span>
-                  </div>
+                  </InlineAlert>
                 ) : null}
 
                 {notifications.data.length ? (
@@ -2504,6 +2820,64 @@ function OpenPdmApp() {
                   </div>
                 ) : (
                   <>
+                <section className="detail-card platform-admin-card" aria-labelledby="platform-administrators-title">
+                  <div className="detail-row">
+                    <div>
+                      <p className="eyebrow">Deployment-wide authority</p>
+                      <h3 id="platform-administrators-title"><Users aria-hidden="true" /> Platform Administrators</h3>
+                      <p className="muted-text">
+                        Organization and Project roles grant no plugin-administration authority. Only Platform Administrators may install, enable, disable, configure or remove plugins.
+                      </p>
+                    </div>
+                  </div>
+                  {platformAdministrators.status === "error" ? (
+                    <InlineAlert tone="danger">{platformAdministrators.error}</InlineAlert>
+                  ) : null}
+                  <ul className="platform-admin-list">
+                    {platformAdministrators.data.map((administrator) => (
+                      <li key={administrator.id}>
+                        <span>
+                          <strong>{administrator.display_name}</strong>
+                          <small>{administrator.email}</small>
+                        </span>
+                        <ConfirmDialog
+                          confirmLabel="Revoke authority"
+                          description={`Revoke Platform Administrator authority from ${administrator.display_name}. A deployment must retain at least one active Platform Administrator.`}
+                          onConfirm={() => void handleRevokePlatformAdministrator(administrator)}
+                          title="Review revoke action"
+                          trigger={
+                            <button
+                              className="secondary-button warning-button"
+                              disabled={busyAction === `revoke-platform-admin-${administrator.id}`}
+                              type="button"
+                            >
+                              Revoke
+                            </button>
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  <form className="form-grid compact-form" onSubmit={handleGrantPlatformAdministrator}>
+                    <label>
+                      Grant by email
+                      <input
+                        placeholder="person@example.com"
+                        required
+                        type="email"
+                        value={platformAdminEmail}
+                        onChange={(event) => setPlatformAdminEmail(event.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="primary-button"
+                      disabled={!platformAdminEmail.trim() || busyAction === "grant-platform-admin"}
+                      type="submit"
+                    >
+                      {busyAction === "grant-platform-admin" ? "Granting..." : "Grant authority"}
+                    </button>
+                  </form>
+                </section>
                 <form className="form-grid compact-form" onSubmit={handleInstallPlugin}>
                   <h3>Install Community Plugin</h3>
                   <label>
@@ -2523,9 +2897,7 @@ function OpenPdmApp() {
                     {busyAction === "install-plugin" ? "Installing..." : "Install package"}
                   </button>
                 </form>
-                {plugins.status === "error" ? (
-                  <p className="error-message" role="alert">{plugins.error}</p>
-                ) : null}
+                {plugins.status === "error" ? <InlineAlert tone="danger">{plugins.error}</InlineAlert> : null}
                 <div className="governance-filter-bar" aria-label="Plugin filters">
                   <label>Search plugins<input type="search" placeholder="Name, identifier or capability" value={pluginQuery} onChange={(event) => setPluginQuery(event.target.value)} /></label>
                   <label>Lifecycle<select value={pluginLifecycleFilter} onChange={(event) => setPluginLifecycleFilter(event.target.value)}><option value="all">All states</option>{[...new Set(plugins.data.map((plugin) => plugin.lifecycle_state))].map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
@@ -2541,7 +2913,7 @@ function OpenPdmApp() {
                     <article className="detail-card plugin-card" key={plugin.id}>
                       <div className="detail-row"><div><p className="eyebrow">{plugin.plugin_type} plugin</p><h3>{plugin.name}</h3><p>{plugin.id} · v{plugin.version}</p></div><span className={`status-pill plugin-state-${plugin.lifecycle_state}`}>{plugin.lifecycle_state}</span></div>
                       <div className="capability-list" aria-label="Declared capabilities">{plugin.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div>
-                      {plugin.diagnostic_reason ? <p className="error-message">{plugin.diagnostic_reason}</p> : null}
+                      {plugin.diagnostic_reason ? <InlineAlert tone="warning">{plugin.diagnostic_reason}</InlineAlert> : null}
                       <details className="manifest-review"><summary>Review manifest and package evidence</summary><dl><div><dt>Extension API</dt><dd>{plugin.extension_api_versions.join(", ") || "Not declared"}</dd></div><div><dt>Package digest</dt><dd><code>{plugin.package_digest}</code></dd></div><div><dt>Installed</dt><dd>{formatTimestamp(plugin.created_at)}</dd></div><div><dt>Last changed</dt><dd>{formatTimestamp(plugin.updated_at)}</dd></div></dl></details>
                       <div className="collaboration-actions">
                         <ConfirmDialog confirmLabel={plugin.enabled ? "Disable plugin" : "Enable plugin"} description={`${plugin.enabled ? "Disable" : "Enable"} ${plugin.name}. Declared capabilities: ${plugin.capabilities.join(", ") || "none"}. This audited lifecycle change uses the same Extension API path for Official and Community Plugins.`} onConfirm={() => void handlePluginState(plugin)} title={`Review ${plugin.enabled ? "disable" : "enable"} action`} trigger={<button className="secondary-button" disabled={busyAction === `plugin-state-${plugin.id}`} type="button">{plugin.enabled ? "Disable" : "Enable"}</button>} />
@@ -2563,7 +2935,7 @@ function OpenPdmApp() {
                               </label>
                             );
                           }) : <label>Advanced configuration (JSON object)<textarea aria-invalid={Boolean(pluginConfigurationErrors[plugin.id])} value={pluginConfigurationJson[plugin.id] ?? "{}"} onChange={(event) => { setPluginConfigurationJson((current) => ({ ...current, [plugin.id]: event.target.value })); setPluginConfigurationErrors((current) => ({ ...current, [plugin.id]: null })); }} /><small>The manifest uses schema constructs that need the validated JSON fallback.</small></label>}
-                          {pluginConfigurationErrors[plugin.id] ? <p className="error-message" role="alert">{pluginConfigurationErrors[plugin.id]}</p> : null}
+                          {pluginConfigurationErrors[plugin.id] ? <InlineAlert tone="danger">{pluginConfigurationErrors[plugin.id]}</InlineAlert> : null}
                           <div className="collaboration-actions"><button className="primary-button" disabled={busyAction === `plugin-config-save-${plugin.id}`} onClick={() => void handleSavePluginConfiguration(plugin.id)} type="button">{busyAction === `plugin-config-save-${plugin.id}` ? "Saving..." : "Save configuration"}</button><button className="secondary-button" onClick={() => void handleLoadPluginConfiguration(plugin.id)} type="button">Reset draft</button></div>
                         </section>
                       ) : null}
@@ -2578,24 +2950,34 @@ function OpenPdmApp() {
             {view === "project" ? (
               <section aria-labelledby="project-workspace-title" className="panel project-workspace content-span">
                 <header className="project-header">
-                  <div className="project-heading-row">
-                    <div>
-                      <p className="breadcrumb">
-                        Projects <ChevronRight size={14} /> {projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project"}
-                      </p>
+                  <div className="project-heading-column">
+                    <div className="project-heading-row">
                       <h2 id="project-workspace-title">{projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project workspace"}</h2>
-                      <p className="muted-text">
+                      <span className="status-pill">{currentProjectRole ?? "Member"}</span>
+                      <p className="muted-text project-heading-description">
                         {projects.data.find((item) => item.id === selectedProjectId)?.description || "Engineering collaboration workspace"}
                       </p>
                     </div>
-                    <span className="status-pill">{currentProjectRole ?? "Member"}</span>
+                    <ProjectTabs
+                      onValueChange={(tab: ProjectTab) => {
+                        if (selectedProjectId) {
+                          // Only tabs whose content addresses a specific asset carry the
+                          // current selection into their URL; other tabs stay bare even if
+                          // an asset happens to be selected in the background.
+                          const assetForTab = ASSET_AWARE_PROJECT_TABS.has(tab) ? selectedAssetId : null;
+                          navigate(projectAssetPath(selectedProjectId, tab, assetForTab));
+                        }
+                      }}
+                      value={projectTab}
+                    />
                   </div>
-                  <ProjectTabs
-                    onValueChange={(tab: ProjectTab) =>
-                      navigate(`/projects/${selectedProjectId}/${tab}`)
-                    }
-                    value={projectTab}
-                  />
+                  {projectTab === "assets" ? (
+                    <div className="project-header-actions">
+                      <button className="primary-button" onClick={() => setShowCreateAssetForm(true)} type="button">
+                        <Plus /> New Asset
+                      </button>
+                    </div>
+                  ) : null}
                 </header>
 
                 {projectTab === "overview" ? (
@@ -2611,7 +2993,7 @@ function OpenPdmApp() {
                         <h3>Recent Assets</h3>
                         <div className="compact-list">
                           {assets.data.slice(0, 6).map((asset) => (
-                            <button key={asset.id} onClick={() => { setSelectedAssetId(asset.id); navigate(`/projects/${selectedProjectId}/assets`); }} type="button">
+                            <button key={asset.id} onClick={() => selectAsset(asset.id, { tab: "assets" })} type="button">
                               <span>{asset.name}</span><small>{asset.status}</small>
                             </button>
                           ))}
@@ -2635,18 +3017,50 @@ function OpenPdmApp() {
                       <div><p className="eyebrow">Asset graph</p><h2 id="relationships-title">Relationships and references</h2><p className="muted-text">Directional graph edges and unresolved or external references remain visibly distinct.</p></div>
                       <label className="inline-filter">
                         Engineering Asset
-                        <select value={selectedAssetId ?? ""} onChange={(event) => setSelectedAssetId(event.target.value || null)}>
+                        <select value={selectedAssetId ?? ""} onChange={(event) => selectAsset(event.target.value || null)}>
                           <option value="">Select an Asset</option>
                           {assets.data.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                         </select>
                       </label>
                     </header>
 
+                    <article className="detail-card relationship-card">
+                      <div className="detail-row">
+                        <div>
+                          <h3>Complete project graph</h3>
+                          <p className="muted-text">
+                            Every Engineering Asset and Asset-to-Asset relationship in this Project, merged from each
+                            Asset&apos;s bounded graph read.
+                          </p>
+                        </div>
+                        <span className="status-pill">
+                          {projectGraph.data?.has_cycle ? "cycle detected" : "no cycle"}
+                        </span>
+                      </div>
+                      {projectGraph.status === "error" ? (
+                        <InlineAlert tone="danger">{projectGraph.error}</InlineAlert>
+                      ) : null}
+                      {projectGraph.data && projectGraph.data.nodes.length > 0 ? (
+                        <>
+                          <AssetGraphDiagram graph={projectGraph.data} onSelectAsset={(assetId) => selectAsset(assetId)} />
+                          <p className="muted-text graph-diagram-caption">
+                            {projectGraph.data.nodes.length} node{projectGraph.data.nodes.length === 1 ? "" : "s"},{" "}
+                            {projectGraph.data.relationships.length} relationship
+                            {projectGraph.data.relationships.length === 1 ? "" : "s"} across this Project.
+                          </p>
+                        </>
+                      ) : projectGraph.status === "loading" ? (
+                        <p className="empty-state">Loading the complete project graph...</p>
+                      ) : (
+                        <p className="empty-state">No Assets have relationships in this Project yet.</p>
+                      )}
+                    </article>
+
                     {assetRelationships.status === "loading" || assetReferences.status === "loading" ? (
-                      <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> Loading relationship context…</div>
+                      <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> Loading relationship context…</InlineAlert>
                     ) : null}
                     {assetRelationships.status === "error" || incomingRelationships.status === "error" || outgoingRelationships.status === "error" || assetReferences.status === "error" ? (
-                      <div className="state-banner state-error" role="alert"><strong>Relationship context is partial</strong><span>{assetRelationships.error ?? incomingRelationships.error ?? outgoingRelationships.error ?? assetReferences.error}</span><button className="secondary-button" onClick={() => void handleRefreshAssetState()} type="button">Retry</button></div>
+                      <InlineAlert title="Relationship context is partial" tone="danger"><span>{assetRelationships.error ?? incomingRelationships.error ?? outgoingRelationships.error ?? assetReferences.error}</span><button className="secondary-button" onClick={() => void handleRefreshAssetState()} type="button">Retry</button></InlineAlert>
                     ) : null}
 
                     {assetDetail.data ? (
@@ -2658,7 +3072,7 @@ function OpenPdmApp() {
                             <p className="muted-text">Other Assets pointing to this Asset.</p>
                             <div className="relationship-list">
                               {incomingRelationships.data.map((relationship) => (
-                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.source_asset_id) ?? relationship.source_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => setSelectedAssetId(relationship.source_asset_id)} type="button">Open source</button></article>
+                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.source_asset_id) ?? relationship.source_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => selectAsset(relationship.source_asset_id)} type="button">Open source</button></article>
                               ))}
                               {!incomingRelationships.data.length ? <p className="empty-state">No incoming relationships.</p> : null}
                             </div>
@@ -2668,7 +3082,7 @@ function OpenPdmApp() {
                             <p className="muted-text">This Asset pointing to other Assets.</p>
                             <div className="relationship-list">
                               {outgoingRelationships.data.map((relationship) => (
-                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.target_asset_id) ?? relationship.target_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => setSelectedAssetId(relationship.target_asset_id)} type="button">Open target</button></article>
+                                <article className="relationship-item" key={relationship.id}><div><strong>{formatRelationshipType(relationship.relationship_type)}</strong><p>{assetNameById.get(relationship.target_asset_id) ?? relationship.target_asset_id}</p><small>{formatTimestamp(relationship.created_at)}</small></div><button className="secondary-button" onClick={() => selectAsset(relationship.target_asset_id)} type="button">Open target</button></article>
                               ))}
                               {!outgoingRelationships.data.length ? <p className="empty-state">No outgoing relationships.</p> : null}
                             </div>
@@ -2717,7 +3131,7 @@ function OpenPdmApp() {
                         Owners control Owner roles. Every Organization must retain an Owner.
                       </p>
                       {organizationMembers.status === "error" ? (
-                        <p className="error-message" role="alert">{organizationMembers.error}</p>
+                        <InlineAlert tone="danger">{organizationMembers.error}</InlineAlert>
                       ) : null}
                       <div className="member-list">
                         {organizationMembers.data.filter(matchesMemberQuery).map((membership) => {
@@ -2796,7 +3210,7 @@ function OpenPdmApp() {
                         Project members must already belong to the Organization.
                       </p>
                       {projectMembers.status === "error" ? (
-                        <p className="error-message" role="alert">{projectMembers.error}</p>
+                        <InlineAlert tone="danger">{projectMembers.error}</InlineAlert>
                       ) : null}
                       <div className="member-list">
                         {projectMembers.data.filter(matchesMemberQuery).map((membership) => {
@@ -2946,11 +3360,18 @@ function OpenPdmApp() {
                     </div>
                   </div>
 
-                  {assetViews.status === "error" ? <p className="error-message" role="alert">Saved views unavailable: {assetViews.error}</p> : null}
+                  {assetViews.status === "error" ? <InlineAlert tone="danger">Saved views unavailable: {assetViews.error}</InlineAlert> : null}
 
-                  <details className="create-disclosure">
-                    <summary>Create Engineering Asset</summary>
-                    <form className="form-grid compact-form" onSubmit={handleCreateAsset}>
+                  <Dialog
+                    description="Create a new Engineering Asset in this Project."
+                    onOpenChange={setShowCreateAssetForm}
+                    open={showCreateAssetForm}
+                    title="Create Engineering Asset"
+                  >
+                    <form
+                      className="form-grid compact-form"
+                      onSubmit={(event) => { void handleCreateAsset(event); setShowCreateAssetForm(false); }}
+                    >
                       <label>
                         Asset name
                         <input required value={assetForm.name} onChange={(event) => setAssetForm((current) => ({ ...current, name: event.target.value }))} />
@@ -2961,17 +3382,19 @@ function OpenPdmApp() {
                       </label>
                       <button className="primary-button" disabled={busyAction === "create-asset"} type="submit">{busyAction === "create-asset" ? "Creating…" : "Create Asset"}</button>
                     </form>
-                  </details>
+                  </Dialog>
 
                   {assets.status === "error" ? (
-                    <div className="state-banner state-error" role="alert">
-                      <strong>{assets.data.length ? "Showing stale Asset data" : "Engineering Assets unavailable"}</strong>
+                    <InlineAlert
+                      title={assets.data.length ? "Showing stale Asset data" : "Engineering Assets unavailable"}
+                      tone="danger"
+                    >
                       <span>{assets.error}</span>
                       <button className="secondary-button" onClick={() => { setAssetCursor(null); setAssetCursorHistory([]); setAssetReloadKey((current) => current + 1); }} type="button">Retry</button>
-                    </div>
+                    </InlineAlert>
                   ) : null}
                   {assets.status === "loading" ? (
-                    <div className="state-banner" role="status"><RefreshCw aria-hidden="true" /> {assets.data.length ? "Refreshing this page…" : "Loading Engineering Assets…"}</div>
+                    <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> {assets.data.length ? "Refreshing this page…" : "Loading Engineering Assets…"}</InlineAlert>
                   ) : null}
 
                   {hasAssets ? (
@@ -2981,7 +3404,7 @@ function OpenPdmApp() {
                         <tbody>
                           {assets.data.map((asset) => (
                             <tr className={selectedAssetId === asset.id ? "is-selected" : ""} key={asset.id}>
-                              <td><button aria-current={selectedAssetId === asset.id ? "true" : undefined} className="text-button asset-name-button" onClick={() => setSelectedAssetId(asset.id)} type="button"><strong>{asset.name}</strong><small>{asset.description || "No description"}</small></button></td>
+                              <td><button aria-current={selectedAssetId === asset.id ? "true" : undefined} className="text-button asset-name-button" onClick={() => selectAsset(asset.id)} type="button"><strong>{asset.name}</strong><small>{asset.description || "No description"}</small></button></td>
                               <td><span className="status-pill">{asset.status}</span></td>
                               <td>{formatTimestamp(asset.updated_at)}</td>
                             </tr>
@@ -3003,684 +3426,60 @@ function OpenPdmApp() {
                 <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>Select a Project</h3><p>Choose a Project before browsing or creating Engineering Assets.</p></div>
               )}
             </section>
-            <section className={selectedAssetId ? "panel detail-panel asset-detail-sheet is-open" : "panel detail-panel asset-detail-sheet"}>
-              <header className="panel-header">
-                <div>
-                  <p className="eyebrow">Lifecycle</p>
-                  <h2>Asset detail and Revision history</h2>
-                </div>
-                <button aria-label="Close Asset detail" className="icon-button close-detail-button" onClick={() => setSelectedAssetId(null)} type="button"><X /></button>
-              </header>
-
-              <article className="detail-card notification-card">
-                <div className="detail-row">
-                  <div>
-                    <h3>Collaboration notifications</h3>
-                    <p>
-                      {unreadNotifications > 0
-                        ? `${unreadNotifications} unread notification${unreadNotifications === 1 ? "" : "s"}`
-                        : "No unread notifications"}
-                    </p>
-                  </div>
-                  <button
-                    className="secondary-button"
-                    disabled={busyAction === "refresh-notifications"}
-                    onClick={() => void handleRefreshNotifications()}
-                    type="button"
-                  >
-                    {busyAction === "refresh-notifications" ? "Refreshing..." : "Refresh"}
-                  </button>
-                </div>
-
-                {notifications.status === "error" ? (
-                  <p className="error-message" role="alert">
-                    {notifications.error}
-                  </p>
-                ) : null}
-
-                {notifications.data.length > 0 ? (
-                  <div className="timeline">
-                    {notifications.data.map((notification) => (
-                      <article key={notification.id} className="timeline-card notification-item">
-                        <div className="timeline-header">
-                          <div>
-                            <h3>{formatNotificationEvent(notification.event_type)}</h3>
-                            <p>{notificationSummary(notification)}</p>
-                          </div>
-                          <small>{formatTimestamp(notification.created_at)}</small>
-                        </div>
-                        <div className="notification-meta">
-                          <span
-                            className={
-                              notification.is_read
-                                ? "status-pill notification-pill notification-read"
-                                : "status-pill notification-pill notification-unread"
-                            }
-                          >
-                            {notification.is_read ? "read" : "unread"}
-                          </span>
-                          {!notification.is_read ? (
-                            <button
-                              className="secondary-button"
-                              disabled={busyAction === `read-notification-${notification.id}`}
-                              onClick={() => void handleMarkNotificationRead(notification.id)}
-                              type="button"
-                            >
-                              {busyAction === `read-notification-${notification.id}`
-                                ? "Marking..."
-                                : "Mark as read"}
-                            </button>
-                          ) : null}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="empty-state">
-                    Collaboration notifications will appear here when approved Phase 2 events target
-                    your account.
-                  </p>
-                )}
-              </article>
-
-              {selectedAssetId && assetDetail.data ? (
-                <>
-                  <article className="detail-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>{assetDetail.data.name}</h3>
-                        <p>{assetDetail.data.description || "No description."}</p>
-                      </div>
-                      <span className="status-pill">{assetDetail.data.status}</span>
-                    </div>
-                    <p className="muted-text">
-                      Created {formatTimestamp(assetDetail.data.created_at)} and updated{" "}
-                      {formatTimestamp(assetDetail.data.updated_at)}.
-                    </p>
-                  </article>
-
-                  <article className="detail-card provider-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Plugin-provided metadata</h3>
-                        <p>Apply capabilities discovered through the public provider API.</p>
-                      </div>
-                      <span className="status-pill">{assetMetadata.data.length} entries</span>
-                    </div>
-
-                    {providers.data.filter((provider) =>
-                      provider.capabilities.includes("metadata_provider"),
-                    ).map((provider) => {
-                      const optionSet = providerOptions[provider.id]?.find(
-                        (item) => item.key === "category",
-                      );
-                      return (
-                        <div className="provider-control" key={provider.id}>
-                          <div>
-                            <strong>{provider.name}</strong>
-                            <small>{provider.id}</small>
-                          </div>
-                          {optionSet ? (
-                            <label>
-                              {optionSet.label}
-                              <select
-                                value={providerSelections[provider.id] ?? optionSet.options[0]?.value ?? ""}
-                                onChange={(event) =>
-                                  setProviderSelections((current) => ({
-                                    ...current,
-                                    [provider.id]: event.target.value,
-                                  }))
-                                }
-                              >
-                                {optionSet.options.map((option) => (
-                                  <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                              </select>
-                            </label>
-                          ) : null}
-                          <button
-                            className="secondary-button"
-                            disabled={busyAction === `provider-metadata-${provider.id}`}
-                            onClick={() => void handleApplyMetadataProvider(provider)}
-                            type="button"
-                          >
-                            {busyAction === `provider-metadata-${provider.id}` ? "Applying..." : "Apply metadata"}
-                          </button>
-                        </div>
-                      );
-                    })}
-
-                    {providers.data.every((provider) =>
-                      !provider.capabilities.includes("metadata_provider"),
-                    ) ? (
-                      <p className={providers.status === "error" ? "error-message" : "empty-state"}>
-                        {providers.status === "error"
-                          ? providers.error
-                          : "No running Metadata Provider is available."}
-                      </p>
-                    ) : null}
-
-                    {assetMetadata.data.length > 0 ? (
-                      <dl className="metadata-list">
-                        {assetMetadata.data.map((entry) => (
-                          <div key={entry.id}>
-                            <dt>{entry.key}</dt>
-                            <dd>{typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    ) : null}
-                  </article>
-
-                  {providers.data.some((provider) =>
-                    provider.capabilities.includes("analysis_provider"),
-                  ) ? (
-                    <article className="detail-card provider-card">
-                      <div className="detail-row">
-                        <div>
-                          <h3>Representation analysis</h3>
-                          <p>Run a discovered provider against one existing Representation.</p>
-                        </div>
-                        {analysisResult ? (
-                          <span className="status-pill">
-                            {analysisResult.metadata.length + analysisResult.references.length + analysisResult.relationships.length} results
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <label>
-                        Representation to analyze
-                        <select
-                          disabled={analysisRepresentations.length === 0 || analysisBusy}
-                          value={selectedAnalysisRepresentation?.id ?? ""}
-                          onChange={(event) => setAnalysisRepresentationId(event.target.value)}
-                        >
-                          {analysisRepresentations.map(({ representation, revision }) => (
-                            <option key={representation.id} value={representation.id}>
-                              {representation.name} - Revision {revision.number}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      {providers.data.filter((provider) =>
-                        provider.capabilities.includes("analysis_provider"),
-                      ).map((provider) => (
-                        <div className="provider-control" key={provider.id}>
-                          <div>
-                            <strong>{provider.name}</strong>
-                            <small>{provider.id}</small>
-                          </div>
-                          <button
-                            className="secondary-button"
-                            disabled={
-                              !selectedAnalysisRepresentation ||
-                              analysisBusy
-                            }
-                            onClick={() => void handleInvokeAnalysisProvider(provider)}
-                            type="button"
-                          >
-                            {busyAction === `provider-analysis-${provider.id}`
-                              ? "Analyzing..."
-                              : "Analyze representation"}
-                          </button>
-                        </div>
-                      ))}
-
-                      {analysisRepresentations.length === 0 ? (
-                        <p className="empty-state">No Representation is available for analysis yet.</p>
-                      ) : null}
-                      {analysisResult ? (
-                        <p className="muted-text" role="status">
-                          Analysis complete: {analysisResult.metadata.length} metadata, {analysisResult.references.length} references, {analysisResult.relationships.length} relationships.
-                        </p>
-                      ) : null}
-                    </article>
-                  ) : null}
-
-                  <article className="detail-card relationship-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Asset relationships</h3>
-                        <p>
-                          Explore explicit Asset-to-Asset links without adding engineering-domain
-                          semantics.
-                        </p>
-                      </div>
-                      <span className="status-pill">
-                        {assetRelationships.data.length} link
-                        {assetRelationships.data.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-
-                    {assetRelationships.status === "error" ||
-                    incomingRelationships.status === "error" ||
-                    outgoingRelationships.status === "error" ? (
-                      <p className="error-message" role="alert">
-                        {assetRelationships.error ??
-                          incomingRelationships.error ??
-                          outgoingRelationships.error}
-                      </p>
-                    ) : null}
-
-                    <div className="relationship-grid">
-                      <section className="relationship-column">
-                        <div className="relationship-column-header">
-                          <h4>Incoming</h4>
-                          <span>{incomingRelationships.data.length}</span>
-                        </div>
-                        {incomingRelationships.data.length > 0 ? (
-                          <div className="relationship-list">
-                            {incomingRelationships.data.map((relationship) => (
-                              <article key={relationship.id} className="relationship-item">
-                                <div>
-                                  <strong>{formatRelationshipType(relationship.relationship_type)}</strong>
-                                  <p>
-                                    From{" "}
-                                    {assetNameById.get(relationship.source_asset_id) ??
-                                      relationship.source_asset_id}
-                                  </p>
-                                  <small>{formatTimestamp(relationship.created_at)}</small>
-                                  {formatMetadataSummary(relationship.metadata) ? (
-                                    <small>{formatMetadataSummary(relationship.metadata)}</small>
-                                  ) : null}
-                                </div>
-                                <button
-                                  className="secondary-button"
-                                  onClick={() => setSelectedAssetId(relationship.source_asset_id)}
-                                  type="button"
-                                >
-                                  Open asset
-                                </button>
-                              </article>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="empty-state">No Assets currently point to this Asset.</p>
-                        )}
-                      </section>
-
-                      <section className="relationship-column">
-                        <div className="relationship-column-header">
-                          <h4>Outgoing</h4>
-                          <span>{outgoingRelationships.data.length}</span>
-                        </div>
-                        {outgoingRelationships.data.length > 0 ? (
-                          <div className="relationship-list">
-                            {outgoingRelationships.data.map((relationship) => (
-                              <article key={relationship.id} className="relationship-item">
-                                <div>
-                                  <strong>{formatRelationshipType(relationship.relationship_type)}</strong>
-                                  <p>
-                                    To{" "}
-                                    {assetNameById.get(relationship.target_asset_id) ??
-                                      relationship.target_asset_id}
-                                  </p>
-                                  <small>{formatTimestamp(relationship.created_at)}</small>
-                                  {formatMetadataSummary(relationship.metadata) ? (
-                                    <small>{formatMetadataSummary(relationship.metadata)}</small>
-                                  ) : null}
-                                </div>
-                                <button
-                                  className="secondary-button"
-                                  onClick={() => setSelectedAssetId(relationship.target_asset_id)}
-                                  type="button"
-                                >
-                                  Open asset
-                                </button>
-                              </article>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="empty-state">This Asset has no outgoing relationships yet.</p>
-                        )}
-                      </section>
-                    </div>
-                  </article>
-
-                  <article className="detail-card relationship-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Generic references</h3>
-                        <p>
-                          References stay distinct from graph edges so unresolved or external pointers
-                          do not appear as Assets.
-                        </p>
-                      </div>
-                      <span className="status-pill">
-                        {assetReferences.data.length} reference
-                        {assetReferences.data.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-
-                    {assetReferences.status === "error" ? (
-                      <p className="error-message" role="alert">
-                        {assetReferences.error}
-                      </p>
-                    ) : null}
-
-                    {assetReferences.data.length > 0 ? (
-                      <div className="reference-list">
-                        {assetReferences.data.map((reference) => (
-                          <article key={reference.id} className="relationship-item reference-item">
-                            <div>
-                              <strong>{reference.label || reference.reference_type}</strong>
-                              <p>{reference.target_uri}</p>
-                              <small>{reference.reference_type}</small>
-                              {formatMetadataSummary(reference.metadata) ? (
-                                <small>{formatMetadataSummary(reference.metadata)}</small>
-                              ) : null}
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="empty-state">
-                        No generic references are attached to this Asset yet.
-                      </p>
-                    )}
-                  </article>
-
-                  <article className="detail-card relationship-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Bounded graph summary</h3>
-                        <p>
-                          The Web UI uses the approved Phase 3 bounded graph read with direction{" "}
-                          <code>both</code> and depth <code>3</code>.
-                        </p>
-                      </div>
-                      <span className="status-pill">
-                        {assetGraph.data?.has_cycle ? "cycle detected" : "no cycle"}
-                      </span>
-                    </div>
-
-                    {assetGraph.status === "error" ? (
-                      <p className="error-message" role="alert">
-                        {assetGraph.error}
-                      </p>
-                    ) : null}
-
-                    {assetGraph.data ? (
-                      <div className="graph-summary-grid">
-                        <article className="graph-summary-card">
-                          <strong>Nodes</strong>
-                          <span>{assetGraph.data.nodes.length}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Relationships</strong>
-                          <span>{assetGraph.data.relationships.length}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Direction</strong>
-                          <span>{assetGraph.data.direction}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Max depth</strong>
-                          <span>{assetGraph.data.max_depth}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Path target</strong>
-                          <span>{assetGraph.data.target_asset_id ?? "Not requested"}</span>
-                        </article>
-                        <article className="graph-summary-card">
-                          <strong>Path exists</strong>
-                          <span>
-                            {assetGraph.data.path_exists === null
-                              ? "Not evaluated"
-                              : assetGraph.data.path_exists
-                                ? "Yes"
-                                : "No"}
-                          </span>
-                        </article>
-                      </div>
-                    ) : (
-                      <p className="empty-state">Graph summary is loading for this Asset.</p>
-                    )}
-                  </article>
-
-                  <article className="detail-card collaboration-card">
-                    <div className="detail-row">
-                      <div>
-                        <h3>Collaboration state</h3>
-                        <p>
-                          {collaborationState.data
-                            ? `State: ${collaborationState.data.state}`
-                            : "Loading collaboration state..."}
-                        </p>
-                      </div>
-                      <span
-                        className={`status-pill collaboration-pill collaboration-${collaborationState.data?.state ?? "unknown"}`}
-                      >
-                        {collaborationState.data?.state ?? "loading"}
-                      </span>
-                    </div>
-                    {collaborationState.data?.lock ? (
-                      <p className="muted-text">
-                        Lock owner:{" "}
-                        {collaborationState.data.lock.owner_user_id === session.data?.user.id
-                          ? "You"
-                          : collaborationState.data.lock.owner_user_id}
-                      </p>
-                    ) : (
-                      <p className="muted-text">No active collaboration lock.</p>
-                    )}
-                    <div className="collaboration-actions">
-                      <button
-                        className="primary-button"
-                        disabled={busyAction === "checkout" || collaborationState.data?.state === "locked"}
-                        onClick={() => void handleCheckout()}
-                        type="button"
-                      >
-                        {busyAction === "checkout" ? "Checking out..." : "Check out"}
-                      </button>
-                      <button
-                        className="secondary-button"
-                        disabled={busyAction === "unlock" || !collaborationState.data?.can_unlock}
-                        onClick={() => void handleUnlock(false)}
-                        type="button"
-                      >
-                        {busyAction === "unlock" ? "Unlocking..." : "Unlock"}
-                      </button>
-                      <button
-                        className="secondary-button warning-button"
-                        disabled={busyAction === "force-unlock" || !collaborationState.data?.can_force_unlock}
-                        onClick={() => void handleUnlock(true)}
-                        type="button"
-                      >
-                        {busyAction === "force-unlock" ? "Force-unlocking..." : "Force unlock"}
-                      </button>
-                    </div>
-                  </article>
-
-                  <form className="form-grid compact-form" data-checkin-form onSubmit={handleUpload}>
-                    <h3>Check in a new Revision</h3>
-                    <label>
-                      Revision comment
-                      <input
-                        disabled={busyAction === "upload"}
-                        required
-                        value={uploadForm.comment}
-                        onChange={(event) =>
-                          setUploadForm((current) => ({ ...current, comment: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Representation name
-                      <input
-                        disabled={busyAction === "upload"}
-                        value={uploadForm.representationName}
-                        onChange={(event) =>
-                          setUploadForm((current) => ({
-                            ...current,
-                            representationName: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      File
-                      <input
-                        disabled={busyAction === "upload"}
-                        required
-                        type="file"
-                        onChange={(event) => handleUploadFileChange(event.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                    <button
-                      className="primary-button"
-                      disabled={busyAction === "upload" || !collaborationState.data?.can_checkin}
-                      type="submit"
-                    >
-                      {busyAction === "upload" ? "Checking in..." : "Check in revision"}
-                    </button>
-                    <p className="muted-text">
-                      Check-in is available only while you own the collaboration lock.
-                    </p>
-                    <TransferStatus
-                      phase={transfer.phase === "idle" && !collaborationState.data?.can_checkin ? "permission" : transfer.phase}
-                      receivedBytes={transfer.receivedBytes}
-                      totalBytes={transfer.totalBytes}
-                      message={transfer.message}
-                      onCancel={() => void handleCancelTransfer()}
-                      onRetry={handleRetryCheckin}
-                      onDiscard={() => void handleDiscardTransfer()}
-                      retryLabel={transfer.blob ? "Retry check-in" : "Retry transfer"}
-                    />
-                  </form>
-
-                  {collaborationState.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {collaborationState.error}
-                    </p>
-                  ) : null}
-
-                  {collaborationError ? (
-                    <article className="detail-card recovery-card">
-                      <h3>Recovery guidance</h3>
-                      <p>{collaborationGuidance(collaborationError)}</p>
-                      {collaborationRequestId(collaborationError) ? (
-                        <p className="muted-text">
-                          Request ID: {collaborationRequestId(collaborationError)}
-                        </p>
-                      ) : null}
-                      <div className="collaboration-actions">
-                        {collaborationShouldRefresh(collaborationError) ? (
-                          <button
-                            className="secondary-button"
-                            disabled={busyAction === "refresh-state"}
-                            onClick={() => void handleRefreshAssetState()}
-                            type="button"
-                          >
-                            {busyAction === "refresh-state" ? "Refreshing..." : "Refresh asset state"}
-                          </button>
-                        ) : null}
-                        {collaborationRecoveryAction(collaborationError) === "checkout_asset" ? (
-                          <button
-                            className="secondary-button"
-                            disabled={
-                              busyAction === "checkout" || collaborationState.data?.state === "locked"
-                            }
-                            onClick={() => void handleCheckout()}
-                            type="button"
-                          >
-                            Check out now
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  ) : null}
-
-                  {assetTimeline.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {assetTimeline.error}
-                    </p>
-                  ) : null}
-
-                  <div className="timeline">
-                    <h3>Collaboration timeline</h3>
-                    {assetTimeline.data.map((entry) => (
-                      <article
-                        key={`${entry.event_type}-${entry.occurred_at}-${entry.revision_id ?? "none"}`}
-                        className="timeline-card"
-                      >
-                        <div className="timeline-header">
-                          <div>
-                            <h3>{entry.event_type}</h3>
-                            <p>
-                              {describeActor(entry.actor_user_id)}
-                            </p>
-                          </div>
-                          <small>{formatTimestamp(entry.occurred_at)}</small>
-                        </div>
-                        {entry.revision_id ? (
-                          <p className="muted-text">Revision: {entry.revision_id}</p>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-
-                  {assetHistory.status === "error" ? (
-                    <p className="error-message" role="alert">
-                      {assetHistory.error}
-                    </p>
-                  ) : null}
-
-                  <div className="timeline">
-                    <h3>Revision comments and history</h3>
-                    {assetHistory.data.map((revision) => (
-                      <article key={revision.id} className="timeline-card">
-                        <div className="timeline-header">
-                          <div>
-                            <h3>Revision {revision.number}</h3>
-                            <p>{revision.comment || "No revision comment."}</p>
-                          </div>
-                          <small>{formatTimestamp(revision.created_at)}</small>
-                        </div>
-                        {revision.representations.length > 0 ? (
-                          <ul className="representation-list">
-                            {revision.representations.map((representation) => (
-                              <li key={representation.id}>
-                                <div>
-                                  <strong>{representation.name}</strong>
-                                  <span>{representation.media_type}</span>
-                                  <small>{representation.blob?.filename ?? "No Blob attached"}</small>
-                                </div>
-                                {representation.blob_id && representation.blob ? (
-                                  <button
-                                    className="secondary-button"
-                                    disabled={busyAction === `download-${representation.blob_id}`}
-                                    onClick={() =>
-                                      void handleDownload(
-                                        representation.blob_id!,
-                                        representation.blob?.filename ?? `${representation.name}.bin`,
-                                      )
-                                    }
-                                    type="button"
-                                  >
-                                    {busyAction === `download-${representation.blob_id}`
-                                      ? "Preparing..."
-                                      : "Download"}
-                                  </button>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="muted-text">No Representations for this Revision yet.</p>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="empty-state">
-                  Select an Engineering Asset to inspect immutable Revision history and Blob-backed
-                  Representations.
-                </p>
-              )}
-            </section>
+            <AssetDetailPanel
+              analysisBusy={analysisBusy}
+              analysisRepresentations={analysisRepresentations}
+              analysisResult={analysisResult}
+              assetDetail={assetDetail}
+              assetGraph={assetGraph}
+              assetHistory={assetHistory}
+              assetMetadata={assetMetadata}
+              assetNameById={assetNameById}
+              assetReferences={assetReferences}
+              assetRelationships={assetRelationships}
+              assetTimeline={assetTimeline}
+              busyAction={busyAction}
+              collaborationError={collaborationError}
+              collaborationState={collaborationState}
+              currentUserId={session.data?.user.id}
+              describeActor={describeActor}
+              incomingRelationships={incomingRelationships}
+              onAnalysisRepresentationChange={setAnalysisRepresentationId}
+              onApplyMetadataProvider={(provider) => void handleApplyMetadataProvider(provider)}
+              onCancelTransfer={() => void handleCancelTransfer()}
+              onCheckout={() => void handleCheckout()}
+              onClose={() => selectAsset(null)}
+              onDiscardTransfer={() => void handleDiscardTransfer()}
+              onDownload={(blobId, filename) => void handleDownload(blobId, filename)}
+              onInvokeAnalysisProvider={(provider) => void handleInvokeAnalysisProvider(provider)}
+              onProviderSelectionChange={(providerId, value) =>
+                setProviderSelections((current) => ({ ...current, [providerId]: value }))
+              }
+              onOpenCheckIn={() => setShowCheckInForm(true)}
+              onRefreshAssetState={() => void handleRefreshAssetState()}
+              onRetryCheckin={handleRetryCheckin}
+              onSelectAsset={(assetId) => selectAsset(assetId)}
+              onSubmitUpload={handleUpload}
+              onUnlock={(force) => void handleUnlock(force)}
+              onUpdateStatus={(nextStatus) => void handleUpdateAssetStatus(nextStatus)}
+              onUploadCommentChange={(value) =>
+                setUploadForm((current) => ({ ...current, comment: value }))
+              }
+              onUploadFileChange={handleUploadFileChange}
+              onUploadRepresentationNameChange={(value) =>
+                setUploadForm((current) => ({ ...current, representationName: value }))
+              }
+              outgoingRelationships={outgoingRelationships}
+              providerOptions={providerOptions}
+              providers={providers}
+              providerSelections={providerSelections}
+              selectedAnalysisRepresentation={selectedAnalysisRepresentation}
+              selectedAssetId={selectedAssetId}
+              onCheckInFormOpenChange={setShowCheckInForm}
+              showCheckInForm={showCheckInForm}
+              transfer={transfer}
+              uploadForm={uploadForm}
+            />
                   </>
                 ) : null}
               </section>

@@ -6,17 +6,21 @@ type AppShellProps = {
   announcement?: string | null;
   children: ReactNode;
   header: ReactNode;
+  sidebar?: ReactNode;
 };
 
-export function AppShell({ announcement, children, header }: AppShellProps) {
+export function AppShell({ announcement, children, header, sidebar }: AppShellProps) {
   return (
-    <>
+    <div className={sidebar ? "app-frame" : "app-frame app-frame--no-sidebar"}>
       <SkipLink />
-      <main className="app-shell" id="main-content" tabIndex={-1}>
+      {sidebar}
+      <div className="app-main">
         {header}
-        {announcement ? <InlineAlert tone="info">{announcement}</InlineAlert> : null}
-        {children}
-      </main>
-    </>
+        <main className="app-content" id="main-content" tabIndex={-1}>
+          {announcement ? <InlineAlert tone="info">{announcement}</InlineAlert> : null}
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

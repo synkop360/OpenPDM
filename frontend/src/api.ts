@@ -569,6 +569,19 @@ export async function createAsset(
   });
 }
 
+export async function updateAssetStatus(
+  token: string,
+  assetId: string,
+  status: "draft" | "active" | "archived",
+): Promise<Asset> {
+  return request<Asset>(`/assets/${assetId}/status`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ status }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function createRevision(
   token: string,
   assetId: string,
@@ -686,6 +699,23 @@ export async function markNotificationRead(
 
 export async function listPlugins(token: string): Promise<PluginRecord[]> {
   return request<PluginRecord[]>("/plugins", { token });
+}
+
+export async function listPlatformAdministrators(token: string): Promise<User[]> {
+  return request<User[]>("/platform/administrators", { token });
+}
+
+export async function setPlatformAdministratorByEmail(
+  token: string,
+  userEmail: string,
+  enabled: boolean,
+): Promise<User> {
+  return request<User>("/platform/administrators", {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ user_email: userEmail, enabled }),
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 export async function discoverProviders(token: string): Promise<ProviderDescriptor[]> {

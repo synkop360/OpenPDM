@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -16,6 +16,12 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
     headers: new Headers({ "content-type": "application/json" }),
     json: async () => payload,
   };
+}
+
+async function switchAssetDetailTab(
+  name: "Metadata & Analysis" | "Relationships & Graph" | "History & Collaboration",
+): Promise<void> {
+  fireEvent.click(await screen.findByRole("button", { name }));
 }
 
 describe("App", () => {
@@ -460,21 +466,24 @@ describe("App", () => {
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Recent Assets" }));
     expect(projectWorkspace).toContainElement(screen.getByRole("heading", { name: "Collaboration feed" }));
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
-    expect(window.location.pathname).toBe("/projects/project-1/assets");
-    expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
+    expect((await screen.findAllByText(/Wing Panel/i)).length).toBeGreaterThan(0);
+    expect(window.location.pathname).toBe("/projects/project-1/assets/asset-1");
+    await switchAssetDetailTab("History & Collaboration");
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Collaboration notifications" })).toBeInTheDocument();
+    await switchAssetDetailTab("Metadata & Analysis");
     expect(await screen.findByText("Asset Categories API Test Plugin")).toBeInTheDocument();
     expect(await screen.findByLabelText("Asset category")).toBeInTheDocument();
     expect(screen.queryByText("No running Metadata Provider is available.")).not.toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
+    await switchAssetDetailTab("Relationships & Graph");
+    expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();
-    expect(await screen.findByText("Asset locked")).toBeInTheDocument();
+    await switchAssetDetailTab("History & Collaboration");
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
+    await switchAssetDetailTab("Metadata & Analysis");
     expect(await screen.findByLabelText("Representation to analyze")).toHaveValue("representation-1");
     const analysisButtons = screen.getAllByRole("button", { name: "Analyze representation" });
     fireEvent.click(analysisButtons[0]);
@@ -495,18 +504,21 @@ describe("App", () => {
     ]));
     expect(await screen.findByText("plugin.analysis.status")).toBeInTheDocument();
     expect(await screen.findByText("Analysis reference")).toBeInTheDocument();
+    await switchAssetDetailTab("Relationships & Graph");
     expect(screen.getByText("2 links")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^(command|executable|launch)/i })).not.toBeInTheDocument();
+    await switchAssetDetailTab("Metadata & Analysis");
     fireEvent.click(screen.getAllByRole("button", { name: "Analyze representation" })[0]);
     expect(screen.queryByText("Analysis complete: 1 metadata, 1 references, 1 relationships.")).not.toBeInTheDocument();
     expect(await screen.findByText("Analysis unavailable.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
     expect(await screen.findByText("Resume transfer")).toBeInTheDocument();
     const recoveredFile = new File([new Uint8Array(1234)], "native.fcstd", {
       type: "application/octet-stream", lastModified: 42,
     });
     fireEvent.change(screen.getByLabelText("Revision comment"), { target: { value: "Recovered transfer" } });
     fireEvent.change(screen.getByLabelText("File"), { target: { files: [recoveredFile] } });
-    fireEvent.submit(screen.getByRole("heading", { name: "Check in a new Revision" }).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", { name: "Check in revision" }).closest("form")!);
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) =>
       String(input) === "/assets/asset-1/checkin")).toBe(true));
     expect(await screen.findByText("Check-in complete")).toBeInTheDocument();
@@ -822,11 +834,15 @@ describe("App", () => {
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
-    expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
+    expect((await screen.findAllByText("Wing Panel")).length).toBeGreaterThan(0);
     if (runDiscardRace) {
       fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
+      fireEvent.click(await screen.findByRole("button", { name: "Check in" }));
       expect(await screen.findByText("Select wing.step to resume the interrupted transfer.")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      await switchAssetDetailTab("Relationships & Graph");
     } else {
+      await switchAssetDetailTab("Relationships & Graph");
       const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
       fireEvent.click(openButtons[0]);
     }
@@ -837,7 +853,8 @@ describe("App", () => {
         .toBeInTheDocument();
       return;
     }
-    fireEvent.click(screen.getByRole("button", { name: "Discard transfer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Discard transfer" }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input, init]) =>
       String(input) === "/blobs/upload-sessions/old-session" && init?.method === "DELETE")).toBe(true));
     fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[1]);
@@ -850,6 +867,7 @@ describe("App", () => {
 
   it("navigates to a related asset through the relationship exploration surface", async () => {
     await exerciseRelationshipAndDiscardRace("resolve", false);
+    fireEvent.click(screen.getByRole("button", { name: "Close Asset detail" }));
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
   });
 
@@ -861,10 +879,11 @@ describe("App", () => {
   it("allows a new analysis after the selected Asset changes during an in-flight analysis", async () => {
     await exerciseRelationshipAndDiscardRace("resolve", false);
 
+    await switchAssetDetailTab("Metadata & Analysis");
     fireEvent.click(await screen.findByRole("button", { name: "Analyze representation" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled());
 
-    fireEvent.click(screen.getByRole("button", { name: /^Wing Panel/ }));
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
     expect(await screen.findByText((_content, element) =>
       element?.tagName.toLowerCase() === "p" && element.textContent === "Primary structure"))
       .toBeInTheDocument();
@@ -1043,6 +1062,7 @@ describe("App", () => {
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
+    await switchAssetDetailTab("History & Collaboration");
     const checkoutButton = await screen.findByRole("button", { name: "Check out" });
     fireEvent.click(checkoutButton);
 
@@ -1270,6 +1290,18 @@ describe("App", () => {
         });
       }
       if (path === "/organizations" || (path === "/notifications" || path.startsWith("/notifications/page?"))) return jsonResponse([]);
+      if (path === "/platform/administrators" && method === "GET") {
+        return jsonResponse([
+          {
+            id: "user-1",
+            email: "admin@example.com",
+            display_name: "Admin",
+            is_active: true,
+            is_platform_admin: true,
+            created_at: "2026-01-01T00:00:00",
+          },
+        ]);
+      }
       if (path === "/plugins" && method === "GET") {
         return jsonResponse([
           {
@@ -1330,6 +1362,10 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Plugin administration" }));
     expect(window.location.pathname).toBe("/administration/plugins");
     expect(await screen.findByRole("heading", { name: "Plugin administration" })).toBeInTheDocument();
+    const administratorList = await screen.findByRole("heading", { name: "Platform Administrators" }).then(
+      (heading) => heading.closest("section")!,
+    );
+    expect(within(administratorList).getByText("admin@example.com")).toBeInTheDocument();
     expect(await screen.findByText("Categories")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
     fireEvent.click(await screen.findByRole("button", { name: "Enable plugin" }));
@@ -1351,6 +1387,127 @@ describe("App", () => {
         body: JSON.stringify({ values: { prefix: "updated", token: "replacement-secret" } }),
       }),
     ));
+  });
+
+  it("grants and revokes Platform Administrator authority by email", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    let granted = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === "/foundation") {
+        return jsonResponse({
+          name: "OpenPDM",
+          version: "0.0.0",
+          phase: "Engineering Platform",
+          architecture: "Modular Monolith",
+        });
+      }
+      if (path === "/auth/session") {
+        return jsonResponse({
+          id: "session-1",
+          token: "token-123",
+          user: {
+            id: "user-1",
+            email: "admin@example.com",
+            display_name: "Admin",
+            is_active: true,
+            is_platform_admin: true,
+            created_at: "2026-01-01T00:00:00",
+          },
+        });
+      }
+      if (path === "/organizations" || path === "/notifications" || path.startsWith("/notifications/page?")) return jsonResponse([]);
+      if (path === "/plugins" && method === "GET") return jsonResponse([]);
+      if (path === "/platform/administrators" && method === "GET") {
+        return jsonResponse(
+          granted
+            ? [
+                {
+                  id: "user-1",
+                  email: "admin@example.com",
+                  display_name: "Admin",
+                  is_active: true,
+                  is_platform_admin: true,
+                  created_at: "2026-01-01T00:00:00",
+                },
+                {
+                  id: "user-2",
+                  email: "member@example.com",
+                  display_name: "Member",
+                  is_active: true,
+                  is_platform_admin: true,
+                  created_at: "2026-01-02T00:00:00",
+                },
+              ]
+            : [
+                {
+                  id: "user-1",
+                  email: "admin@example.com",
+                  display_name: "Admin",
+                  is_active: true,
+                  is_platform_admin: true,
+                  created_at: "2026-01-01T00:00:00",
+                },
+              ],
+        );
+      }
+      if (path === "/platform/administrators" && method === "PUT") {
+        const body = JSON.parse(String(init?.body));
+        granted = body.enabled === true;
+        return jsonResponse({
+          id: "user-2",
+          email: "member@example.com",
+          display_name: "Member",
+          is_active: true,
+          is_platform_admin: body.enabled,
+          created_at: "2026-01-02T00:00:00",
+        });
+      }
+      throw new Error(`Unexpected request: ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Plugin administration" }));
+    const administratorList = await screen.findByRole("heading", { name: "Platform Administrators" }).then(
+      (heading) => heading.closest("section")!,
+    );
+    expect(within(administratorList).getByText("admin@example.com")).toBeInTheDocument();
+    expect(within(administratorList).queryByText("member@example.com")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Grant by email"), {
+      target: { value: "member@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Grant authority" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/platform/administrators",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ user_email: "member@example.com", enabled: true }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(within(administratorList).getByText("member@example.com")).toBeInTheDocument(),
+    );
+
+    const memberRow = within(administratorList).getByText("member@example.com").closest("li");
+    fireEvent.click(memberRow!.querySelector("button")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke authority" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/platform/administrators",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ user_email: "member@example.com", enabled: false }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(within(administratorList).queryByText("member@example.com")).not.toBeInTheDocument(),
+    );
   });
 
   it("denies plugin administration to an ordinary authenticated user", async () => {
