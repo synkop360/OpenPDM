@@ -293,7 +293,8 @@ class LauncherApp:
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(100, self._poll_events)
-        self._check_containers_and_reschedule()
+        self._run_container_check()
+        self._schedule_next_container_check()
 
     # ---- UI construction ----
 
@@ -380,6 +381,13 @@ class LauncherApp:
             state="disabled",
         )
         self.open_button.pack(side="left", padx=(8, 0))
+        self.refresh_button = ttk.Button(
+            button_row,
+            text="Refresh Status",
+            style="Secondary.TButton",
+            command=self._run_container_check,
+        )
+        self.refresh_button.pack(side="right")
 
         log_frame = ttk.Frame(self.root, padding=(20, 4, 20, 20))
         log_frame.pack(fill="both", expand=True)
@@ -461,15 +469,28 @@ class LauncherApp:
             service: states.get(service, "not created") for service in start_all.COMPOSE_SERVICES
         }
 
-    # ---- Periodic container check ----
+    # ---- Container check (initial, periodic and manual refresh) ----
 
-    def _check_containers_and_reschedule(self) -> None:
+    def _run_container_check(self) -> None:
+        """Check container state in the background right now.
+
+        Used for the initial check at startup, the periodic re-check, and
+        the Refresh Status button -- a manual refresh doesn't touch the
+        periodic timer, so it never stacks up extra recurring checks.
+        """
+
         def check() -> None:
             states = start_all.get_compose_service_states()
             self.events.put(GuiEvent("container_check", {"states": states}))
 
         threading.Thread(target=check, daemon=True).start()
-        self.root.after(self.check_interval_seconds * 1000, self._check_containers_and_reschedule)
+
+    def _schedule_next_container_check(self) -> None:
+        self.root.after(self.check_interval_seconds * 1000, self._periodic_container_check)
+
+    def _periodic_container_check(self) -> None:
+        self._run_container_check()
+        self._schedule_next_container_check()
 
     # ---- Actions ----
 
