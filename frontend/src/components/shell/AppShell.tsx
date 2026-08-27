@@ -11,7 +11,7 @@ type AppShellProps = {
 
 export function AppShell({ announcement, children, header, sidebar }: AppShellProps) {
   return (
-    <div className="app-frame">
+    <div className={sidebar ? "app-frame" : "app-frame app-frame--no-sidebar"}>
       <SkipLink />
       {sidebar}
       <div className="app-main">

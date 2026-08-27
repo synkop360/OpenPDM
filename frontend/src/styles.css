@@ -58,11 +58,23 @@ svg {
   overflow: hidden;
 }
 
+/* Guests get no sidebar at all, so there is only one grid item; without an
+   explicit single-column track, .app-main would auto-place into the 250px
+   sidebar track instead of taking the full width. */
+.app-frame--no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .app-main {
   display: flex;
   flex-direction: column;
+  grid-column: 2;
   min-width: 0;
   overflow: hidden;
+}
+
+.app-frame--no-sidebar .app-main {
+  grid-column: 1;
 }
 
 .app-content {
@@ -1992,6 +2004,17 @@ textarea {
 }
 
 @media (max-width: 980px) {
+  /* .nav-panel becomes position: fixed below, which takes it out of grid
+     flow entirely; without collapsing to one column here, .app-main would
+     be the sole grid item and auto-place into the 250px sidebar track. */
+  .app-frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-main {
+    grid-column: 1;
+  }
+
   .workspace-grid {
     grid-template-columns: 1fr;
   }
@@ -2080,6 +2103,10 @@ textarea {
 @media (max-width: 680px) {
   .app-shell {
     padding: 0;
+  }
+
+  .hero-panel {
+    grid-template-columns: 1fr;
   }
 
   .app-topbar,
