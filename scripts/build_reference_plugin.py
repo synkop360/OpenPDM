@@ -6,6 +6,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from openpdm.extension_api import PluginManifest, build_plugin_package
@@ -15,8 +16,25 @@ PLUGIN_ROOT = ROOT / "plugins" / "reference"
 WIT_ROOT = ROOT / "backend" / "src" / "openpdm" / "extension_api" / "wit"
 
 
+def _find_componentize_py() -> str | None:
+    """Locate the componentize-py CLI.
+
+    `uv run` prepends the venv's script directory to PATH, so `shutil.which`
+    normally finds it. A bare invocation of this venv's own interpreter (no
+    `uv run` -- e.g. the desktop launcher spawning this script directly)
+    won't have that; fall back to looking right next to sys.executable,
+    where uv installs it alongside python(w).exe.
+    """
+    found = shutil.which("componentize-py")
+    if found is not None:
+        return found
+    name = "componentize-py.exe" if sys.platform == "win32" else "componentize-py"
+    candidate = Path(sys.executable).parent / name
+    return str(candidate) if candidate.is_file() else None
+
+
 def build(output: Path) -> Path:
-    componentize = shutil.which("componentize-py")
+    componentize = _find_componentize_py()
     if componentize is None:
         raise RuntimeError("componentize-py is required; run this command through uv.")
     component = output.parent / "reference-plugin.wasm"

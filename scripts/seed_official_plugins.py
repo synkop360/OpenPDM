@@ -89,10 +89,18 @@ def seed_plugin(
         with tempfile.TemporaryDirectory() as tmp:
             package_path = Path(tmp) / f"{plugin['name']}.openpdm-plugin"
             print(f"Building {plugin['name']} plugin package...")
-            subprocess.run(
+            result = subprocess.run(
                 [sys.executable, str(plugin["build_script"]), "--output", str(package_path)],
-                check=True,
+                capture_output=True,
+                text=True,
             )
+            if result.returncode != 0:
+                detail = (
+                    result.stderr.strip()
+                    or result.stdout.strip()
+                    or f"exit code {result.returncode}"
+                )
+                raise RuntimeError(f"Failed to build {plugin['name']} plugin package: {detail}")
             print(f"Installing {plugin_id}...")
             response = requests.post(
                 f"{base_url}/plugins/packages",
