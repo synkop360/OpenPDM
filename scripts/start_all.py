@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import http.client
+import importlib.machinery
 import importlib.util
 import itertools
 import json
@@ -144,13 +145,26 @@ def get_compose_service_states() -> dict[str, str]:
     return {entry.get("Service", "?"): entry.get("State", "unknown") for entry in entries}
 
 
+def _load_module_from_spec(spec: importlib.machinery.ModuleSpec):
+    """module_from_spec + exec_module, registered in sys.modules first.
+
+    Some stdlib machinery (e.g. dataclasses' field-type resolution) looks
+    itself up via sys.modules[cls.__module__] while the module body is
+    still executing; without this registration that lookup returns None
+    and crashes with AttributeError on some Python versions/builds.
+    """
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def load_dev_module():
     spec = importlib.util.spec_from_file_location("openpdm_dev", ROOT / "scripts" / "dev.py")
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to import scripts/dev.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return _load_module_from_spec(spec)
 
 
 def load_seed_plugins_module():
@@ -159,9 +173,7 @@ def load_seed_plugins_module():
     )
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to import scripts/seed_official_plugins.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return _load_module_from_spec(spec)
 
 
 def parse_args() -> argparse.Namespace:
@@ -373,8 +385,7 @@ def main() -> int:
         if spec is None or spec.loader is None:
             print("Unable to load scripts/launcher_gui.py", file=sys.stderr)
             return 1
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = _load_module_from_spec(spec)
         return module.main(debug=args.debug, check_interval=args.check_interval)
 
     if args.skip_compose and args.skip_frontend:
