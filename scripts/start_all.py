@@ -183,6 +183,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Launch the desktop GUI (scripts/launcher_gui.py) instead of the CLI flow",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="With --gui, show raw Docker Compose and Vite dev-server output in the log "
+        "instead of just status messages, Docker messages and the Vite server address",
+    )
     return parser.parse_args()
 
 
@@ -359,7 +365,7 @@ def main() -> int:
             return 1
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        return module.main()
+        return module.main(debug=args.debug)
 
     if args.skip_compose and args.skip_frontend:
         print(

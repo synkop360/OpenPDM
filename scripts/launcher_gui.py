@@ -22,7 +22,9 @@ scripts/start_all.py, --dry-run, --skip-compose, --skip-frontend,
 
 from __future__ import annotations
 
+import argparse
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -32,6 +34,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from tkinter import ttk
 from typing import Any
+
+VITE_LOCAL_URL_PATTERN = re.compile(r"Local:\s*(\S+)")
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
@@ -99,9 +103,21 @@ class QueueStatusLine:
 
 
 def spawn_captured(
-    label: str, command: list[str], cwd: Path, events: "queue.Queue[GuiEvent]"
+    label: str,
+    command: list[str],
+    cwd: Path,
+    events: "queue.Queue[GuiEvent]",
+    *,
+    debug: bool,
 ) -> subprocess.Popen[str]:
-    """Start a process with its output streamed into the GUI's log instead of a new console."""
+    """Start a process with its output streamed into the GUI's log instead of a new console.
+
+    Docker Compose's own output ("docker messages") is useful to watch during a build --
+    especially on a brand new install -- so it is always shown. The frontend dev server's
+    command output is much noisier (dependency pre-bundling, HMR chatter) and rarely useful
+    on its own, so by default only the Vite server address (and any error line) is surfaced;
+    pass --debug to see everything raw, exactly as each process printed it.
+    """
     dev_module = start_all.load_dev_module()
     env = dev_module.command_env()
     process = subprocess.Popen(
@@ -113,19 +129,32 @@ def spawn_captured(
         bufsize=1,
         env=env,
     )
+    show_raw = debug or label == "compose"
 
     def pump() -> None:
         assert process.stdout is not None
         for line in process.stdout:
-            events.put(GuiEvent("log", {"text": f"[{label}] {line.rstrip()}"}))
-        events.put(GuiEvent("log", {"text": f"[{label}] process exited (code {process.poll()})"}))
+            stripped = line.rstrip()
+            if show_raw:
+                events.put(GuiEvent("log", {"text": f"[{label}] {stripped}"}))
+                continue
+            url_match = VITE_LOCAL_URL_PATTERN.search(stripped)
+            if url_match:
+                events.put(
+                    GuiEvent("log", {"text": f"[OK] Web UI available at {url_match.group(1)}"})
+                )
+            elif "error" in stripped.lower():
+                events.put(GuiEvent("log", {"text": f"[{label}] {stripped}"}))
+        exit_code = process.poll()
+        if show_raw or exit_code != 0:
+            events.put(GuiEvent("log", {"text": f"[{label}] process exited (code {exit_code})"}))
 
     threading.Thread(target=pump, daemon=True).start()
     return process
 
 
 def run_startup_sequence(
-    events: "queue.Queue[GuiEvent]", skip_plugins: bool
+    events: "queue.Queue[GuiEvent]", skip_plugins: bool, *, debug: bool
 ) -> list[tuple[str, subprocess.Popen[str]]]:
     """Run the same sequence as start_all.py's CLI mode, emitting GuiEvents instead of printing.
 
@@ -154,7 +183,11 @@ def run_startup_sequence(
     else:
         events.put(GuiEvent("phase", {"text": "Starting the Compose stack..."}))
         process = spawn_captured(
-            "compose", start_all.build_dev_helper_command("compose_up"), ROOT, events
+            "compose",
+            start_all.build_dev_helper_command("compose_up"),
+            ROOT,
+            events,
+            debug=debug,
         )
         managed.append(("compose", process))
 
@@ -192,6 +225,7 @@ def run_startup_sequence(
             ),
             ROOT / "frontend",
             events,
+            debug=debug,
         )
         managed.append(("frontend", process))
         frontend_ready = start_all.wait_for_backend(
@@ -209,8 +243,9 @@ def run_startup_sequence(
 
 
 class LauncherApp:
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Tk, *, debug: bool = False) -> None:
         self.root = root
+        self.debug = debug
         self.events: "queue.Queue[GuiEvent]" = queue.Queue()
         self.managed_processes: list[tuple[str, subprocess.Popen[str]]] = []
         self.worker: threading.Thread | None = None
@@ -263,9 +298,10 @@ class LauncherApp:
         header = ttk.Frame(self.root, padding=(20, 18, 20, 10))
         header.pack(fill="x")
         ttk.Label(header, text="OpenPDM", style="Heading.TLabel").pack(anchor="w")
-        ttk.Label(header, text="Local development stack launcher", style="Phase.TLabel").pack(
-            anchor="w"
-        )
+        subtitle = "Local development stack launcher"
+        if self.debug:
+            subtitle += " (debug: showing raw command output)"
+        ttk.Label(header, text=subtitle, style="Phase.TLabel").pack(anchor="w")
 
         status_panel = ttk.Frame(self.root, style="Panel.TFrame", padding=16)
         status_panel.pack(fill="x", padx=20, pady=(6, 10))
@@ -375,7 +411,7 @@ class LauncherApp:
         self._append_log("Starting OpenPDM...")
 
         def run() -> None:
-            started = run_startup_sequence(self.events, skip_plugins=False)
+            started = run_startup_sequence(self.events, skip_plugins=False, debug=self.debug)
             self.managed_processes = started
 
         self.worker = threading.Thread(target=run, daemon=True)
@@ -403,9 +439,22 @@ class LauncherApp:
         self.root.destroy()
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="OpenPDM desktop launcher.")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show raw Docker Compose and Vite dev-server output in the log instead of just "
+        "status messages, Docker messages and the Vite server address",
+    )
+    return parser.parse_args()
+
+
+def main(*, debug: bool | None = None) -> int:
+    if debug is None:
+        debug = parse_args().debug
     root = tk.Tk()
-    LauncherApp(root)
+    LauncherApp(root, debug=debug)
     root.mainloop()
     return 0
 
