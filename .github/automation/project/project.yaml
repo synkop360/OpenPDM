@@ -6312,6 +6312,34 @@ roadmap:
               Complexity: S
               ADR: ADR-0004, ADR-0005, ADR-0006, ADR-0007
 
+          - title: "Prototype Task: Restore the missing Phase 1-3 baseline Alembic migration"
+            body: |
+              ## Objective
+              Let `alembic upgrade head` bootstrap a genuinely empty database, so a fresh contributor checkout (no pre-existing local Postgres volume) can start the backend at all.
+
+              ## Description
+              backend/migrations/versions/ has always started at 20260711_0001_phase4_plugin_lifecycle.py (confirmed via `git ls-tree -r --all` across every branch in this repository's history). That migration assumes the `users` table already exists (it only adds a column to it), and several later migrations behave the same way -- but no migration ever created the Phase 1-3 base schema (users, organizations, projects, assets, blobs, revisions, and the rest). Direct SQLAlchemy `metadata.create_all()` (`initialize_disposable_database()`) has always stood in for that in dev and test contexts, per ADR-0046's documented exception -- but the deployed container's own CMD only ever runs `alembic upgrade head`, so it can never have actually succeeded from a genuinely empty volume. Discovered while verifying the start_all.py readiness-check fix on a truly fresh `docker compose down -v` volume.
+
+              ## Acceptance Criteria
+              - A new baseline migration creates exactly the pre-Phase-4 schema (the tables and columns every later migration's own idempotent guards, or lack thereof, already assume exist), with `down_revision: None`, and 20260711_0001's `down_revision` points to it.
+              - `alembic upgrade head` against a genuinely empty PostgreSQL database succeeds end to end through every existing migration.
+              - The fully-migrated schema exactly matches the current SQLAlchemy models (`alembic check` / `command.check()` reports no diff) -- no column, index or constraint silently missing or mistyped relative to models.py.
+              - A single `python scripts/start_all.py` invocation starts both the backend and the Web UI dev server from a cold, empty container volume, without requiring a second run.
+              - A regression test exercises the full empty-to-head upgrade against a real PostgreSQL database and is wired into CI (matching the existing OPENPDM_REQUIRE_POSTGRES_TRANSFER_TEST convention), so this cannot silently regress again.
+
+              ## Dependencies
+              - ADR-0005 - Use PostgreSQL as the Primary Database
+              - ADR-0046 - Define Schema Initialization And Migration Discipline
+              - Prototype Task: Fix start_all.py readiness check crashing on backend startup race
+            labels: [prototype, deployment, bug, P0]
+            closed: true
+            fields:
+              Phase: Usable Prototype
+              Epic: Reproducible Local Startup
+              Platform Area: Infrastructure
+              Complexity: M
+              ADR: ADR-0005, ADR-0046
+
       - title: "Prototype Epic: First-run Engineering Asset workspace"
         body: |
           ## Objective
