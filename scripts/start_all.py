@@ -189,6 +189,14 @@ def parse_args() -> argparse.Namespace:
         help="With --gui, show raw Docker Compose and Vite dev-server output in the log "
         "instead of just status messages, Docker messages and the Vite server address",
     )
+    parser.add_argument(
+        "--check-interval",
+        type=int,
+        default=300,
+        metavar="SECONDS",
+        help="With --gui, how often to re-check whether the Docker containers still exist "
+        "(default: 300s / 5 minutes)",
+    )
     return parser.parse_args()
 
 
@@ -365,7 +373,7 @@ def main() -> int:
             return 1
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        return module.main(debug=args.debug)
+        return module.main(debug=args.debug, check_interval=args.check_interval)
 
     if args.skip_compose and args.skip_frontend:
         print(

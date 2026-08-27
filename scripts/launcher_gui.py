@@ -59,7 +59,12 @@ DANGER = "#ef806f"
 STATUS_COLORS = {
     "running": SUCCESS,
     "starting": WARNING,
+    "restarting": WARNING,
+    "paused": WARNING,
+    "created": MUTED,
     "not created": MUTED,
+    "exited": DANGER,
+    "dead": DANGER,
     "not responding": DANGER,
     "unavailable": DANGER,
     "unknown": MUTED,
@@ -72,6 +77,25 @@ SERVICE_LABELS = [
     ("plugins", "Official Plugins"),
     ("frontend", "Web UI"),
 ]
+SERVICE_LABEL_BY_KEY = dict(SERVICE_LABELS)
+
+# How often to re-check whether the Docker Compose containers still exist and
+# what state they're in, independent of the Start/Stop actions -- so a crash
+# (e.g. a container exiting after startup) is noticed without the user having
+# to click Start again. Configurable via --check-interval (seconds).
+DEFAULT_CONTAINER_CHECK_INTERVAL_SECONDS = 300
+
+
+def describe_container_state(service: str, state: str) -> str:
+    """A clear, human-readable line for a Compose service's current container state."""
+    label = SERVICE_LABEL_BY_KEY.get(service, service)
+    if state == "running":
+        return f"[OK] {label} container is running."
+    if state == "not created":
+        return f"{label} container does not exist yet."
+    if state in ("exited", "dead"):
+        return f"[FAIL] {label} container exists but is not running (state: {state})."
+    return f"[WARN] {label} container state: {state}."
 
 
 @dataclass
@@ -243,18 +267,27 @@ def run_startup_sequence(
 
 
 class LauncherApp:
-    def __init__(self, root: tk.Tk, *, debug: bool = False) -> None:
+    def __init__(
+        self,
+        root: tk.Tk,
+        *,
+        debug: bool = False,
+        check_interval_seconds: int = DEFAULT_CONTAINER_CHECK_INTERVAL_SECONDS,
+    ) -> None:
         self.root = root
         self.debug = debug
+        self.check_interval_seconds = check_interval_seconds
         self.events: "queue.Queue[GuiEvent]" = queue.Queue()
         self.managed_processes: list[tuple[str, subprocess.Popen[str]]] = []
         self.worker: threading.Thread | None = None
         self.service_state_labels: dict[str, ttk.Label] = {}
         self.service_dot_labels: dict[str, tk.Label] = {}
+        self._last_container_states: dict[str, str] | None = None
 
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(100, self._poll_events)
+        self._check_containers_and_reschedule()
 
     # ---- UI construction ----
 
@@ -397,9 +430,40 @@ class LauncherApp:
                 elif event.kind == "done":
                     self.phase_label.configure(text="All services running.")
                     self.stop_button.configure(state="normal")
+                elif event.kind == "container_check":
+                    self._handle_container_check(event.data["states"])
         except queue.Empty:
             pass
         self.root.after(100, self._poll_events)
+
+    def _handle_container_check(self, states: dict[str, str]) -> None:
+        """Update service dots and log a clear line for anything new or changed.
+
+        Runs on the first check (always logs every container's state, so the
+        user gets an unambiguous "exists or not" answer right at startup) and
+        on every periodic re-check afterward (only logs services whose state
+        actually changed, so a long-running session doesn't get spammed).
+        """
+        first_check = self._last_container_states is None
+        previous = self._last_container_states or {}
+        for service in start_all.COMPOSE_SERVICES:
+            state = states.get(service, "not created")
+            self._set_service_state(service, state)
+            if first_check or previous.get(service) != state:
+                self._append_log(describe_container_state(service, state))
+        self._last_container_states = {
+            service: states.get(service, "not created") for service in start_all.COMPOSE_SERVICES
+        }
+
+    # ---- Periodic container check ----
+
+    def _check_containers_and_reschedule(self) -> None:
+        def check() -> None:
+            states = start_all.get_compose_service_states()
+            self.events.put(GuiEvent("container_check", {"states": states}))
+
+        threading.Thread(target=check, daemon=True).start()
+        self.root.after(self.check_interval_seconds * 1000, self._check_containers_and_reschedule)
 
     # ---- Actions ----
 
@@ -447,14 +511,24 @@ def parse_args() -> argparse.Namespace:
         help="Show raw Docker Compose and Vite dev-server output in the log instead of just "
         "status messages, Docker messages and the Vite server address",
     )
+    parser.add_argument(
+        "--check-interval",
+        type=int,
+        default=DEFAULT_CONTAINER_CHECK_INTERVAL_SECONDS,
+        metavar="SECONDS",
+        help="How often to re-check whether the Docker containers still exist "
+        f"(default: {DEFAULT_CONTAINER_CHECK_INTERVAL_SECONDS}s)",
+    )
     return parser.parse_args()
 
 
-def main(*, debug: bool | None = None) -> int:
-    if debug is None:
-        debug = parse_args().debug
+def main(*, debug: bool | None = None, check_interval: int | None = None) -> int:
+    if debug is None or check_interval is None:
+        args = parse_args()
+        debug = args.debug if debug is None else debug
+        check_interval = args.check_interval if check_interval is None else check_interval
     root = tk.Tk()
-    LauncherApp(root, debug=debug)
+    LauncherApp(root, debug=debug, check_interval_seconds=check_interval)
     root.mainloop()
     return 0
 
