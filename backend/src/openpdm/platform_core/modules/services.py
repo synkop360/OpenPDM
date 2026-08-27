@@ -559,6 +559,34 @@ class AuthModule:
         return user, session_token
 
     @staticmethod
+    def change_password(
+        db: Session, *, actor: User, current_password: str, new_password: str
+    ) -> User:
+        require(actor.is_active, "User is inactive.", status.HTTP_403_FORBIDDEN)
+        require(
+            verify_password(current_password, actor.password_hash),
+            "Current password is incorrect.",
+            status.HTTP_401_UNAUTHORIZED,
+        )
+        require(bool(new_password), "New password is required.")
+        require(
+            new_password != current_password,
+            "New password must be different from the current password.",
+        )
+        actor.password_hash = hash_password(new_password)
+        record_audit(
+            db,
+            actor_user_id=actor.id,
+            action="user.password_changed",
+            resource_type="user",
+            resource_id=actor.id,
+        )
+        emit_event(
+            db, event_type="user.password_changed", resource_type="user", resource_id=actor.id
+        )
+        return actor
+
+    @staticmethod
     def set_platform_administrator(
         db: Session, *, target_user_id: str, enabled: bool, actor: User
     ) -> User:

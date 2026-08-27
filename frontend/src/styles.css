@@ -579,8 +579,18 @@ textarea {
 
 .user-identity {
   align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
   display: flex;
   gap: 9px;
+  padding: 4px;
+}
+
+.user-identity:hover,
+.user-identity:focus-visible {
+  background: var(--surface-raised);
 }
 
 .user-identity-text {

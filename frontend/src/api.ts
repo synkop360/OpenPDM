@@ -409,6 +409,19 @@ export async function signOut(token: string): Promise<SessionInfo> {
   });
 }
 
+export async function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<User> {
+  return request<User>("/auth/password", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function listOrganizations(token: string): Promise<OrganizationMembership[]> {
   return request<OrganizationMembership[]>("/organizations", { token });
 }

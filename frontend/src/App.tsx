@@ -83,6 +83,7 @@ import {
   unlockAsset,
   updateAssetStatus,
   cancelBlobUploadSession,
+  changePassword,
   type Asset,
   type BlobRecord,
   type CollaborationState,
@@ -327,6 +328,12 @@ function OpenPdmApp() {
     password: "",
     displayName: "",
   });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  });
+  const [passwordFormError, setPasswordFormError] = useState<string | null>(null);
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
@@ -1222,6 +1229,33 @@ function OpenPdmApp() {
       setSession({ status: "ready", data: null, error: null });
       setBusyAction(null);
       setBanner("Signed out.");
+    }
+  }
+
+  async function handleChangePassword(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token) return;
+    setPasswordFormError(null);
+    if (passwordForm.newPassword !== passwordForm.confirmNewPassword) {
+      setPasswordFormError("New password and confirmation do not match.");
+      return;
+    }
+    setBusyAction("change-password");
+    setBanner(null);
+    try {
+      await changePassword(
+        session.data.token,
+        passwordForm.currentPassword,
+        passwordForm.newPassword,
+      );
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
+      setBanner("Password changed.");
+    } catch (error: unknown) {
+      setPasswordFormError(
+        error instanceof Error ? error.message : "Password could not be changed.",
+      );
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -2160,6 +2194,7 @@ function OpenPdmApp() {
     }
     if (view === "notifications") return [{ key: "notifications", label: "Notifications" }];
     if (view === "plugin-administration") return [{ key: "admin", label: "Plugin administration" }];
+    if (view === "account") return [{ key: "account", label: "Account" }];
     if (view === "projects") return [{ key: "projects", label: "Projects" }];
     return [{ key: "home", label: "Home" }];
   })();
@@ -2176,6 +2211,7 @@ function OpenPdmApp() {
             breadcrumb={breadcrumbItems}
             displayName={session.data.user.display_name}
             email={session.data.user.email}
+            onAccount={() => navigate("/account")}
             onNotifications={() => navigate("/notifications")}
             onOpenNavigation={() => setMobileNavigationOpen(true)}
             onSignOut={() => void handleSignOut()}
@@ -2944,6 +2980,70 @@ function OpenPdmApp() {
                 </div>
                   </>
                 )}
+              </section>
+            ) : null}
+
+            {view === "account" ? (
+              <section className="panel admin-panel content-span">
+                <header className="panel-header">
+                  <div>
+                    <p className="eyebrow">Account</p>
+                    <h2>{session.data?.user.display_name}</h2>
+                    <p className="muted-text">{session.data?.user.email}</p>
+                  </div>
+                </header>
+                <form className="form-grid compact-form" onSubmit={handleChangePassword}>
+                  <h3>Change password</h3>
+                  <label>
+                    Current password
+                    <input
+                      autoComplete="current-password"
+                      required
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(event) =>
+                        setPasswordForm((current) => ({
+                          ...current,
+                          currentPassword: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    New password
+                    <input
+                      autoComplete="new-password"
+                      required
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(event) =>
+                        setPasswordForm((current) => ({
+                          ...current,
+                          newPassword: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Confirm new password
+                    <input
+                      autoComplete="new-password"
+                      required
+                      type="password"
+                      value={passwordForm.confirmNewPassword}
+                      onChange={(event) =>
+                        setPasswordForm((current) => ({
+                          ...current,
+                          confirmNewPassword: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  {passwordFormError ? <InlineAlert tone="danger">{passwordFormError}</InlineAlert> : null}
+                  <button className="primary-button" disabled={busyAction === "change-password"} type="submit">
+                    {busyAction === "change-password" ? "Changing..." : "Change password"}
+                  </button>
+                </form>
               </section>
             ) : null}
 

@@ -14,6 +14,7 @@ type AuthenticatedHeaderProps = {
   breadcrumb: BreadcrumbItem[];
   displayName: string;
   email: string;
+  onAccount: () => void;
   onNotifications: () => void;
   onOpenNavigation: () => void;
   onSignOut: () => void;
@@ -27,6 +28,7 @@ export function AuthenticatedHeader({
   breadcrumb,
   displayName,
   email,
+  onAccount,
   onNotifications,
   onOpenNavigation,
   onSignOut,
@@ -64,13 +66,13 @@ export function AuthenticatedHeader({
           {unreadNotifications ? <span className="notification-count">{unreadNotifications}</span> : null}
         </button>
         <div className="topbar-divider" />
-        <div className="user-identity" title={email}>
+        <button className="user-identity" onClick={onAccount} title={`${email} — Account settings`} type="button">
           <div className="user-avatar">{displayName.slice(0, 2).toUpperCase()}</div>
           <span className="user-identity-text">
             <strong>{displayName}</strong>
             <small>{email}</small>
           </span>
-        </div>
+        </button>
         <button className="icon-button" aria-label="Sign out" onClick={onSignOut} type="button">
           <LogOut />
         </button>
