@@ -116,6 +116,8 @@ def get_compose_service_states() -> dict[str, str]:
             cwd=ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )

@@ -150,6 +150,12 @@ def spawn_captured(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        # Docker Compose and Vite both emit UTF-8 (checkmarks, arrows, box
+        # characters); without this, text=True falls back to the platform's
+        # default encoding -- cp1252 on Windows -- which can't decode that
+        # output and crashes this thread with a UnicodeDecodeError.
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,
         env=env,
     )
