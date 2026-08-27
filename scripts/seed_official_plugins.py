@@ -13,7 +13,9 @@ Administrator automatically as the first user of an empty deployment, then
 calls the same public API endpoints a human would use through the Plugin
 Administration screen.
 
-Add an entry to DEFAULT_PLUGINS to seed another Official Plugin.
+DEFAULT_PLUGINS is auto-discovered from plugins/ -- see discover_official_
+plugins() -- so a new Official Plugin only needs its build script; nothing
+here needs editing.
 """
 
 from __future__ import annotations
@@ -39,16 +41,49 @@ SEED_ADMIN_DISPLAY_NAME = os.environ.get(
     "OPENPDM_SEED_ADMIN_DISPLAY_NAME", "Platform Administrator"
 )
 
-# The default set of Official Plugins to install and enable. Add an entry
-# here to seed another one; each just needs its source directory (which must
-# contain openpdm-plugin.json) and its build script.
-DEFAULT_PLUGINS: list[dict[str, Any]] = [
-    {
-        "name": "reference",
-        "dir": ROOT / "plugins" / "reference",
-        "build_script": ROOT / "scripts" / "build_reference_plugin.py",
-    },
-]
+# Manifest IDs under this namespace are API-test fixtures (e.g.
+# plugins/dummy-categories, "org.openpdm.examples.asset-categories"), not
+# Official Plugins meant for default deployment -- excluded from discovery.
+EXCLUDED_MANIFEST_ID_PREFIX = "org.openpdm.examples."
+
+
+def discover_official_plugins(plugins_root: Path = ROOT / "plugins") -> list[dict[str, Any]]:
+    """Auto-discover Official Plugins under plugins/.
+
+    A subdirectory qualifies as an Official Plugin when it has both an
+    openpdm-plugin.json manifest and a matching scripts/build_<name>_plugin.py
+    -- the naming convention every genuine Official Plugin build script
+    already follows (build_reference_plugin.py, build_freecad_plugin.py, ...).
+    Adding a new Official Plugin only needs its build script; nothing here
+    needs editing.
+    """
+    discovered: list[dict[str, Any]] = []
+    if not plugins_root.is_dir():
+        return discovered
+    scripts_root = plugins_root.parent / "scripts"
+    for plugin_dir in sorted(plugins_root.iterdir()):
+        if not plugin_dir.is_dir():
+            continue
+        manifest_path = plugin_dir / "openpdm-plugin.json"
+        if not manifest_path.is_file():
+            continue
+        build_script = scripts_root / f"build_{plugin_dir.name.replace('-', '_')}_plugin.py"
+        if not build_script.is_file():
+            continue
+        try:
+            manifest_id = json.loads(manifest_path.read_text(encoding="utf-8"))["id"]
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+        if manifest_id.startswith(EXCLUDED_MANIFEST_ID_PREFIX):
+            continue
+        discovered.append(
+            {"name": plugin_dir.name, "dir": plugin_dir, "build_script": build_script}
+        )
+    return discovered
+
+
+# The default set of Official Plugins to install and enable.
+DEFAULT_PLUGINS: list[dict[str, Any]] = discover_official_plugins()
 
 
 def ensure_admin_session(base_url: str) -> str:
