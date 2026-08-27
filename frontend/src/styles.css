@@ -1860,6 +1860,45 @@ textarea {
 
 /* ---------- Governance / admin ---------- */
 
+.platform-admin-card {
+  margin-bottom: 16px;
+}
+
+.platform-admin-card h3 {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.platform-admin-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.platform-admin-list li {
+  align-items: center;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.platform-admin-list li span {
+  display: grid;
+  min-width: 0;
+}
+
+.platform-admin-list li small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .governance-filter-bar {
   align-items: end;
   display: grid;

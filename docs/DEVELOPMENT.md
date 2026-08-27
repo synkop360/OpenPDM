@@ -191,6 +191,16 @@ seed account's credentials can be overridden with `OPENPDM_SEED_ADMIN_EMAIL`,
 `OPENPDM_SEED_ADMIN_PASSWORD` and `OPENPDM_SEED_ADMIN_DISPLAY_NAME` (see
 `.env.example`). Safe to re-run; it skips plugins that are already installed.
 
+To grant Platform Administrator authority to another account (e.g. an
+Organization Owner who should also administer plugins — Organization and
+Project roles grant no plugin-administration authority on their own, per
+ADR-0035), sign in as an existing Platform Administrator and use the
+"Platform Administrators" panel at the top of the Plugin Administration
+screen (`/administration/plugins`): it lists current Platform
+Administrators with a Revoke action, and a "Grant by email" form for
+registered users. Revoking is blocked if it would leave the deployment with
+zero active Platform Administrators.
+
 ## Runtime Configuration
 
 Backend environment variables use the `OPENPDM_` prefix. The common development settings are documented in `.env.example`; they cover database and S3 connections, plugin package storage, sandbox limits, plugin configuration encryption, the backend host port and optional successful graph-query auditing. Cross-origin browser access defaults to the local Vite development and preview origins and can be overridden with `OPENPDM_API_CORS_ORIGINS`.

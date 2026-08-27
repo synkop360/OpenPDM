@@ -62,6 +62,7 @@ import {
   listOrganizationMembers,
   listOutgoingAssetRelationships,
   listPlugins,
+  listPlatformAdministrators,
   listOrganizations,
   listProjectsForUser,
   listProjectMembers,
@@ -73,6 +74,7 @@ import {
   removeOrganizationMember,
   removeProjectMember,
   removePlugin,
+  setPlatformAdministratorByEmail,
   setPluginState,
   signIn,
   signOut,
@@ -97,6 +99,7 @@ import {
   type Revision,
   type SessionInfo,
   type TimelineEntry,
+  type User,
   updatePluginConfiguration,
   upgradePluginPackage,
 } from "./api";
@@ -290,6 +293,10 @@ function OpenPdmApp() {
   const [notificationProjectFilter, setNotificationProjectFilter] = useState("");
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [plugins, setPlugins] = useState<Loadable<PluginRecord[]>>(createLoadable<PluginRecord[]>([]));
+  const [platformAdministrators, setPlatformAdministrators] = useState<Loadable<User[]>>(
+    createLoadable<User[]>([]),
+  );
+  const [platformAdminEmail, setPlatformAdminEmail] = useState("");
   const [providers, setProviders] = useState<Loadable<ProviderDescriptor[]>>(
     createLoadable<ProviderDescriptor[]>([]),
   );
@@ -691,6 +698,23 @@ function OpenPdmApp() {
           status: "error",
           data: [],
           error: error instanceof Error ? error.message : "Plugins could not be loaded.",
+        }),
+      );
+  }, [session.data?.token, session.data?.user.is_platform_admin, view]);
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token || view !== "plugin-administration" || !session.data?.user.is_platform_admin) {
+      setPlatformAdministrators(createLoadable([]));
+      return;
+    }
+    setPlatformAdministrators((current) => ({ ...current, status: "loading", error: null }));
+    listPlatformAdministrators(token)
+      .then((result) => setPlatformAdministrators({ status: "ready", data: result, error: null }))
+      .catch((error: unknown) =>
+        setPlatformAdministrators({
+          status: "error",
+          data: [],
+          error: error instanceof Error ? error.message : "Platform Administrators could not be loaded.",
         }),
       );
   }, [session.data?.token, session.data?.user.is_platform_admin, view]);
@@ -1828,6 +1852,12 @@ function OpenPdmApp() {
     setPlugins({ status: "ready", data: result, error: null });
   }
 
+  async function refreshPlatformAdministrators(): Promise<void> {
+    if (!session.data?.token || !session.data.user.is_platform_admin) return;
+    const result = await listPlatformAdministrators(session.data.token);
+    setPlatformAdministrators({ status: "ready", data: result, error: null });
+  }
+
   async function refreshProviders(): Promise<void> {
     const token = session.data?.token;
     if (!token) {
@@ -1951,6 +1981,46 @@ function OpenPdmApp() {
       setBanner("Community Plugin installed.");
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Plugin installation failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleGrantPlatformAdministrator(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !platformAdminEmail.trim()) return;
+    setBusyAction("grant-platform-admin");
+    setBanner(null);
+    try {
+      const granted = await setPlatformAdministratorByEmail(
+        session.data.token,
+        platformAdminEmail.trim(),
+        true,
+      );
+      await refreshPlatformAdministrators();
+      setPlatformAdminEmail("");
+      setBanner(`${granted.display_name} is now a Platform Administrator.`);
+    } catch (error: unknown) {
+      setBanner(
+        error instanceof Error ? error.message : "Platform Administrator authority could not be granted.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRevokePlatformAdministrator(user: User): Promise<void> {
+    if (!session.data?.token) return;
+    setBusyAction(`revoke-platform-admin-${user.id}`);
+    setBanner(null);
+    try {
+      await setPlatformAdministratorByEmail(session.data.token, user.email, false);
+      await refreshPlatformAdministrators();
+      setBanner(`${user.display_name} is no longer a Platform Administrator.`);
+    } catch (error: unknown) {
+      setBanner(
+        error instanceof Error ? error.message : "Platform Administrator authority could not be revoked.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -2750,6 +2820,64 @@ function OpenPdmApp() {
                   </div>
                 ) : (
                   <>
+                <section className="detail-card platform-admin-card" aria-labelledby="platform-administrators-title">
+                  <div className="detail-row">
+                    <div>
+                      <p className="eyebrow">Deployment-wide authority</p>
+                      <h3 id="platform-administrators-title"><Users aria-hidden="true" /> Platform Administrators</h3>
+                      <p className="muted-text">
+                        Organization and Project roles grant no plugin-administration authority. Only Platform Administrators may install, enable, disable, configure or remove plugins.
+                      </p>
+                    </div>
+                  </div>
+                  {platformAdministrators.status === "error" ? (
+                    <InlineAlert tone="danger">{platformAdministrators.error}</InlineAlert>
+                  ) : null}
+                  <ul className="platform-admin-list">
+                    {platformAdministrators.data.map((administrator) => (
+                      <li key={administrator.id}>
+                        <span>
+                          <strong>{administrator.display_name}</strong>
+                          <small>{administrator.email}</small>
+                        </span>
+                        <ConfirmDialog
+                          confirmLabel="Revoke authority"
+                          description={`Revoke Platform Administrator authority from ${administrator.display_name}. A deployment must retain at least one active Platform Administrator.`}
+                          onConfirm={() => void handleRevokePlatformAdministrator(administrator)}
+                          title="Review revoke action"
+                          trigger={
+                            <button
+                              className="secondary-button warning-button"
+                              disabled={busyAction === `revoke-platform-admin-${administrator.id}`}
+                              type="button"
+                            >
+                              Revoke
+                            </button>
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  <form className="form-grid compact-form" onSubmit={handleGrantPlatformAdministrator}>
+                    <label>
+                      Grant by email
+                      <input
+                        placeholder="person@example.com"
+                        required
+                        type="email"
+                        value={platformAdminEmail}
+                        onChange={(event) => setPlatformAdminEmail(event.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="primary-button"
+                      disabled={!platformAdminEmail.trim() || busyAction === "grant-platform-admin"}
+                      type="submit"
+                    >
+                      {busyAction === "grant-platform-admin" ? "Granting..." : "Grant authority"}
+                    </button>
+                  </form>
+                </section>
                 <form className="form-grid compact-form" onSubmit={handleInstallPlugin}>
                   <h3>Install Community Plugin</h3>
                   <label>

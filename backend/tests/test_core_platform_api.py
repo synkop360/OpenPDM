@@ -753,6 +753,52 @@ def test_platform_administration_and_plugin_package_lifecycle(tmp_path: Path) ->
     )
     assert revoked.status_code == 200
 
+    # member_token is now the sole Platform Administrator.
+    denied_list = client.get("/platform/administrators", headers=auth_header(admin_token))
+    assert denied_list.status_code == 403
+
+    administrators = client.get("/platform/administrators", headers=auth_header(member_token))
+    assert administrators.status_code == 200
+    assert [user["email"] for user in administrators.json()] == ["member@example.com"]
+
+    unknown_email = client.put(
+        "/platform/administrators",
+        headers=auth_header(member_token),
+        json={"user_email": "nobody@example.com", "enabled": True},
+    )
+    assert unknown_email.status_code == 404
+
+    ambiguous_target = client.put(
+        "/platform/administrators",
+        headers=auth_header(member_token),
+        json={"user_id": admin_session["user"]["id"], "user_email": "admin@example.com"},
+    )
+    assert ambiguous_target.status_code == 400
+
+    # admin_token is not a Platform Administrator at this point (revoked above).
+    denied_grant = client.put(
+        "/platform/administrators",
+        headers=auth_header(admin_token),
+        json={"user_email": "member@example.com", "enabled": False},
+    )
+    assert denied_grant.status_code == 403
+
+    granted_by_email = client.put(
+        "/platform/administrators",
+        headers=auth_header(member_token),
+        json={"user_email": "admin@example.com", "enabled": True},
+    )
+    assert granted_by_email.status_code == 200
+    assert granted_by_email.json()["is_platform_admin"] is True
+
+    administrators_after_grant = client.get(
+        "/platform/administrators", headers=auth_header(member_token)
+    )
+    assert {user["email"] for user in administrators_after_grant.json()} == {
+        "admin@example.com",
+        "member@example.com",
+    }
+
 
 def test_plugin_discovery_upgrade_incompatibility_and_removal(tmp_path: Path) -> None:
     client = build_client(tmp_path)

@@ -496,6 +496,12 @@ class SetPlatformAdministratorRequest(BaseModel):
     enabled: bool
 
 
+class GrantPlatformAdministratorRequest(BaseModel):
+    user_id: str | None = None
+    user_email: str | None = None
+    enabled: bool = True
+
+
 class PutPluginConfigurationRequest(BaseModel):
     values: dict[str, Any]
 
@@ -998,6 +1004,34 @@ def set_platform_administrator(
     target = AuthModule.set_platform_administrator(
         db,
         target_user_id=user_id,
+        enabled=payload.enabled,
+        actor=context.user,
+    )
+    db.commit()
+    return serialize_user(target)
+
+
+@router.get("/platform/administrators", response_model=list[UserResponse])
+def list_platform_administrators(
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[UserResponse]:
+    administrators = AuthModule.list_platform_administrators(db, actor=context.user)
+    return [serialize_user(user) for user in administrators]
+
+
+@router.put("/platform/administrators", response_model=UserResponse)
+def grant_platform_administrator(
+    payload: GrantPlatformAdministratorRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> UserResponse:
+    target_user = OrganizationModule.resolve_registered_user(
+        db, user_id=payload.user_id, user_email=payload.user_email
+    )
+    target = AuthModule.set_platform_administrator(
+        db,
+        target_user_id=target_user.id,
         enabled=payload.enabled,
         actor=context.user,
     )

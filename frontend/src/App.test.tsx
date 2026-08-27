@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -1290,6 +1290,18 @@ describe("App", () => {
         });
       }
       if (path === "/organizations" || (path === "/notifications" || path.startsWith("/notifications/page?"))) return jsonResponse([]);
+      if (path === "/platform/administrators" && method === "GET") {
+        return jsonResponse([
+          {
+            id: "user-1",
+            email: "admin@example.com",
+            display_name: "Admin",
+            is_active: true,
+            is_platform_admin: true,
+            created_at: "2026-01-01T00:00:00",
+          },
+        ]);
+      }
       if (path === "/plugins" && method === "GET") {
         return jsonResponse([
           {
@@ -1350,6 +1362,10 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Plugin administration" }));
     expect(window.location.pathname).toBe("/administration/plugins");
     expect(await screen.findByRole("heading", { name: "Plugin administration" })).toBeInTheDocument();
+    const administratorList = await screen.findByRole("heading", { name: "Platform Administrators" }).then(
+      (heading) => heading.closest("section")!,
+    );
+    expect(within(administratorList).getByText("admin@example.com")).toBeInTheDocument();
     expect(await screen.findByText("Categories")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
     fireEvent.click(await screen.findByRole("button", { name: "Enable plugin" }));
@@ -1371,6 +1387,127 @@ describe("App", () => {
         body: JSON.stringify({ values: { prefix: "updated", token: "replacement-secret" } }),
       }),
     ));
+  });
+
+  it("grants and revokes Platform Administrator authority by email", async () => {
+    window.localStorage.setItem("openpdm.sessionToken", "token-123");
+    let granted = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === "/foundation") {
+        return jsonResponse({
+          name: "OpenPDM",
+          version: "0.0.0",
+          phase: "Engineering Platform",
+          architecture: "Modular Monolith",
+        });
+      }
+      if (path === "/auth/session") {
+        return jsonResponse({
+          id: "session-1",
+          token: "token-123",
+          user: {
+            id: "user-1",
+            email: "admin@example.com",
+            display_name: "Admin",
+            is_active: true,
+            is_platform_admin: true,
+            created_at: "2026-01-01T00:00:00",
+          },
+        });
+      }
+      if (path === "/organizations" || path === "/notifications" || path.startsWith("/notifications/page?")) return jsonResponse([]);
+      if (path === "/plugins" && method === "GET") return jsonResponse([]);
+      if (path === "/platform/administrators" && method === "GET") {
+        return jsonResponse(
+          granted
+            ? [
+                {
+                  id: "user-1",
+                  email: "admin@example.com",
+                  display_name: "Admin",
+                  is_active: true,
+                  is_platform_admin: true,
+                  created_at: "2026-01-01T00:00:00",
+                },
+                {
+                  id: "user-2",
+                  email: "member@example.com",
+                  display_name: "Member",
+                  is_active: true,
+                  is_platform_admin: true,
+                  created_at: "2026-01-02T00:00:00",
+                },
+              ]
+            : [
+                {
+                  id: "user-1",
+                  email: "admin@example.com",
+                  display_name: "Admin",
+                  is_active: true,
+                  is_platform_admin: true,
+                  created_at: "2026-01-01T00:00:00",
+                },
+              ],
+        );
+      }
+      if (path === "/platform/administrators" && method === "PUT") {
+        const body = JSON.parse(String(init?.body));
+        granted = body.enabled === true;
+        return jsonResponse({
+          id: "user-2",
+          email: "member@example.com",
+          display_name: "Member",
+          is_active: true,
+          is_platform_admin: body.enabled,
+          created_at: "2026-01-02T00:00:00",
+        });
+      }
+      throw new Error(`Unexpected request: ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Plugin administration" }));
+    const administratorList = await screen.findByRole("heading", { name: "Platform Administrators" }).then(
+      (heading) => heading.closest("section")!,
+    );
+    expect(within(administratorList).getByText("admin@example.com")).toBeInTheDocument();
+    expect(within(administratorList).queryByText("member@example.com")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Grant by email"), {
+      target: { value: "member@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Grant authority" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/platform/administrators",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ user_email: "member@example.com", enabled: true }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(within(administratorList).getByText("member@example.com")).toBeInTheDocument(),
+    );
+
+    const memberRow = within(administratorList).getByText("member@example.com").closest("li");
+    fireEvent.click(memberRow!.querySelector("button")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke authority" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/platform/administrators",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ user_email: "member@example.com", enabled: false }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(within(administratorList).queryByText("member@example.com")).not.toBeInTheDocument(),
+    );
   });
 
   it("denies plugin administration to an ordinary authenticated user", async () => {

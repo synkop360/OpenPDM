@@ -599,6 +599,18 @@ class AuthModule:
         return target
 
     @staticmethod
+    def list_platform_administrators(db: Session, *, actor: User) -> list[User]:
+        require(
+            actor.is_active and actor.is_platform_admin,
+            "Platform Administrator authority is required.",
+            status.HTTP_403_FORBIDDEN,
+        )
+        statement = (
+            select(User).where(User.is_platform_admin.is_(True)).order_by(User.created_at.asc())
+        )
+        return list(db.scalars(statement))
+
+    @staticmethod
     def get_session(db: Session, token: str) -> SessionToken:
         statement = (
             select(SessionToken)

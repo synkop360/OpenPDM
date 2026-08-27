@@ -701,6 +701,23 @@ export async function listPlugins(token: string): Promise<PluginRecord[]> {
   return request<PluginRecord[]>("/plugins", { token });
 }
 
+export async function listPlatformAdministrators(token: string): Promise<User[]> {
+  return request<User[]>("/platform/administrators", { token });
+}
+
+export async function setPlatformAdministratorByEmail(
+  token: string,
+  userEmail: string,
+  enabled: boolean,
+): Promise<User> {
+  return request<User>("/platform/administrators", {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ user_email: userEmail, enabled }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function discoverProviders(token: string): Promise<ProviderDescriptor[]> {
   return request<ProviderDescriptor[]>("/providers", { token });
 }
