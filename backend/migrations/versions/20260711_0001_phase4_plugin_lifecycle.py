@@ -1,7 +1,7 @@
 """Add Phase 4 platform administration and plugin lifecycle state.
 
 Revision ID: 20260711_0001
-Revises: None
+Revises: 20260601_0000
 """
 
 from collections.abc import Sequence
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260711_0001"
-down_revision: str | None = None
+down_revision: str | None = "20260601_0000"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

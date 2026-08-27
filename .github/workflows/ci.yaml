@@ -56,6 +56,15 @@ jobs:
           backend/tests/test_blob_upload_sessions.py::test_postgresql_cleanup_race_preserves_one_terminal_transition
           -q
 
+      - name: Test PostgreSQL migration chain bootstrap
+        env:
+          OPENPDM_TEST_POSTGRES_URL: postgresql+psycopg://openpdm:openpdm@localhost:5432/openpdm_transfer_test
+          OPENPDM_REQUIRE_POSTGRES_TRANSFER_TEST: "1"
+        run: >-
+          uv run pytest
+          backend/tests/test_migrations.py::test_postgresql_migration_chain_upgrades_a_genuinely_empty_database
+          -q
+
       - name: Test backend and architecture boundaries
         run: uv run pytest
 
