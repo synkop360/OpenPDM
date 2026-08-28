@@ -80,10 +80,12 @@ import {
   signOut,
   type ReferenceRecord,
   type Relationship,
+  type RelationshipType,
   unlockAsset,
   updateAssetStatus,
   cancelBlobUploadSession,
   changePassword,
+  createRelationship,
   type Asset,
   type BlobRecord,
   type CollaborationState,
@@ -275,6 +277,11 @@ function OpenPdmApp() {
   const [assetGraph, setAssetGraph] = useState<Loadable<AssetGraph | null>>(
     createLoadable<AssetGraph | null>(null),
   );
+  const [relationshipForm, setRelationshipForm] = useState<{
+    targetAssetId: string;
+    relationshipType: RelationshipType;
+  }>({ targetAssetId: "", relationshipType: "related_to" });
+  const [relationshipFormError, setRelationshipFormError] = useState<string | null>(null);
   const [projectGraph, setProjectGraph] = useState<Loadable<AssetGraph | null>>(
     createLoadable<AssetGraph | null>(null),
   );
@@ -1800,6 +1807,40 @@ function OpenPdmApp() {
       setBanner(`Status updated to ${nextStatus}.`);
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Status update failed.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleCreateRelationship(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !selectedAssetId || !relationshipForm.targetAssetId) {
+      return;
+    }
+    setRelationshipFormError(null);
+    setBusyAction("create-relationship");
+    setBanner(null);
+    try {
+      await createRelationship(session.data.token, selectedAssetId, {
+        target_asset_id: relationshipForm.targetAssetId,
+        relationship_type: relationshipForm.relationshipType,
+      });
+      const [nextRelationships, nextIncoming, nextOutgoing, nextGraph] = await Promise.all([
+        listAssetRelationships(session.data.token, selectedAssetId),
+        listIncomingAssetRelationships(session.data.token, selectedAssetId),
+        listOutgoingAssetRelationships(session.data.token, selectedAssetId),
+        getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
+      ]);
+      setAssetRelationships({ status: "ready", data: nextRelationships, error: null });
+      setIncomingRelationships({ status: "ready", data: nextIncoming, error: null });
+      setOutgoingRelationships({ status: "ready", data: nextOutgoing, error: null });
+      setAssetGraph({ status: "ready", data: nextGraph, error: null });
+      setRelationshipForm((current) => ({ ...current, targetAssetId: "" }));
+      setBanner("Relationship created.");
+    } catch (error: unknown) {
+      setRelationshipFormError(
+        error instanceof Error ? error.message : "Relationship could not be created.",
+      );
     } finally {
       setBusyAction(null);
     }
@@ -3537,6 +3578,7 @@ function OpenPdmApp() {
               assetNameById={assetNameById}
               assetReferences={assetReferences}
               assetRelationships={assetRelationships}
+              assets={assets.data}
               assetTimeline={assetTimeline}
               busyAction={busyAction}
               collaborationError={collaborationError}
@@ -3548,6 +3590,7 @@ function OpenPdmApp() {
               onApplyMetadataProvider={(provider) => void handleApplyMetadataProvider(provider)}
               onCancelTransfer={() => void handleCancelTransfer()}
               onCheckout={() => void handleCheckout()}
+              onCreateRelationship={(event) => void handleCreateRelationship(event)}
               onClose={() => selectAsset(null)}
               onDiscardTransfer={() => void handleDiscardTransfer()}
               onDownload={(blobId, filename) => void handleDownload(blobId, filename)}
@@ -3557,6 +3600,12 @@ function OpenPdmApp() {
               }
               onOpenCheckIn={() => setShowCheckInForm(true)}
               onRefreshAssetState={() => void handleRefreshAssetState()}
+              onRelationshipTargetChange={(value) =>
+                setRelationshipForm((current) => ({ ...current, targetAssetId: value }))
+              }
+              onRelationshipTypeChange={(value) =>
+                setRelationshipForm((current) => ({ ...current, relationshipType: value }))
+              }
               onRetryCheckin={handleRetryCheckin}
               onSelectAsset={(assetId) => selectAsset(assetId)}
               onSubmitUpload={handleUpload}
@@ -3573,6 +3622,8 @@ function OpenPdmApp() {
               providerOptions={providerOptions}
               providers={providers}
               providerSelections={providerSelections}
+              relationshipForm={relationshipForm}
+              relationshipFormError={relationshipFormError}
               selectedAnalysisRepresentation={selectedAnalysisRepresentation}
               selectedAssetId={selectedAssetId}
               onCheckInFormOpenChange={setShowCheckInForm}

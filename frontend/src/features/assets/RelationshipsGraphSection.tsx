@@ -1,8 +1,9 @@
+import type { FormEvent } from "react";
 import { InlineAlert } from "../../components/feedback/InlineAlert";
 import { formatRelationshipType, formatTimestamp } from "../../app/format";
 import { describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
-import type { AssetGraph, Relationship } from "../../api";
+import { RELATIONSHIP_TYPES, type Asset, type AssetGraph, type Relationship, type RelationshipType } from "../../api";
 import { AssetGraphDiagram } from "./AssetGraphDiagram";
 
 function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
@@ -32,19 +33,39 @@ export type RelationshipsGraphSectionProps = {
   assetGraph: Loadable<AssetGraph | null>;
   assetNameById: Map<string, string>;
   assetRelationships: Loadable<Relationship[]>;
+  assets: Asset[];
+  busyAction: string | null;
   incomingRelationships: Loadable<Relationship[]>;
+  onCreateRelationship: (event: FormEvent<HTMLFormElement>) => void;
+  onRelationshipTargetChange: (value: string) => void;
+  onRelationshipTypeChange: (value: RelationshipType) => void;
   onSelectAsset: (assetId: string) => void;
   outgoingRelationships: Loadable<Relationship[]>;
+  relationshipForm: { targetAssetId: string; relationshipType: RelationshipType };
+  relationshipFormError: string | null;
+  selectedAssetId: string | null;
 };
 
 export function RelationshipsGraphSection({
   assetGraph,
   assetNameById,
   assetRelationships,
+  assets,
+  busyAction,
   incomingRelationships,
+  onCreateRelationship,
+  onRelationshipTargetChange,
+  onRelationshipTypeChange,
   onSelectAsset,
   outgoingRelationships,
+  relationshipForm,
+  relationshipFormError,
+  selectedAssetId,
 }: RelationshipsGraphSectionProps) {
+  const candidateTargets = assets
+    .filter((asset) => asset.id !== selectedAssetId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <>
       <article className="detail-card relationship-card">
@@ -71,6 +92,52 @@ export function RelationshipsGraphSection({
               outgoingRelationships.error}
           </InlineAlert>
         ) : null}
+
+        <form className="form-grid compact-form relationship-create-form" onSubmit={onCreateRelationship}>
+          <h4>Link to another Asset</h4>
+          <label>
+            Target Asset
+            <select
+              disabled={candidateTargets.length === 0}
+              onChange={(event) => onRelationshipTargetChange(event.target.value)}
+              required
+              value={relationshipForm.targetAssetId}
+            >
+              <option value="">Select an Asset</option>
+              {candidateTargets.map((asset) => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Relationship type
+            <select
+              onChange={(event) => onRelationshipTypeChange(event.target.value as RelationshipType)}
+              value={relationshipForm.relationshipType}
+            >
+              {RELATIONSHIP_TYPES.map((type) => (
+                <option key={type} value={type}>{formatRelationshipType(type)}</option>
+              ))}
+            </select>
+          </label>
+          {relationshipFormError ? <InlineAlert tone="danger">{relationshipFormError}</InlineAlert> : null}
+          {candidateTargets.length === 0 ? (
+            <p className="muted-text">
+              No other Assets are loaded in this Project to link to yet.
+            </p>
+          ) : null}
+          <button
+            className="primary-button"
+            disabled={
+              !relationshipForm.targetAssetId ||
+              busyAction === "create-relationship" ||
+              candidateTargets.length === 0
+            }
+            type="submit"
+          >
+            {busyAction === "create-relationship" ? "Linking..." : "Link Asset"}
+          </button>
+        </form>
 
         <div className="relationship-grid">
           <section className="relationship-column">

@@ -655,8 +655,32 @@ export async function getAssetTimeline(token: string, assetId: string): Promise<
   return request<TimelineEntry[]>(`/assets/${assetId}/timeline`, { token });
 }
 
+export const RELATIONSHIP_TYPES = [
+  "depends_on",
+  "references",
+  "derived_from",
+  "generates",
+  "supersedes",
+  "related_to",
+] as const;
+
+export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
+
 export async function listAssetRelationships(token: string, assetId: string): Promise<Relationship[]> {
   return request<Relationship[]>(`/assets/${assetId}/relationships`, { token });
+}
+
+export async function createRelationship(
+  token: string,
+  assetId: string,
+  payload: { target_asset_id: string; relationship_type: RelationshipType },
+): Promise<Relationship> {
+  return request<Relationship>(`/assets/${assetId}/relationships`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 export async function listIncomingAssetRelationships(

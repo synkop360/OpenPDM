@@ -549,6 +549,19 @@ describe("App", () => {
     const pendingDelete = new Promise<JsonResponse>((resolve, reject) => {
       settleDelete = () => deleteOutcome === "resolve" ? resolve(jsonResponse(undefined, 204)) : reject(new TypeError("offline"));
     });
+    let asset1OutgoingRelationships = [
+      {
+        id: "relationship-1",
+        source_asset_id: "asset-1",
+        target_asset_id: "asset-2",
+        relationship_type: "depends_on",
+        direction: "directed",
+        metadata: {},
+        created_by_user_id: "user-1",
+        created_at: "2026-01-02T00:30:00",
+      },
+    ];
+    let asset2OutgoingRelationships: (typeof asset1OutgoingRelationships)[number][] = [];
 
     const assetsById = {
       "asset-1": {
@@ -677,19 +690,38 @@ describe("App", () => {
             }],
           }]);
         }
+        if (path === "/assets/asset-1/relationships" && init?.method === "POST") {
+          const body = JSON.parse(String(init.body));
+          const created = {
+            id: `relationship-${asset1OutgoingRelationships.length + 1}`,
+            source_asset_id: "asset-1",
+            target_asset_id: body.target_asset_id,
+            relationship_type: body.relationship_type,
+            direction: "directed",
+            metadata: {},
+            created_by_user_id: "user-1",
+            created_at: "2026-01-02T00:40:00",
+          };
+          asset1OutgoingRelationships = [...asset1OutgoingRelationships, created];
+          return jsonResponse(created, 201);
+        }
         if (path === "/assets/asset-1/relationships") {
-          return jsonResponse([
-            {
-              id: "relationship-1",
-              source_asset_id: "asset-1",
-              target_asset_id: "asset-2",
-              relationship_type: "depends_on",
-              direction: "directed",
-              metadata: {},
-              created_by_user_id: "user-1",
-              created_at: "2026-01-02T00:30:00",
-            },
-          ]);
+          return jsonResponse(asset1OutgoingRelationships);
+        }
+        if (path === "/assets/asset-2/relationships" && init?.method === "POST") {
+          const body = JSON.parse(String(init.body));
+          const created = {
+            id: `relationship-2-${asset2OutgoingRelationships.length + 1}`,
+            source_asset_id: "asset-2",
+            target_asset_id: body.target_asset_id,
+            relationship_type: body.relationship_type,
+            direction: "directed",
+            metadata: {},
+            created_by_user_id: "user-1",
+            created_at: "2026-01-02T00:40:00",
+          };
+          asset2OutgoingRelationships = [...asset2OutgoingRelationships, created];
+          return jsonResponse(created, 201);
         }
         if (path === "/assets/asset-2/relationships") {
           return jsonResponse([
@@ -703,6 +735,7 @@ describe("App", () => {
               created_by_user_id: "user-1",
               created_at: "2026-01-02T00:30:00",
             },
+            ...asset2OutgoingRelationships,
           ]);
         }
         if (path === "/assets/asset-1/relationships/incoming") {
@@ -723,21 +756,10 @@ describe("App", () => {
           ]);
         }
         if (path === "/assets/asset-1/relationships/outgoing") {
-          return jsonResponse([
-            {
-              id: "relationship-1",
-              source_asset_id: "asset-1",
-              target_asset_id: "asset-2",
-              relationship_type: "depends_on",
-              direction: "directed",
-              metadata: {},
-              created_by_user_id: "user-1",
-              created_at: "2026-01-02T00:30:00",
-            },
-          ]);
+          return jsonResponse(asset1OutgoingRelationships);
         }
         if (path === "/assets/asset-2/relationships/outgoing") {
-          return jsonResponse([]);
+          return jsonResponse(asset2OutgoingRelationships);
         }
         if (path === "/assets/asset-1/references" || path === "/assets/asset-2/references") {
           return jsonResponse([]);
@@ -869,6 +891,35 @@ describe("App", () => {
     await exerciseRelationshipAndDiscardRace("resolve", false);
     fireEvent.click(screen.getByRole("button", { name: "Close Asset detail" }));
     expect(await screen.findByRole("button", { name: /Wing Panel/i })).toBeInTheDocument();
+  });
+
+  it("links two Assets from the Relationships tab", async () => {
+    // This fixture opens the detail panel on asset-2 (Spar) by default, which
+    // already has one incoming relationship from asset-1 (Wing Panel) and no
+    // outgoing ones -- Wing Panel is therefore the only candidate target.
+    await exerciseRelationshipAndDiscardRace("resolve", false);
+    await switchAssetDetailTab("Relationships & Graph");
+
+    expect(await screen.findByText("From Wing Panel")).toBeInTheDocument();
+    expect(screen.getByText("This Asset has no outgoing relationships yet.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Target Asset"), { target: { value: "asset-1" } });
+    fireEvent.change(screen.getByLabelText("Relationship type"), {
+      target: { value: "related_to" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Link Asset" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        "/assets/asset-2/relationships",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ target_asset_id: "asset-1", relationship_type: "related_to" }),
+        }),
+      ),
+    );
+    expect(await screen.findByText("To Wing Panel")).toBeInTheDocument();
+    expect(await screen.findByText("Relationship created.")).toBeInTheDocument();
   });
 
   it.each(["resolve", "reject"] as const)(
