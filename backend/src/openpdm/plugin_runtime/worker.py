@@ -25,6 +25,7 @@ class WorkerRequest(BaseModel):
     arguments: list[str] = Field(default_factory=list, max_length=8)
     fuel: int = Field(gt=0, le=500_000_000)
     memory_bytes: int = Field(gt=0, le=512 * 1024 * 1024)
+    cache_config_path: str | None = Field(default=None, max_length=4096)
 
 
 def _safe_message(exc: Exception) -> str:
@@ -50,7 +51,11 @@ def run_worker(stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> int:
                 raise ValueError("Unsupported worker protocol version.")
             component = base64.b64decode(request.component, validate=True)
             result = WasmtimeSandbox(
-                SandboxLimits(fuel=request.fuel, memory_bytes=request.memory_bytes)
+                SandboxLimits(
+                    fuel=request.fuel,
+                    memory_bytes=request.memory_bytes,
+                    cache_config_path=request.cache_config_path,
+                )
             ).invoke(component, request.export_name, request.arguments)
             response = {
                 "protocol_version": PROTOCOL_VERSION,

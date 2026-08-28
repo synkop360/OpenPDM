@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 
 import wasmtime
@@ -16,6 +17,7 @@ class SandboxLimits:
     instances: int = 100
     tables: int = 100
     memories: int = 100
+    cache_config_path: str | None = None
 
 
 class WasmtimeSandbox:
@@ -27,6 +29,14 @@ class WasmtimeSandbox:
         config.consume_fuel = True
         config.epoch_interruption = True
         config.wasm_component_model = True
+        if self.limits.cache_config_path:
+            # On-disk compiled-artifact cache. Keyed by component hash and
+            # compiler settings, it only turns a recompile into a deserialize;
+            # it does not relax fuel, memory, the epoch deadline, or the
+            # deny-by-default capability set. A missing or unreadable config is
+            # non-fatal: the sandbox simply compiles from scratch.
+            with suppress(wasmtime.WasmtimeError):
+                config.cache = self.limits.cache_config_path
         self.engine = wasmtime.Engine(config)
 
     def invoke(

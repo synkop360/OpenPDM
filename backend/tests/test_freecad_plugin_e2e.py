@@ -22,6 +22,7 @@ def build_client(tmp_path: Path) -> TestClient:
     os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
     os.environ["OPENPDM_PLUGIN_PACKAGE_ROOT"] = str(tmp_path / "plugins")
     os.environ["OPENPDM_PLUGIN_CONFIGURATION_KEY"] = Fernet.generate_key().decode()
+    os.environ["OPENPDM_PLUGIN_RUNTIME_CACHE_DIR"] = str(tmp_path / "wasmtime-cache")
     os.environ["OPENPDM_PLUGIN_RUNTIME_TIMEOUT_SECONDS"] = "15"
     os.environ["OPENPDM_PLUGIN_RUNTIME_FUEL"] = "25000000"
     os.environ["OPENPDM_PLUGIN_ANALYSIS_PROVIDER_FUEL"] = "200000000"

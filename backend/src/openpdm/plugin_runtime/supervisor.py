@@ -20,6 +20,32 @@ class RuntimeResult:
     result: str | None = None
 
 
+def _prepare_cache_config(cache_directory: str | None) -> str | None:
+    """Materialize a Wasmtime cache-config file for ``cache_directory``.
+
+    The compiled-artifact cache turns a cold component recompile (seconds, for a
+    CPython-based component) into a deserialize (milliseconds), so a first
+    ``enable`` or ``analyze`` on a slow host no longer races the wall-clock
+    deadline. The config file is kept beside the artifact directory, never
+    inside it, because Wasmtime's cache cleanup deletes stray files under the
+    cache directory. A path that cannot be created is treated as "no cache".
+    """
+
+    if not cache_directory:
+        return None
+    try:
+        base = Path(cache_directory).expanduser().resolve()
+        artifacts = base / "artifacts"
+        artifacts.mkdir(parents=True, exist_ok=True)
+        config_path = base / "cache-config.toml"
+        desired = f"[cache]\ndirectory = {json.dumps(artifacts.as_posix())}\n"
+        if not config_path.is_file() or config_path.read_text(encoding="utf-8") != desired:
+            config_path.write_text(desired, encoding="utf-8")
+        return str(config_path)
+    except OSError:
+        return None
+
+
 class WasmtimeWorkerSupervisor:
     """Execute one bounded invocation through private anonymous pipes."""
 
@@ -29,10 +55,12 @@ class WasmtimeWorkerSupervisor:
         timeout_seconds: float = 5.0,
         fuel: int = 25_000_000,
         memory_bytes: int = 64 * 1024 * 1024,
+        cache_directory: str | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.fuel = fuel
         self.memory_bytes = memory_bytes
+        self.cache_config_path = _prepare_cache_config(cache_directory)
 
     def activate(self, component: bytes) -> RuntimeResult:
         return self.invoke(component, export_name="activate")
@@ -55,6 +83,7 @@ class WasmtimeWorkerSupervisor:
                 "arguments": arguments or [],
                 "fuel": self.fuel if fuel is None else fuel,
                 "memory_bytes": self.memory_bytes,
+                "cache_config_path": self.cache_config_path,
             },
             separators=(",", ":"),
         )
