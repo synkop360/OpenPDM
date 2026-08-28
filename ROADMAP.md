@@ -133,13 +133,14 @@ not just a demo.
 * surface possibly-affected dependent Assets when a new Revision is created, built on the existing Relationships and Collaboration/Notifications Platform Modules and the bounded dependent-tree queries already approved in ADR-0030
 * suggest Asset relationships from plugin-extracted document links — the FreeCAD analysis provider already extracts inter-document links; wire them into a review-and-confirm suggestion flow instead of fully manual graph editing
 * a minimal electronics analysis provider (KiCad), mirroring the existing FreeCAD provider's scope (component list, footprints, board outline), to close the current gap where only the mechanical side has automated support
+* a minimal wiring-harness analysis provider (`org.openpdm.splice-cad`), mirroring the FreeCAD provider's scope for Splice CAD `.spliceproject` files (node/link/conductor/splice/BOM counts as generic metadata; BOM entries as References; API-only explicit `depends_on` mapping) — first slice implemented and tested, see `docs/SPLICE_CAD_PLUGIN.md`
 * a lightweight software/firmware linkage using the existing generic Reference model (ADR-0031, `reference_type = git_commit`) instead of duplicating source code as Blobs
 * documented local-daily-use ergonomics: a reliable one-command start/stop for the Compose stack (PostgreSQL, MinIO, backend) that survives restarts without re-seeding data
 
 **Explicit deferrals**
 
 * automatic/unattended relationship inference — Phase 3's bounded, explicit graph model stays authoritative; suggestions require human confirmation
-* additional CAD/ECAD tool coverage beyond FreeCAD and KiCad until both providers are proven on real personal use
+* additional CAD/ECAD/harness tool coverage beyond FreeCAD, KiCad and Splice CAD until those providers are proven on real personal use
 * any further multi-user, multi-organization or enterprise governance investment (RBAC depth, Platform Administrator workflows, compliance/audit features) — keep as-is, do not extend
 
 **Success criteria**

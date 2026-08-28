@@ -1,0 +1,4347 @@
+{
+  "assemblyRefs": {},
+  "bom": [
+    {
+      "description": "Generic connector 01",
+      "id": "bom_1785778638959_nx10z5dtk",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0001",
+      "spec": {
+        "pin_mapping": {
+          "0": "1",
+          "1": "2",
+          "2": "3",
+          "3": "4",
+          "4": "5",
+          "5": "6",
+          "6": "7",
+          "7": "8"
+        },
+        "positions": 8,
+        "shape": "terminal_block"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 02",
+      "id": "bom_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0002",
+      "sourcePartId": "00000000-0000-0000-0000-000000000000",
+      "spec": {
+        "gender": "female",
+        "positions": 24,
+        "series": "Micro-Fit 3.0 43025",
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 03",
+      "id": "bom_0027",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0003",
+      "sourcePartId": "00000000-0000-0000-0000-000000000000",
+      "spec": {
+        "gender": "female",
+        "positions": 2,
+        "series": "EV6/EV14 USCAR",
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 04",
+      "id": "bom_0069",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0004",
+      "spec": {
+        "gender": "female",
+        "positions": 2,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 05",
+      "id": "bom2_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0005",
+      "spec": {
+        "pitch_mm": 5.08,
+        "positions": 3,
+        "shape": "terminal_block"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 06",
+      "id": "bom2_0002",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0006",
+      "spec": {
+        "gender": "female",
+        "positions": 2,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 07",
+      "id": "bom4_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0007",
+      "spec": {
+        "positions": 2,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 08",
+      "id": "bom4_0003",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0008",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 09",
+      "id": "bom4_0004",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0009",
+      "spec": {
+        "positions": 4,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 10",
+      "id": "bom3_0003",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0010",
+      "spec": {
+        "positions": 5,
+        "shape": "terminal_block"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 11",
+      "id": "bom4_0005",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0011",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 12",
+      "id": "bom4_0006",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0012",
+      "spec": {
+        "positions": 6,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 13",
+      "id": "bom5_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0013",
+      "spec": {
+        "positions": 5,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 14",
+      "id": "bom5_0002",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0014",
+      "spec": {
+        "gender": "female",
+        "positions": 2,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 15",
+      "id": "bom6_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0015",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 16",
+      "id": "bom7_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0016",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 17",
+      "id": "bom9_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0017",
+      "spec": {
+        "positions": 3,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 18",
+      "id": "bom10_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0018",
+      "spec": {
+        "positions": 3,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 19",
+      "id": "bom11_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0019",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 20",
+      "id": "bom12_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0020",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    },
+    {
+      "description": "Generic connector 21",
+      "id": "bom13_0001",
+      "manufacturer": "Generic Mfg",
+      "mpn": "GENERIC-0021",
+      "spec": {
+        "positions": 1,
+        "shape": "rectangular"
+      },
+      "type": "connector"
+    }
+  ],
+  "cables": {},
+  "conductorSplices": {
+    "splice2_0030": {
+      "branchPointId": "node2_0003",
+      "conductorIds": [
+        "cond2_0014",
+        "cond2_0027",
+        "cond4_ignggnd"
+      ],
+      "designator": "SPL-001",
+      "id": "splice2_0030",
+      "spliceType": "twist_solder"
+    },
+    "splice3_coilpwr": {
+      "branchPointId": "node3_coilsplice",
+      "conductorIds": [
+        "cond3_fbcoil",
+        "cond3_coil1",
+        "cond3_coil2"
+      ],
+      "designator": "SPL-002",
+      "id": "splice3_coilpwr",
+      "spliceType": "twist_solder"
+    },
+    "splice4_gndsplice": {
+      "branchPointId": "node4_gndsplice",
+      "conductorIds": [
+        "cond4_battgnd",
+        "cond4_solgnd",
+        "cond4_ignggnd",
+        "cond4_gndmain",
+        "cond4_regsplicegnd",
+        "cond5_pumpgnd",
+        "cond9_o2gnd",
+        "cond10_tpsgnd"
+      ],
+      "designator": "SPL-003",
+      "id": "splice4_gndsplice",
+      "spliceType": "twist_solder"
+    },
+    "splice4_wsplice": {
+      "branchPointId": "node4_wsplice",
+      "conductorIds": [
+        "cond4_neimansplice",
+        "cond4_splicesol",
+        "cond4_regsense"
+      ],
+      "designator": "SPL-004",
+      "id": "splice4_wsplice",
+      "spliceType": "twist_solder"
+    },
+    "splice5_relaypwr": {
+      "branchPointId": "node5_relaypwrsplice",
+      "conductorIds": [
+        "cond5_fbrelay",
+        "cond5_relaycoil",
+        "cond5_relaycommon"
+      ],
+      "designator": "SPL-005",
+      "id": "splice5_relaypwr",
+      "spliceType": "twist_solder"
+    },
+    "splice8_5vecu": {
+      "branchPointId": "node8_5vsplice",
+      "conductorIds": [
+        "cond8_5vecu",
+        "cond10_tps5v"
+      ],
+      "designator": "SPL-006",
+      "id": "splice8_5vecu",
+      "spliceType": "twist_solder"
+    },
+    "splice_0050": {
+      "branchPointId": "node_0040",
+      "conductorIds": [
+        "cond_0044",
+        "cond_0046",
+        "cond_0048"
+      ],
+      "designator": "SPL-007",
+      "id": "splice_0050",
+      "spliceType": "twist_solder"
+    },
+    "splice_0058": {
+      "branchPointId": "node_0041",
+      "conductorIds": [
+        "cond_0052",
+        "cond_0054",
+        "cond_0056"
+      ],
+      "designator": "SPL-008",
+      "id": "splice_0058",
+      "spliceType": "twist_solder"
+    },
+    "splice_0068": {
+      "branchPointId": "node_0042",
+      "conductorIds": [
+        "cond_0060",
+        "cond_0062",
+        "cond_0064",
+        "cond_0066",
+        "cond3_fbinj"
+      ],
+      "designator": "SPL-009",
+      "id": "splice_0068",
+      "spliceType": "twist_solder"
+    }
+  },
+  "conductors": {
+    "cond10_tps5v": {
+      "color": "#FFFF00",
+      "endEndpoint": {
+        "nodeId": "node10_tps",
+        "pinId": "pin10_tps5v"
+      },
+      "gauge": "24 AWG",
+      "id": "cond10_tps5v",
+      "linkPath": [
+        "link10_tps5v"
+      ],
+      "netName": "NET_5V_REF_SENSORS",
+      "startEndpoint": {
+        "nodeId": "node8_5vsplice"
+      }
+    },
+    "cond10_tpsgnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "24 AWG",
+      "id": "cond10_tpsgnd",
+      "linkPath": [
+        "link10_tpsgnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node10_tps",
+        "pinId": "pin10_tpsgnd"
+      }
+    },
+    "cond10_tpssig": {
+      "color": "#00FF00",
+      "endEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0019"
+      },
+      "gauge": "24 AWG",
+      "id": "cond10_tpssig",
+      "linkPath": [
+        "link10_tpssig"
+      ],
+      "netName": "NET_TPS_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node10_tps",
+        "pinId": "pin10_tpssig"
+      }
+    },
+    "cond11_clt": {
+      "color": "#00FF00",
+      "endEndpoint": {
+        "nodeId": "node11_cltflying",
+        "pinId": "pin11_cltflying1"
+      },
+      "gauge": "24 AWG",
+      "id": "cond11_clt",
+      "linkPath": [
+        "link11_clt"
+      ],
+      "netName": "NET_CLT_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0020"
+      }
+    },
+    "cond12_iat": {
+      "color": "#00FF00",
+      "endEndpoint": {
+        "nodeId": "node12_iatflying",
+        "pinId": "pin12_iatflying1"
+      },
+      "gauge": "24 AWG",
+      "id": "cond12_iat",
+      "linkPath": [
+        "link12_iat"
+      ],
+      "netName": "NET_IAT_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0021"
+      }
+    },
+    "cond13_tacho": {
+      "color": "#00FF00",
+      "endEndpoint": {
+        "nodeId": "node13_tacho",
+        "pinId": "pin13_tacho1"
+      },
+      "gauge": "24 AWG",
+      "id": "cond13_tacho",
+      "linkPath": [
+        "link13_tacho"
+      ],
+      "netName": "NET_TACHO_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0026"
+      }
+    },
+    "cond2_0012": {
+      "color": "#8A2BE2",
+      "endEndpoint": {
+        "nodeId": "comp_1787426922757_7akpxxva6",
+        "pinId": "pin_1787426922757_ehjpcx4lt"
+      },
+      "gauge": "24 AWG",
+      "id": "cond2_0012",
+      "linkPath": [
+        "link_1787426922757_oh8zjkgji"
+      ],
+      "netName": "NET_IGN1_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0013"
+      }
+    },
+    "cond2_0014": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node2_0003"
+      },
+      "gauge": "22 AWG",
+      "id": "cond2_0014",
+      "linkPath": [
+        "link_1787426922757_m4posbli5"
+      ],
+      "netName": "NET_IGNITER_GND",
+      "startEndpoint": {
+        "nodeId": "comp_1787426922757_q481zzwac",
+        "pinId": "pin_1787426922757_6kxco4ijx"
+      }
+    },
+    "cond2_0016": {
+      "color": "#8A2BE2",
+      "endEndpoint": {
+        "nodeId": "node2_0008",
+        "pinId": "pin2_0010"
+      },
+      "gauge": "18 AWG",
+      "id": "cond2_0016",
+      "linkPath": [
+        "link_1787426922757_4d0yivfj4"
+      ],
+      "netName": "NET_COIL1_TRIGGER",
+      "startEndpoint": {
+        "nodeId": "comp_1787426922757_wuwheflga",
+        "pinId": "pin_1787426922757_23lubq6ks"
+      }
+    },
+    "cond2_0025": {
+      "color": "#8A2BE2",
+      "endEndpoint": {
+        "nodeId": "comp_1787426922757_4mzlqoip0",
+        "pinId": "pin_1787426922757_040gw4lfi"
+      },
+      "gauge": "24 AWG",
+      "id": "cond2_0025",
+      "linkPath": [
+        "link_1787426922757_f3tbyv1m6"
+      ],
+      "netName": "NET_IGN2_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0014"
+      }
+    },
+    "cond2_0027": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node2_0003"
+      },
+      "gauge": "22 AWG",
+      "id": "cond2_0027",
+      "linkPath": [
+        "link_1787426922757_t0twxqxy9"
+      ],
+      "netName": "NET_IGNITER_GND",
+      "startEndpoint": {
+        "nodeId": "comp_1787426922757_hvhcf6ydq",
+        "pinId": "pin_1787426922757_tzdfvigk6"
+      }
+    },
+    "cond2_0029": {
+      "color": "#8A2BE2",
+      "endEndpoint": {
+        "nodeId": "node2_0021",
+        "pinId": "pin2_0023"
+      },
+      "gauge": "18 AWG",
+      "id": "cond2_0029",
+      "linkPath": [
+        "link_1787426922757_pud462pi2"
+      ],
+      "netName": "NET_COIL2_TRIGGER",
+      "startEndpoint": {
+        "nodeId": "comp_1787426922757_v38dobw2r",
+        "pinId": "pin_1787426922757_az64lcnde"
+      }
+    },
+    "cond3_coil1": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node2_0008",
+        "pinId": "pin2_0009"
+      },
+      "gauge": "15 AWG",
+      "id": "cond3_coil1",
+      "linkPath": [
+        "link3_coil1"
+      ],
+      "netName": "NET_COIL_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node3_coilsplice"
+      }
+    },
+    "cond3_coil2": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node2_0021",
+        "pinId": "pin2_0022"
+      },
+      "gauge": "15 AWG",
+      "id": "cond3_coil2",
+      "linkPath": [
+        "link3_coil2"
+      ],
+      "netName": "NET_COIL_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node3_coilsplice"
+      }
+    },
+    "cond3_ecuflag_ecu": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0003"
+      },
+      "gauge": "24 AWG",
+      "id": "cond3_ecuflag_ecu",
+      "linkPath": [
+        "link3_ecuflag_ecu"
+      ],
+      "netName": "NET_ECU_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node3_ecuflag",
+        "pinId": "pin3_ecuflag1"
+      }
+    },
+    "cond3_fbcoil": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node3_coilsplice"
+      },
+      "gauge": "15 AWG",
+      "id": "cond3_fbcoil",
+      "linkPath": [
+        "link_1787428753721_c4wmthioe"
+      ],
+      "netName": "NET_COIL_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "comp_1787428753721_xjfozi6wj",
+        "pinId": "pin_1787428753721_d91w3fvbb"
+      }
+    },
+    "cond3_fbecu": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node3_ecuflag",
+        "pinId": "pin3_ecuflag1"
+      },
+      "gauge": "24 AWG",
+      "id": "cond3_fbecu",
+      "linkPath": [
+        "link_1787428753721_f1znxhmr1"
+      ],
+      "netName": "NET_ECU_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "comp_1787428753721_tmps9o16f",
+        "pinId": "pin_1787428753721_u77jivt0f"
+      }
+    },
+    "cond3_fbinj": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node_0042"
+      },
+      "gauge": "22 AWG",
+      "id": "cond3_fbinj",
+      "linkPath": [
+        "link_1787428753722_7hwrrbv33"
+      ],
+      "netName": "NET_INJ_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "comp_1787428753722_y4bi1kh3j",
+        "pinId": "pin_1787428753722_umffxp8zg"
+      }
+    },
+    "cond4_battgnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "11 AWG",
+      "id": "cond4_battgnd",
+      "linkPath": [
+        "link4_battgnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node4_batt",
+        "pinId": "pin4_battm"
+      }
+    },
+    "cond4_battsol": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node4_solenoid",
+        "pinId": "pin4_solbattp"
+      },
+      "gauge": "11 AWG",
+      "id": "cond4_battsol",
+      "linkPath": [
+        "link4_battsol"
+      ],
+      "netName": "NET_12V_PERM_MAIN",
+      "startEndpoint": {
+        "nodeId": "node4_batt",
+        "pinId": "pin4_battp"
+      }
+    },
+    "cond4_gndmain": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndmain",
+        "pinId": "pin4_gndmain1"
+      },
+      "gauge": "11 AWG",
+      "id": "cond4_gndmain",
+      "linkPath": [
+        "link4_gndmain"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node4_gndsplice"
+      }
+    },
+    "cond4_ignggnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "22 AWG",
+      "id": "cond4_ignggnd",
+      "linkPath": [
+        "link4_ignggnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node2_0003"
+      }
+    },
+    "cond4_neimansplice": {
+      "color": "#FFFFFF",
+      "endEndpoint": {
+        "nodeId": "node4_wsplice"
+      },
+      "gauge": "24 AWG",
+      "id": "cond4_neimansplice",
+      "linkPath": [
+        "link4_neimansplice"
+      ],
+      "netName": "NET_W_IGN_SWITCHED",
+      "startEndpoint": {
+        "nodeId": "node4_neiman",
+        "pinId": "pin4_neimanw"
+      }
+    },
+    "cond4_regsense": {
+      "color": "#FFFFFF",
+      "endEndpoint": {
+        "nodeId": "node4_regulator",
+        "pinId": "pin4_regsense"
+      },
+      "gauge": "24 AWG",
+      "id": "cond4_regsense",
+      "linkPath": [
+        "link4_regsense"
+      ],
+      "netName": "NET_W_IGN_SWITCHED",
+      "startEndpoint": {
+        "nodeId": "node4_wsplice"
+      }
+    },
+    "cond4_regsplicegnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "22 AWG",
+      "id": "cond4_regsplicegnd",
+      "linkPath": [
+        "link4_regsplicegnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node4_regulator",
+        "pinId": "pin4_regminus"
+      }
+    },
+    "cond4_solfb": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "comp_1787428753722_ivthtnuey",
+        "pinId": "pin_1787428753722_s2e3zucsn"
+      },
+      "gauge": "11 AWG",
+      "id": "cond4_solfb",
+      "linkPath": [
+        "link_1787428753722_cd22dbzwa"
+      ],
+      "netName": "NET_12V_SWITCHED_MAIN",
+      "startEndpoint": {
+        "nodeId": "node4_solenoid",
+        "pinId": "pin4_solout"
+      }
+    },
+    "cond4_solgnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "22 AWG",
+      "id": "cond4_solgnd",
+      "linkPath": [
+        "link4_solgnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node4_solenoid",
+        "pinId": "pin4_solcoilm"
+      }
+    },
+    "cond4_splicesol": {
+      "color": "#FFFFFF",
+      "endEndpoint": {
+        "nodeId": "node4_solenoid",
+        "pinId": "pin4_solcoilp"
+      },
+      "gauge": "24 AWG",
+      "id": "cond4_splicesol",
+      "linkPath": [
+        "link4_splicesol"
+      ],
+      "netName": "NET_W_IGN_SWITCHED",
+      "startEndpoint": {
+        "nodeId": "node4_wsplice"
+      }
+    },
+    "cond5_fbrelay": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node5_relaypwrsplice"
+      },
+      "gauge": "15 AWG",
+      "id": "cond5_fbrelay",
+      "linkPath": [
+        "link_1787471095698_g0llksik3"
+      ],
+      "netName": "NET_FUELPUMP_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "comp_1787471095698_z9240sx5u",
+        "pinId": "pin_1787471095698_75ilam7qc"
+      }
+    },
+    "cond5_fueltrig": {
+      "color": "#0000FF",
+      "endEndpoint": {
+        "nodeId": "node5_relay",
+        "pinId": "pin5_relay85"
+      },
+      "gauge": "24 AWG",
+      "id": "cond5_fueltrig",
+      "linkPath": [
+        "link5_fueltrig"
+      ],
+      "netName": "NET_FUELP_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0009"
+      }
+    },
+    "cond5_pumpgnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "13 AWG",
+      "id": "cond5_pumpgnd",
+      "linkPath": [
+        "link5_pumpgnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node5_pump",
+        "pinId": "pin5_pump2"
+      }
+    },
+    "cond5_relaycoil": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node5_relay",
+        "pinId": "pin5_relay86"
+      },
+      "gauge": "24 AWG",
+      "id": "cond5_relaycoil",
+      "linkPath": [
+        "link5_relaycoil"
+      ],
+      "netName": "NET_FUELPUMP_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node5_relaypwrsplice"
+      }
+    },
+    "cond5_relaycommon": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node5_relay",
+        "pinId": "pin5_relay30"
+      },
+      "gauge": "15 AWG",
+      "id": "cond5_relaycommon",
+      "linkPath": [
+        "link5_relaycoil"
+      ],
+      "netName": "NET_FUELPUMP_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node5_relaypwrsplice"
+      }
+    },
+    "cond5_relayout": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node5_pump",
+        "pinId": "pin5_pump1"
+      },
+      "gauge": "13 AWG",
+      "id": "cond5_relayout",
+      "linkPath": [
+        "link5_relayout"
+      ],
+      "netName": "NET_FUELPUMP_OUT_12V",
+      "startEndpoint": {
+        "nodeId": "node5_relay",
+        "pinId": "pin5_relay87"
+      }
+    },
+    "cond6_boost": {
+      "color": "#0000FF",
+      "endEndpoint": {
+        "nodeId": "node6_boostflying",
+        "pinId": "pin6_boostflying1"
+      },
+      "gauge": "24 AWG",
+      "id": "cond6_boost",
+      "linkPath": [
+        "link6_boost"
+      ],
+      "netName": "NET_BOOST_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0012"
+      }
+    },
+    "cond7_launch": {
+      "color": "#0000FF",
+      "endEndpoint": {
+        "nodeId": "node7_launchflying",
+        "pinId": "pin7_launchflying1"
+      },
+      "gauge": "24 AWG",
+      "id": "cond7_launch",
+      "linkPath": [
+        "link7_launch"
+      ],
+      "netName": "NET_LAUNCH_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0015"
+      }
+    },
+    "cond8_5vecu": {
+      "color": "#FFFF00",
+      "endEndpoint": {
+        "nodeId": "node8_5vsplice"
+      },
+      "gauge": "24 AWG",
+      "id": "cond8_5vecu",
+      "linkPath": [
+        "link8_5vecu"
+      ],
+      "netName": "NET_5V_REF_SENSORS",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0017"
+      }
+    },
+    "cond9_o2gnd": {
+      "color": "#000000",
+      "endEndpoint": {
+        "nodeId": "node4_gndsplice"
+      },
+      "gauge": "20 AWG",
+      "id": "cond9_o2gnd",
+      "linkPath": [
+        "link9_o2gnd"
+      ],
+      "netName": "NET_GND_CHASSIS_MAIN",
+      "startEndpoint": {
+        "nodeId": "node9_o2ctrl",
+        "pinId": "pin9_o2ctrlgnd"
+      }
+    },
+    "cond9_o2pwr": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node9_o2ctrl",
+        "pinId": "pin9_o2ctrl12v"
+      },
+      "gauge": "20 AWG",
+      "id": "cond9_o2pwr",
+      "linkPath": [
+        "link_1787473167756_vi6zdn80g"
+      ],
+      "netName": "NET_O2CTRL_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "comp_1787473167756_gah89v4sn",
+        "pinId": "pin_1787473167756_ww9y7l524"
+      }
+    },
+    "cond9_o2sig": {
+      "color": "#00FF00",
+      "endEndpoint": {
+        "nodeId": "node9_o2ctrl",
+        "pinId": "pin9_o2ctrlout"
+      },
+      "gauge": "24 AWG",
+      "id": "cond9_o2sig",
+      "linkPath": [
+        "link9_o2sig"
+      ],
+      "netName": "NET_O2_WIDEBAND_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0018"
+      }
+    },
+    "cond_0044": {
+      "color": "#FFA500",
+      "endEndpoint": {
+        "nodeId": "node_0040"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0044",
+      "linkPath": [
+        "link_0043"
+      ],
+      "netName": "NET_INJ1_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0010"
+      }
+    },
+    "cond_0046": {
+      "color": "#FFA500",
+      "endEndpoint": {
+        "nodeId": "node_0028",
+        "pinId": "pin_0030"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0046",
+      "linkPath": [
+        "link_0045"
+      ],
+      "netName": "NET_INJ1_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0040"
+      }
+    },
+    "cond_0048": {
+      "color": "#FFA500",
+      "endEndpoint": {
+        "nodeId": "node_0037",
+        "pinId": "pin_0039"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0048",
+      "linkPath": [
+        "link_0047"
+      ],
+      "netName": "NET_INJ1_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0040"
+      }
+    },
+    "cond_0052": {
+      "color": "#FFA500",
+      "endEndpoint": {
+        "nodeId": "node_0041"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0052",
+      "linkPath": [
+        "link_0051"
+      ],
+      "netName": "NET_INJ2_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0011"
+      }
+    },
+    "cond_0054": {
+      "color": "#FFA500",
+      "endEndpoint": {
+        "nodeId": "node_0031",
+        "pinId": "pin_0033"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0054",
+      "linkPath": [
+        "link_0053"
+      ],
+      "netName": "NET_INJ2_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0041"
+      }
+    },
+    "cond_0056": {
+      "color": "#FFA500",
+      "endEndpoint": {
+        "nodeId": "node_0034",
+        "pinId": "pin_0036"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0056",
+      "linkPath": [
+        "link_0055"
+      ],
+      "netName": "NET_INJ2_SIGNAL",
+      "startEndpoint": {
+        "nodeId": "node_0041"
+      }
+    },
+    "cond_0060": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node_0028",
+        "pinId": "pin_0029"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0060",
+      "linkPath": [
+        "link_0059"
+      ],
+      "netName": "NET_INJ_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node_0042"
+      }
+    },
+    "cond_0062": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node_0031",
+        "pinId": "pin_0032"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0062",
+      "linkPath": [
+        "link_0061"
+      ],
+      "netName": "NET_INJ_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node_0042"
+      }
+    },
+    "cond_0064": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node_0034",
+        "pinId": "pin_0035"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0064",
+      "linkPath": [
+        "link_0063"
+      ],
+      "netName": "NET_INJ_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node_0042"
+      }
+    },
+    "cond_0066": {
+      "color": "#FF0000",
+      "endEndpoint": {
+        "nodeId": "node_0037",
+        "pinId": "pin_0038"
+      },
+      "gauge": "22 AWG",
+      "id": "cond_0066",
+      "linkPath": [
+        "link_0065"
+      ],
+      "netName": "NET_INJ_PWR_12V",
+      "startEndpoint": {
+        "nodeId": "node_0042"
+      }
+    },
+    "cond_0074": {
+      "color": "#A52A2A",
+      "endEndpoint": {
+        "nodeId": "node_0070",
+        "pinId": "pin_0071"
+      },
+      "gauge": "20 AWG",
+      "id": "cond_0074",
+      "linkPath": [
+        "link_0073"
+      ],
+      "netName": "NET_VR1_PLUS",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0022"
+      }
+    },
+    "cond_0076": {
+      "color": "#A52A2A",
+      "endEndpoint": {
+        "nodeId": "node_0070",
+        "pinId": "pin_0072"
+      },
+      "gauge": "20 AWG",
+      "id": "cond_0076",
+      "linkPath": [
+        "link_0073"
+      ],
+      "netName": "NET_VR1_MINUS",
+      "startEndpoint": {
+        "nodeId": "node_0002",
+        "pinId": "pin_0023"
+      }
+    }
+  },
+  "deviceGroups": [],
+  "drcDismissals": {},
+  "images": {},
+  "linkPageAssignments": {
+    "link10_tps5v": [
+      "page_harness_ecu_1"
+    ],
+    "link10_tpsgnd": [
+      "page_harness_ecu_1"
+    ],
+    "link10_tpssig": [
+      "page_harness_ecu_1"
+    ],
+    "link11_clt": [
+      "page_harness_ecu_1"
+    ],
+    "link12_iat": [
+      "page_harness_ecu_1"
+    ],
+    "link13_tacho": [
+      "page_harness_ecu_1"
+    ],
+    "link3_coil1": [
+      "page_harness_ecu_1"
+    ],
+    "link3_coil2": [
+      "page_harness_ecu_1"
+    ],
+    "link3_ecuflag_ecu": [
+      "page_harness_ecu_1"
+    ],
+    "link4_battgnd": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link4_battsol": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link4_gndmain": [
+      "page_oem_12v"
+    ],
+    "link4_ignggnd": [
+      "page_harness_ecu_1",
+      "page_oem_12v"
+    ],
+    "link4_neimansplice": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link4_regsense": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link4_regsplicegnd": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link4_solgnd": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link4_splicesol": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link5_fueltrig": [
+      "page_harness_ecu_1"
+    ],
+    "link5_pumpgnd": [
+      "page_harness_ecu_1",
+      "page_oem_12v"
+    ],
+    "link5_relaycoil": [
+      "page_harness_ecu_1"
+    ],
+    "link5_relayout": [
+      "page_harness_ecu_1"
+    ],
+    "link6_boost": [
+      "page_harness_ecu_1"
+    ],
+    "link7_launch": [
+      "page_harness_ecu_1"
+    ],
+    "link8_5vecu": [
+      "page_harness_ecu_1"
+    ],
+    "link9_o2gnd": [
+      "page_harness_ecu_1"
+    ],
+    "link9_o2sig": [
+      "page_harness_ecu_1"
+    ],
+    "link_0043": [
+      "page_harness_ecu_1"
+    ],
+    "link_0045": [
+      "page_harness_ecu_1"
+    ],
+    "link_0047": [
+      "page_harness_ecu_1"
+    ],
+    "link_0051": [
+      "page_harness_ecu_1"
+    ],
+    "link_0053": [
+      "page_harness_ecu_1"
+    ],
+    "link_0055": [
+      "page_harness_ecu_1"
+    ],
+    "link_0059": [
+      "page_harness_ecu_1"
+    ],
+    "link_0061": [
+      "page_harness_ecu_1"
+    ],
+    "link_0063": [
+      "page_harness_ecu_1"
+    ],
+    "link_0065": [
+      "page_harness_ecu_1"
+    ],
+    "link_0073": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787426922757_4d0yivfj4": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787426922757_f3tbyv1m6": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787426922757_m4posbli5": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787426922757_oh8zjkgji": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787426922757_pud462pi2": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787426922757_t0twxqxy9": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787428753721_c4wmthioe": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787428753721_f1znxhmr1": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787428753722_7hwrrbv33": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787428753722_cd22dbzwa": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "link_1787471095698_g0llksik3": [
+      "page_harness_ecu_1"
+    ],
+    "link_1787473167756_vi6zdn80g": [
+      "page_harness_ecu_1"
+    ]
+  },
+  "links": {
+    "link10_tps5v": {
+      "id": "link10_tps5v",
+      "sourceNodeId": "node8_5vsplice",
+      "targetNodeId": "node10_tps"
+    },
+    "link10_tpsgnd": {
+      "id": "link10_tpsgnd",
+      "sourceNodeId": "node10_tps",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link10_tpssig": {
+      "id": "link10_tpssig",
+      "sourceNodeId": "node10_tps",
+      "targetNodeId": "node_0002"
+    },
+    "link11_clt": {
+      "id": "link11_clt",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node11_cltflying"
+    },
+    "link12_iat": {
+      "id": "link12_iat",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node12_iatflying"
+    },
+    "link13_tacho": {
+      "id": "link13_tacho",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node13_tacho"
+    },
+    "link3_coil1": {
+      "id": "link3_coil1",
+      "sourceNodeId": "node3_coilsplice",
+      "targetNodeId": "node2_0008"
+    },
+    "link3_coil2": {
+      "id": "link3_coil2",
+      "sourceNodeId": "node3_coilsplice",
+      "targetNodeId": "node2_0021"
+    },
+    "link3_ecuflag_ecu": {
+      "id": "link3_ecuflag_ecu",
+      "sourceNodeId": "node3_ecuflag",
+      "targetNodeId": "node_0002"
+    },
+    "link4_battgnd": {
+      "id": "link4_battgnd",
+      "sourceNodeId": "node4_batt",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link4_battsol": {
+      "id": "link4_battsol",
+      "sourceNodeId": "node4_batt",
+      "targetNodeId": "node4_solenoid"
+    },
+    "link4_gndmain": {
+      "id": "link4_gndmain",
+      "sourceNodeId": "node4_gndsplice",
+      "targetNodeId": "node4_gndmain"
+    },
+    "link4_ignggnd": {
+      "id": "link4_ignggnd",
+      "sourceNodeId": "node2_0003",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link4_neimansplice": {
+      "id": "link4_neimansplice",
+      "sourceNodeId": "node4_neiman",
+      "targetNodeId": "node4_wsplice"
+    },
+    "link4_regsense": {
+      "id": "link4_regsense",
+      "sourceNodeId": "node4_wsplice",
+      "targetNodeId": "node4_regulator"
+    },
+    "link4_regsplicegnd": {
+      "id": "link4_regsplicegnd",
+      "sourceNodeId": "node4_regulator",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link4_solgnd": {
+      "id": "link4_solgnd",
+      "sourceNodeId": "node4_solenoid",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link4_splicesol": {
+      "id": "link4_splicesol",
+      "sourceNodeId": "node4_wsplice",
+      "targetNodeId": "node4_solenoid"
+    },
+    "link5_fueltrig": {
+      "id": "link5_fueltrig",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node5_relay"
+    },
+    "link5_pumpgnd": {
+      "id": "link5_pumpgnd",
+      "sourceNodeId": "node5_pump",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link5_relaycoil": {
+      "id": "link5_relaycoil",
+      "sourceNodeId": "node5_relaypwrsplice",
+      "targetNodeId": "node5_relay"
+    },
+    "link5_relayout": {
+      "id": "link5_relayout",
+      "sourceNodeId": "node5_relay",
+      "targetNodeId": "node5_pump"
+    },
+    "link6_boost": {
+      "id": "link6_boost",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node6_boostflying"
+    },
+    "link7_launch": {
+      "id": "link7_launch",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node7_launchflying"
+    },
+    "link8_5vecu": {
+      "id": "link8_5vecu",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node8_5vsplice"
+    },
+    "link9_o2gnd": {
+      "id": "link9_o2gnd",
+      "sourceNodeId": "node9_o2ctrl",
+      "targetNodeId": "node4_gndsplice"
+    },
+    "link9_o2sig": {
+      "id": "link9_o2sig",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node9_o2ctrl"
+    },
+    "link_0043": {
+      "id": "link_0043",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node_0040"
+    },
+    "link_0045": {
+      "id": "link_0045",
+      "sourceNodeId": "node_0040",
+      "targetNodeId": "node_0028"
+    },
+    "link_0047": {
+      "id": "link_0047",
+      "sourceNodeId": "node_0040",
+      "targetNodeId": "node_0037"
+    },
+    "link_0051": {
+      "id": "link_0051",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node_0041"
+    },
+    "link_0053": {
+      "id": "link_0053",
+      "sourceNodeId": "node_0041",
+      "targetNodeId": "node_0031"
+    },
+    "link_0055": {
+      "id": "link_0055",
+      "sourceNodeId": "node_0041",
+      "targetNodeId": "node_0034"
+    },
+    "link_0059": {
+      "id": "link_0059",
+      "sourceNodeId": "node_0042",
+      "targetNodeId": "node_0028"
+    },
+    "link_0061": {
+      "id": "link_0061",
+      "sourceNodeId": "node_0042",
+      "targetNodeId": "node_0031"
+    },
+    "link_0063": {
+      "id": "link_0063",
+      "sourceNodeId": "node_0042",
+      "targetNodeId": "node_0034"
+    },
+    "link_0065": {
+      "id": "link_0065",
+      "sourceNodeId": "node_0042",
+      "targetNodeId": "node_0037"
+    },
+    "link_0073": {
+      "id": "link_0073",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "node_0070"
+    },
+    "link_1787426922757_4d0yivfj4": {
+      "id": "link_1787426922757_4d0yivfj4",
+      "sourceNodeId": "node2_0008",
+      "targetNodeId": "comp_1787426922757_wuwheflga"
+    },
+    "link_1787426922757_f3tbyv1m6": {
+      "id": "link_1787426922757_f3tbyv1m6",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "comp_1787426922757_4mzlqoip0"
+    },
+    "link_1787426922757_m4posbli5": {
+      "id": "link_1787426922757_m4posbli5",
+      "sourceNodeId": "node2_0003",
+      "targetNodeId": "comp_1787426922757_q481zzwac"
+    },
+    "link_1787426922757_oh8zjkgji": {
+      "id": "link_1787426922757_oh8zjkgji",
+      "sourceNodeId": "node_0002",
+      "targetNodeId": "comp_1787426922757_7akpxxva6"
+    },
+    "link_1787426922757_pud462pi2": {
+      "id": "link_1787426922757_pud462pi2",
+      "sourceNodeId": "node2_0021",
+      "targetNodeId": "comp_1787426922757_v38dobw2r"
+    },
+    "link_1787426922757_t0twxqxy9": {
+      "id": "link_1787426922757_t0twxqxy9",
+      "sourceNodeId": "node2_0003",
+      "targetNodeId": "comp_1787426922757_hvhcf6ydq"
+    },
+    "link_1787428753721_c4wmthioe": {
+      "id": "link_1787428753721_c4wmthioe",
+      "sourceNodeId": "node3_coilsplice",
+      "targetNodeId": "comp_1787428753721_xjfozi6wj"
+    },
+    "link_1787428753721_f1znxhmr1": {
+      "id": "link_1787428753721_f1znxhmr1",
+      "sourceNodeId": "node3_ecuflag",
+      "targetNodeId": "comp_1787428753721_tmps9o16f"
+    },
+    "link_1787428753722_7hwrrbv33": {
+      "id": "link_1787428753722_7hwrrbv33",
+      "sourceNodeId": "node_0042",
+      "targetNodeId": "comp_1787428753722_y4bi1kh3j"
+    },
+    "link_1787428753722_cd22dbzwa": {
+      "id": "link_1787428753722_cd22dbzwa",
+      "sourceNodeId": "node4_solenoid",
+      "targetNodeId": "comp_1787428753722_ivthtnuey"
+    },
+    "link_1787471095698_g0llksik3": {
+      "id": "link_1787471095698_g0llksik3",
+      "sourceNodeId": "node5_relaypwrsplice",
+      "targetNodeId": "comp_1787471095698_z9240sx5u"
+    },
+    "link_1787473167756_vi6zdn80g": {
+      "id": "link_1787473167756_vi6zdn80g",
+      "sourceNodeId": "node9_o2ctrl",
+      "targetNodeId": "comp_1787473167756_gah89v4sn"
+    }
+  },
+  "mates": [
+    {
+      "connector1Id": "comp_1787426922757_7akpxxva6",
+      "connector2Id": "node2_0004",
+      "id": "mate_1787426922757_5wupwsw4f",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787426922757_ehjpcx4lt",
+          "pin2Id": "pin2_0005"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787426922757_q481zzwac",
+      "connector2Id": "node2_0004",
+      "id": "mate_1787426922757_x9lzutwjh",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787426922757_6kxco4ijx",
+          "pin2Id": "pin2_0006"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787426922757_wuwheflga",
+      "connector2Id": "node2_0004",
+      "id": "mate_1787426922757_09bon4wja",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787426922757_23lubq6ks",
+          "pin2Id": "pin2_0007"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787426922757_4mzlqoip0",
+      "connector2Id": "node2_0017",
+      "id": "mate_1787426922757_7k17b9030",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787426922757_040gw4lfi",
+          "pin2Id": "pin2_0018"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787426922757_hvhcf6ydq",
+      "connector2Id": "node2_0017",
+      "id": "mate_1787426922757_d6tqpzsxi",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787426922757_tzdfvigk6",
+          "pin2Id": "pin2_0019"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787426922757_v38dobw2r",
+      "connector2Id": "node2_0017",
+      "id": "mate_1787426922757_fp2xigum0",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787426922757_az64lcnde",
+          "pin2Id": "pin2_0020"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787428753721_xjfozi6wj",
+      "connector2Id": "node3_fusebox",
+      "id": "mate_1787428753721_m0ijraxkv",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787428753721_d91w3fvbb",
+          "pin2Id": "pin3_fbout3"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787428753721_tmps9o16f",
+      "connector2Id": "node3_fusebox",
+      "id": "mate_1787428753722_a1nrufai3",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787428753721_u77jivt0f",
+          "pin2Id": "pin3_fbout1"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787428753722_y4bi1kh3j",
+      "connector2Id": "node3_fusebox",
+      "id": "mate_1787428753722_4yqktuoqs",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787428753722_umffxp8zg",
+          "pin2Id": "pin3_fbout2"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787428753722_ivthtnuey",
+      "connector2Id": "node3_fusebox",
+      "id": "mate_1787428753722_nthmntj72",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787428753722_s2e3zucsn",
+          "pin2Id": "pin3_fbin"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787471095698_z9240sx5u",
+      "connector2Id": "node3_fusebox",
+      "id": "mate_1787471095698_011hrw3rh",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787471095698_75ilam7qc",
+          "pin2Id": "pin3_fbout4"
+        }
+      ]
+    },
+    {
+      "connector1Id": "comp_1787473167756_gah89v4sn",
+      "connector2Id": "node3_fusebox",
+      "id": "mate_1787473167756_aef75j283",
+      "pinMappings": [
+        {
+          "pin1Id": "pin_1787473167756_ww9y7l524",
+          "pin2Id": "pin3_fbout5"
+        }
+      ]
+    }
+  ],
+  "nets": {},
+  "nodePageAssignments": {
+    "comp_1787426922757_4mzlqoip0": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787426922757_7akpxxva6": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787426922757_hvhcf6ydq": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787426922757_q481zzwac": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787426922757_v38dobw2r": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787426922757_wuwheflga": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787428753721_tmps9o16f": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787428753721_xjfozi6wj": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787428753722_ivthtnuey": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787428753722_y4bi1kh3j": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787471095698_z9240sx5u": [
+      "page_harness_ecu_1"
+    ],
+    "comp_1787473167756_gah89v4sn": [
+      "page_harness_ecu_1"
+    ],
+    "node10_tps": [
+      "page_harness_ecu_1"
+    ],
+    "node11_cltflying": [
+      "page_harness_ecu_1"
+    ],
+    "node12_iatflying": [
+      "page_harness_ecu_1"
+    ],
+    "node13_tacho": [
+      "page_harness_ecu_1"
+    ],
+    "node2_0003": [
+      "page_harness_ecu_1"
+    ],
+    "node2_0004": [
+      "page_harness_ecu_1"
+    ],
+    "node2_0008": [
+      "page_harness_ecu_1"
+    ],
+    "node2_0017": [
+      "page_harness_ecu_1"
+    ],
+    "node2_0021": [
+      "page_harness_ecu_1"
+    ],
+    "node3_coilsplice": [
+      "page_harness_ecu_1"
+    ],
+    "node3_ecuflag": [
+      "page_harness_ecu_1"
+    ],
+    "node3_fusebox": [
+      "page_harness_ecu_1"
+    ],
+    "node4_batt": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "node4_gndmain": [
+      "page_oem_12v"
+    ],
+    "node4_gndsplice": [
+      "page_oem_12v"
+    ],
+    "node4_neiman": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "node4_regulator": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "node4_solenoid": [
+      "page_oem_12v",
+      "page_harness_ecu_1"
+    ],
+    "node4_wsplice": [
+      "page_oem_12v"
+    ],
+    "node5_pump": [
+      "page_harness_ecu_1"
+    ],
+    "node5_relay": [
+      "page_harness_ecu_1"
+    ],
+    "node5_relaypwrsplice": [
+      "page_harness_ecu_1"
+    ],
+    "node6_boostflying": [
+      "page_harness_ecu_1"
+    ],
+    "node7_launchflying": [
+      "page_harness_ecu_1"
+    ],
+    "node8_5vsplice": [
+      "page_harness_ecu_1"
+    ],
+    "node9_o2ctrl": [
+      "page_harness_ecu_1"
+    ],
+    "node_0002": [
+      "page_harness_ecu_1"
+    ],
+    "node_0028": [
+      "page_harness_ecu_1"
+    ],
+    "node_0031": [
+      "page_harness_ecu_1"
+    ],
+    "node_0034": [
+      "page_harness_ecu_1"
+    ],
+    "node_0037": [
+      "page_harness_ecu_1"
+    ],
+    "node_0040": [
+      "page_harness_ecu_1"
+    ],
+    "node_0041": [
+      "page_harness_ecu_1"
+    ],
+    "node_0042": [
+      "page_harness_ecu_1"
+    ],
+    "node_0070": [
+      "page_harness_ecu_1"
+    ]
+  },
+  "nodes": {
+    "comp_1787426922757_4mzlqoip0": {
+      "id": "comp_1787426922757_4mzlqoip0",
+      "label": "Component 01",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787426922757_040gw4lfi",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 1180,
+        "y": 190
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787426922757_7akpxxva6": {
+      "id": "comp_1787426922757_7akpxxva6",
+      "label": "Component 02",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787426922757_ehjpcx4lt",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 1180,
+        "y": 60
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787426922757_hvhcf6ydq": {
+      "id": "comp_1787426922757_hvhcf6ydq",
+      "label": "Component 03",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787426922757_tzdfvigk6",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 1180,
+        "y": 250
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787426922757_q481zzwac": {
+      "id": "comp_1787426922757_q481zzwac",
+      "label": "Component 04",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787426922757_6kxco4ijx",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 1180,
+        "y": 125
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787426922757_v38dobw2r": {
+      "id": "comp_1787426922757_v38dobw2r",
+      "label": "Component 05",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787426922757_az64lcnde",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 1670,
+        "y": 125
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787426922757_wuwheflga": {
+      "id": "comp_1787426922757_wuwheflga",
+      "label": "Component 06",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787426922757_23lubq6ks",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 1670,
+        "y": 60
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787428753721_tmps9o16f": {
+      "id": "comp_1787428753721_tmps9o16f",
+      "label": "Component 07",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787428753721_u77jivt0f",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3600,
+        "y": 125
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787428753721_xjfozi6wj": {
+      "id": "comp_1787428753721_xjfozi6wj",
+      "label": "Component 08",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787428753721_d91w3fvbb",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3600,
+        "y": 250
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787428753722_ivthtnuey": {
+      "id": "comp_1787428753722_ivthtnuey",
+      "label": "Component 09",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787428753722_s2e3zucsn",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3600,
+        "y": 60
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787428753722_y4bi1kh3j": {
+      "id": "comp_1787428753722_y4bi1kh3j",
+      "label": "Component 10",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787428753722_umffxp8zg",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3600,
+        "y": 190
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787471095698_z9240sx5u": {
+      "id": "comp_1787471095698_z9240sx5u",
+      "label": "Component 11",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787471095698_75ilam7qc",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3600,
+        "y": 315
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "comp_1787473167756_gah89v4sn": {
+      "id": "comp_1787473167756_gah89v4sn",
+      "label": "Component 12",
+      "name": "Ferrule",
+      "pins": [
+        {
+          "id": "pin_1787473167756_ww9y7l524",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3600,
+        "y": 380
+      },
+      "shape": "ferrule",
+      "size": {
+        "height": 10,
+        "width": 40
+      },
+      "type": "component"
+    },
+    "node10_tps": {
+      "bomEntryId": "bom10_0001",
+      "id": "node10_tps",
+      "label": "Component 13",
+      "pins": [
+        {
+          "id": "pin10_tps5v",
+          "label": "1"
+        },
+        {
+          "id": "pin10_tpsgnd",
+          "label": "2"
+        },
+        {
+          "id": "pin10_tpssig",
+          "label": "3"
+        }
+      ],
+      "position": {
+        "x": 2520,
+        "y": 435
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 50,
+        "width": 80
+      },
+      "type": "component"
+    },
+    "node11_cltflying": {
+      "bomEntryId": "bom11_0001",
+      "id": "node11_cltflying",
+      "label": "Component 14",
+      "pins": [
+        {
+          "id": "pin11_cltflying1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 460,
+        "y": 445
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node12_iatflying": {
+      "bomEntryId": "bom12_0001",
+      "id": "node12_iatflying",
+      "label": "Component 15",
+      "pins": [
+        {
+          "id": "pin12_iatflying1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 460,
+        "y": 540
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node13_tacho": {
+      "bomEntryId": "bom13_0001",
+      "id": "node13_tacho",
+      "label": "Component 16",
+      "pins": [
+        {
+          "id": "pin13_tacho1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 460,
+        "y": 635
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node2_0003": {
+      "id": "node2_0003",
+      "label": "Component 17",
+      "pins": [],
+      "position": {
+        "x": 460,
+        "y": 730
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node2_0004": {
+      "bomEntryId": "bom2_0001",
+      "category": "terminal_point",
+      "id": "node2_0004",
+      "label": "Component 18",
+      "pins": [
+        {
+          "id": "pin2_0005",
+          "label": "1"
+        },
+        {
+          "id": "pin2_0006",
+          "label": "2"
+        },
+        {
+          "id": "pin2_0007",
+          "label": "3"
+        }
+      ],
+      "position": {
+        "x": 1310,
+        "y": 60
+      },
+      "shape": "terminal_block",
+      "size": {
+        "height": 40,
+        "width": 80
+      },
+      "type": "component"
+    },
+    "node2_0008": {
+      "bomEntryId": "bom2_0002",
+      "id": "node2_0008",
+      "label": "Component 19",
+      "pins": [
+        {
+          "id": "pin2_0009",
+          "label": "1"
+        },
+        {
+          "id": "pin2_0010",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 1800,
+        "y": 60
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node2_0017": {
+      "bomEntryId": "bom2_0001",
+      "category": "terminal_point",
+      "id": "node2_0017",
+      "label": "Component 20",
+      "pins": [
+        {
+          "id": "pin2_0018",
+          "label": "1"
+        },
+        {
+          "id": "pin2_0019",
+          "label": "2"
+        },
+        {
+          "id": "pin2_0020",
+          "label": "3"
+        }
+      ],
+      "position": {
+        "x": 1310,
+        "y": 200
+      },
+      "shape": "terminal_block",
+      "size": {
+        "height": 40,
+        "width": 80
+      },
+      "type": "component"
+    },
+    "node2_0021": {
+      "bomEntryId": "bom2_0002",
+      "id": "node2_0021",
+      "label": "Component 21",
+      "pins": [
+        {
+          "id": "pin2_0022",
+          "label": "1"
+        },
+        {
+          "id": "pin2_0023",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 1800,
+        "y": 180
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node3_coilsplice": {
+      "id": "node3_coilsplice",
+      "label": "Component 22",
+      "pins": [],
+      "position": {
+        "x": 1800,
+        "y": 295
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node3_ecuflag": {
+      "id": "node3_ecuflag",
+      "label": "Component 23",
+      "pins": [
+        {
+          "id": "pin3_ecuflag1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3730,
+        "y": 60
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 80
+      },
+      "type": "component"
+    },
+    "node3_fusebox": {
+      "bomEntryId": "bom3_0003",
+      "category": "terminal_point",
+      "id": "node3_fusebox",
+      "label": "Component 24",
+      "pins": [
+        {
+          "id": "pin3_fbin",
+          "label": "1"
+        },
+        {
+          "id": "pin3_fbout1",
+          "label": "2"
+        },
+        {
+          "id": "pin3_fbout2",
+          "label": "3"
+        },
+        {
+          "id": "pin3_fbout3",
+          "label": "4"
+        },
+        {
+          "id": "pin3_fbout4",
+          "label": "5"
+        },
+        {
+          "id": "pin3_fbout5",
+          "label": "6"
+        }
+      ],
+      "position": {
+        "x": 3240,
+        "y": 60
+      },
+      "shape": "terminal_block",
+      "size": {
+        "height": 40,
+        "width": 100
+      },
+      "type": "component"
+    },
+    "node4_batt": {
+      "bomEntryId": "bom4_0001",
+      "id": "node4_batt",
+      "label": "Component 25",
+      "pins": [
+        {
+          "id": "pin4_battp",
+          "label": "1"
+        },
+        {
+          "id": "pin4_battm",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 2880,
+        "y": 60
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 70
+      },
+      "type": "component"
+    },
+    "node4_gndmain": {
+      "bomEntryId": "bom4_0005",
+      "id": "node4_gndmain",
+      "label": "Component 26",
+      "pins": [
+        {
+          "id": "pin4_gndmain1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 3240,
+        "y": 190
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 90
+      },
+      "type": "component"
+    },
+    "node4_gndsplice": {
+      "id": "node4_gndsplice",
+      "label": "Component 27",
+      "pins": [],
+      "position": {
+        "x": 3240,
+        "y": 125
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node4_neiman": {
+      "bomEntryId": "bom4_0003",
+      "id": "node4_neiman",
+      "label": "Component 28",
+      "pins": [
+        {
+          "id": "pin4_neimanw",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 2880,
+        "y": 180
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 90
+      },
+      "type": "component"
+    },
+    "node4_regulator": {
+      "bomEntryId": "bom4_0006",
+      "id": "node4_regulator",
+      "label": "Component 29",
+      "pins": [
+        {
+          "id": "pin4_regplus",
+          "label": "1"
+        },
+        {
+          "id": "pin4_regsense",
+          "label": "2"
+        },
+        {
+          "id": "pin4_regminus",
+          "label": "3"
+        },
+        {
+          "id": "pin4_regac1",
+          "label": "4"
+        },
+        {
+          "id": "pin4_regac2",
+          "label": "5"
+        },
+        {
+          "id": "pin4_regac3",
+          "label": "6"
+        }
+      ],
+      "position": {
+        "x": 2880,
+        "y": 440
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 60,
+        "width": 90
+      },
+      "type": "component"
+    },
+    "node4_solenoid": {
+      "bomEntryId": "bom4_0004",
+      "id": "node4_solenoid",
+      "label": "Component 30",
+      "pins": [
+        {
+          "id": "pin4_solbattp",
+          "label": "1"
+        },
+        {
+          "id": "pin4_solout",
+          "label": "2"
+        },
+        {
+          "id": "pin4_solcoilp",
+          "label": "3"
+        },
+        {
+          "id": "pin4_solcoilm",
+          "label": "4"
+        }
+      ],
+      "position": {
+        "x": 2880,
+        "y": 270
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 60,
+        "width": 90
+      },
+      "type": "component"
+    },
+    "node4_wsplice": {
+      "id": "node4_wsplice",
+      "label": "Component 31",
+      "pins": [],
+      "position": {
+        "x": 3240,
+        "y": 60
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node5_pump": {
+      "bomEntryId": "bom5_0002",
+      "id": "node5_pump",
+      "label": "Component 32",
+      "pins": [
+        {
+          "id": "pin5_pump1",
+          "label": "1"
+        },
+        {
+          "id": "pin5_pump2",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 2520,
+        "y": 315
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node5_relay": {
+      "bomEntryId": "bom5_0001",
+      "id": "node5_relay",
+      "label": "Component 33",
+      "pins": [
+        {
+          "id": "pin5_relay85",
+          "label": "1"
+        },
+        {
+          "id": "pin5_relay86",
+          "label": "2"
+        },
+        {
+          "id": "pin5_relay30",
+          "label": "3"
+        },
+        {
+          "id": "pin5_relay87",
+          "label": "4"
+        },
+        {
+          "id": "pin5_relay87a",
+          "label": "5"
+        }
+      ],
+      "position": {
+        "x": 2520,
+        "y": 125
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 60,
+        "width": 90
+      },
+      "type": "component"
+    },
+    "node5_relaypwrsplice": {
+      "id": "node5_relaypwrsplice",
+      "label": "Component 34",
+      "pins": [],
+      "position": {
+        "x": 2520,
+        "y": 60
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node6_boostflying": {
+      "bomEntryId": "bom6_0001",
+      "id": "node6_boostflying",
+      "label": "Component 35",
+      "pins": [
+        {
+          "id": "pin6_boostflying1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 460,
+        "y": 260
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node7_launchflying": {
+      "bomEntryId": "bom7_0001",
+      "id": "node7_launchflying",
+      "label": "Component 36",
+      "pins": [
+        {
+          "id": "pin7_launchflying1",
+          "label": "1"
+        }
+      ],
+      "position": {
+        "x": 460,
+        "y": 350
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 30,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node8_5vsplice": {
+      "id": "node8_5vsplice",
+      "label": "Component 37",
+      "pins": [],
+      "position": {
+        "x": 460,
+        "y": 795
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node9_o2ctrl": {
+      "bomEntryId": "bom9_0001",
+      "id": "node9_o2ctrl",
+      "label": "Component 38",
+      "pins": [
+        {
+          "id": "pin9_o2ctrl12v",
+          "label": "1"
+        },
+        {
+          "id": "pin9_o2ctrlgnd",
+          "label": "2"
+        },
+        {
+          "id": "pin9_o2ctrlout",
+          "label": "3"
+        }
+      ],
+      "position": {
+        "x": 2520,
+        "y": 575
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 50,
+        "width": 80
+      },
+      "type": "component"
+    },
+    "node_0002": {
+      "bomEntryId": "bom_0001",
+      "id": "node_0002",
+      "label": "Component 39",
+      "pins": [
+        {
+          "id": "pin_0003",
+          "label": "1"
+        },
+        {
+          "id": "pin_0004",
+          "label": "2"
+        },
+        {
+          "id": "pin_0005",
+          "label": "3"
+        },
+        {
+          "id": "pin_0006",
+          "label": "4"
+        },
+        {
+          "id": "pin_0007",
+          "label": "5"
+        },
+        {
+          "id": "pin_0008",
+          "label": "6"
+        },
+        {
+          "id": "pin_0009",
+          "label": "7"
+        },
+        {
+          "id": "pin_0010",
+          "label": "8"
+        },
+        {
+          "id": "pin_0011",
+          "label": "9"
+        },
+        {
+          "id": "pin_0012",
+          "label": "10"
+        },
+        {
+          "id": "pin_0013",
+          "label": "11"
+        },
+        {
+          "id": "pin_0014",
+          "label": "12"
+        },
+        {
+          "id": "pin_0015",
+          "label": "13"
+        },
+        {
+          "id": "pin_0016",
+          "label": "14"
+        },
+        {
+          "id": "pin_0017",
+          "label": "15"
+        },
+        {
+          "id": "pin_0018",
+          "label": "16"
+        },
+        {
+          "id": "pin_0019",
+          "label": "17"
+        },
+        {
+          "id": "pin_0020",
+          "label": "18"
+        },
+        {
+          "id": "pin_0021",
+          "label": "19"
+        },
+        {
+          "id": "pin_0022",
+          "label": "20"
+        },
+        {
+          "id": "pin_0023",
+          "label": "21"
+        },
+        {
+          "id": "pin_0024",
+          "label": "22"
+        },
+        {
+          "id": "pin_0025",
+          "label": "23"
+        },
+        {
+          "id": "pin_0026",
+          "label": "24"
+        }
+      ],
+      "position": {
+        "x": 100,
+        "y": 60
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 140,
+        "width": 220
+      },
+      "type": "component"
+    },
+    "node_0028": {
+      "bomEntryId": "bom_0027",
+      "id": "node_0028",
+      "label": "Component 40",
+      "pins": [
+        {
+          "id": "pin_0029",
+          "label": "1"
+        },
+        {
+          "id": "pin_0030",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 820,
+        "y": 60
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node_0031": {
+      "bomEntryId": "bom_0027",
+      "id": "node_0031",
+      "label": "Component 41",
+      "pins": [
+        {
+          "id": "pin_0032",
+          "label": "1"
+        },
+        {
+          "id": "pin_0033",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 820,
+        "y": 295
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node_0034": {
+      "bomEntryId": "bom_0027",
+      "id": "node_0034",
+      "label": "Component 42",
+      "pins": [
+        {
+          "id": "pin_0035",
+          "label": "1"
+        },
+        {
+          "id": "pin_0036",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 820,
+        "y": 415
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node_0037": {
+      "bomEntryId": "bom_0027",
+      "id": "node_0037",
+      "label": "Component 43",
+      "pins": [
+        {
+          "id": "pin_0038",
+          "label": "1"
+        },
+        {
+          "id": "pin_0039",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 820,
+        "y": 180
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    },
+    "node_0040": {
+      "id": "node_0040",
+      "label": "Component 44",
+      "pins": [],
+      "position": {
+        "x": 460,
+        "y": 60
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node_0041": {
+      "id": "node_0041",
+      "label": "Component 45",
+      "pins": [],
+      "position": {
+        "x": 460,
+        "y": 190
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node_0042": {
+      "id": "node_0042",
+      "label": "Component 46",
+      "pins": [],
+      "position": {
+        "x": 460,
+        "y": 125
+      },
+      "shape": "ferrule",
+      "type": "branch_point"
+    },
+    "node_0070": {
+      "bomEntryId": "bom_0069",
+      "id": "node_0070",
+      "label": "Component 47",
+      "pins": [
+        {
+          "id": "pin_0071",
+          "label": "1"
+        },
+        {
+          "id": "pin_0072",
+          "label": "2"
+        }
+      ],
+      "position": {
+        "x": 2160,
+        "y": 60
+      },
+      "shape": "rectangular",
+      "size": {
+        "height": 40,
+        "width": 60
+      },
+      "type": "component"
+    }
+  },
+  "pageOrder": [
+    "page_harness_ecu_1",
+    "page_oem_12v"
+  ],
+  "pages": {
+    "page_harness_ecu_1": {
+      "id": "page_harness_ecu_1",
+      "name": "Page 1",
+      "pageNumber": 1
+    },
+    "page_oem_12v": {
+      "id": "page_oem_12v",
+      "name": "Page 2",
+      "pageNumber": 2
+    }
+  },
+  "schemaVersion": 3,
+  "signals": {},
+  "subassemblyInstances": {},
+  "wireGroups": {},
+  "nodePagePositions": {
+    "comp_1787426922757_4mzlqoip0": {
+      "page_harness_ecu_1": {
+        "x": 1180,
+        "y": 190
+      }
+    },
+    "comp_1787426922757_7akpxxva6": {
+      "page_harness_ecu_1": {
+        "x": 1180,
+        "y": 60
+      }
+    },
+    "comp_1787426922757_hvhcf6ydq": {
+      "page_harness_ecu_1": {
+        "x": 1180,
+        "y": 250
+      }
+    },
+    "comp_1787426922757_q481zzwac": {
+      "page_harness_ecu_1": {
+        "x": 1180,
+        "y": 125
+      }
+    },
+    "comp_1787426922757_v38dobw2r": {
+      "page_harness_ecu_1": {
+        "x": 1670,
+        "y": 125
+      }
+    },
+    "comp_1787426922757_wuwheflga": {
+      "page_harness_ecu_1": {
+        "x": 1670,
+        "y": 60
+      }
+    },
+    "comp_1787428753721_tmps9o16f": {
+      "page_harness_ecu_1": {
+        "x": 3600,
+        "y": 125
+      }
+    },
+    "comp_1787428753721_xjfozi6wj": {
+      "page_harness_ecu_1": {
+        "x": 3600,
+        "y": 250
+      }
+    },
+    "comp_1787428753722_ivthtnuey": {
+      "page_harness_ecu_1": {
+        "x": 3600,
+        "y": 60
+      }
+    },
+    "comp_1787428753722_y4bi1kh3j": {
+      "page_harness_ecu_1": {
+        "x": 3600,
+        "y": 190
+      }
+    },
+    "comp_1787471095698_z9240sx5u": {
+      "page_harness_ecu_1": {
+        "x": 3600,
+        "y": 315
+      }
+    },
+    "comp_1787473167756_gah89v4sn": {
+      "page_harness_ecu_1": {
+        "x": 3600,
+        "y": 380
+      }
+    },
+    "node10_tps": {
+      "page_harness_ecu_1": {
+        "x": 2520,
+        "y": 435
+      }
+    },
+    "node11_cltflying": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 445
+      }
+    },
+    "node12_iatflying": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 540
+      }
+    },
+    "node13_tacho": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 635
+      }
+    },
+    "node2_0003": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 730
+      }
+    },
+    "node2_0004": {
+      "page_harness_ecu_1": {
+        "x": 1310,
+        "y": 60
+      }
+    },
+    "node2_0008": {
+      "page_harness_ecu_1": {
+        "x": 1800,
+        "y": 60
+      }
+    },
+    "node2_0017": {
+      "page_harness_ecu_1": {
+        "x": 1310,
+        "y": 200
+      }
+    },
+    "node2_0021": {
+      "page_harness_ecu_1": {
+        "x": 1800,
+        "y": 180
+      }
+    },
+    "node3_coilsplice": {
+      "page_harness_ecu_1": {
+        "x": 1800,
+        "y": 295
+      }
+    },
+    "node3_ecuflag": {
+      "page_harness_ecu_1": {
+        "x": 3730,
+        "y": 60
+      }
+    },
+    "node3_fusebox": {
+      "page_harness_ecu_1": {
+        "x": 3240,
+        "y": 60
+      }
+    },
+    "node4_batt": {
+      "page_oem_12v": {
+        "x": 2880,
+        "y": 60
+      },
+      "page_harness_ecu_1": {
+        "x": 2880,
+        "y": 60
+      }
+    },
+    "node4_gndmain": {
+      "page_oem_12v": {
+        "x": 3240,
+        "y": 190
+      }
+    },
+    "node4_gndsplice": {
+      "page_oem_12v": {
+        "x": 3240,
+        "y": 125
+      }
+    },
+    "node4_neiman": {
+      "page_oem_12v": {
+        "x": 2880,
+        "y": 180
+      },
+      "page_harness_ecu_1": {
+        "x": 2880,
+        "y": 180
+      }
+    },
+    "node4_regulator": {
+      "page_oem_12v": {
+        "x": 2880,
+        "y": 440
+      },
+      "page_harness_ecu_1": {
+        "x": 2880,
+        "y": 440
+      }
+    },
+    "node4_solenoid": {
+      "page_oem_12v": {
+        "x": 2880,
+        "y": 270
+      },
+      "page_harness_ecu_1": {
+        "x": 2880,
+        "y": 270
+      }
+    },
+    "node4_wsplice": {
+      "page_oem_12v": {
+        "x": 3240,
+        "y": 60
+      }
+    },
+    "node5_pump": {
+      "page_harness_ecu_1": {
+        "x": 2520,
+        "y": 315
+      }
+    },
+    "node5_relay": {
+      "page_harness_ecu_1": {
+        "x": 2520,
+        "y": 125
+      }
+    },
+    "node5_relaypwrsplice": {
+      "page_harness_ecu_1": {
+        "x": 2520,
+        "y": 60
+      }
+    },
+    "node6_boostflying": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 260
+      }
+    },
+    "node7_launchflying": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 350
+      }
+    },
+    "node8_5vsplice": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 795
+      }
+    },
+    "node9_o2ctrl": {
+      "page_harness_ecu_1": {
+        "x": 2520,
+        "y": 575
+      }
+    },
+    "node_0002": {
+      "page_harness_ecu_1": {
+        "x": 100,
+        "y": 60
+      }
+    },
+    "node_0028": {
+      "page_harness_ecu_1": {
+        "x": 820,
+        "y": 60
+      }
+    },
+    "node_0031": {
+      "page_harness_ecu_1": {
+        "x": 820,
+        "y": 295
+      }
+    },
+    "node_0034": {
+      "page_harness_ecu_1": {
+        "x": 820,
+        "y": 415
+      }
+    },
+    "node_0037": {
+      "page_harness_ecu_1": {
+        "x": 820,
+        "y": 180
+      }
+    },
+    "node_0040": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 60
+      }
+    },
+    "node_0041": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 190
+      }
+    },
+    "node_0042": {
+      "page_harness_ecu_1": {
+        "x": 460,
+        "y": 125
+      }
+    },
+    "node_0070": {
+      "page_harness_ecu_1": {
+        "x": 2160,
+        "y": 60
+      }
+    }
+  },
+  "nodePageSizes": {
+    "comp_1787426922757_4mzlqoip0": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787426922757_7akpxxva6": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787426922757_hvhcf6ydq": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787426922757_q481zzwac": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787426922757_v38dobw2r": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787426922757_wuwheflga": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787428753721_tmps9o16f": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787428753721_xjfozi6wj": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787428753722_ivthtnuey": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787428753722_y4bi1kh3j": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787471095698_z9240sx5u": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "comp_1787473167756_gah89v4sn": {
+      "page_harness_ecu_1": {
+        "width": 40,
+        "height": 10
+      }
+    },
+    "node10_tps": {
+      "page_harness_ecu_1": {
+        "width": 80,
+        "height": 50
+      }
+    },
+    "node11_cltflying": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 30
+      }
+    },
+    "node12_iatflying": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 30
+      }
+    },
+    "node13_tacho": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 30
+      }
+    },
+    "node2_0004": {
+      "page_harness_ecu_1": {
+        "width": 80,
+        "height": 40
+      }
+    },
+    "node2_0008": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node2_0017": {
+      "page_harness_ecu_1": {
+        "width": 80,
+        "height": 40
+      }
+    },
+    "node2_0021": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node3_ecuflag": {
+      "page_harness_ecu_1": {
+        "width": 80,
+        "height": 30
+      }
+    },
+    "node3_fusebox": {
+      "page_harness_ecu_1": {
+        "width": 100,
+        "height": 40
+      }
+    },
+    "node4_batt": {
+      "page_oem_12v": {
+        "width": 70,
+        "height": 40
+      },
+      "page_harness_ecu_1": {
+        "width": 70,
+        "height": 40
+      }
+    },
+    "node4_gndmain": {
+      "page_oem_12v": {
+        "width": 90,
+        "height": 30
+      }
+    },
+    "node4_neiman": {
+      "page_oem_12v": {
+        "width": 90,
+        "height": 30
+      },
+      "page_harness_ecu_1": {
+        "width": 90,
+        "height": 30
+      }
+    },
+    "node4_regulator": {
+      "page_oem_12v": {
+        "width": 90,
+        "height": 60
+      },
+      "page_harness_ecu_1": {
+        "width": 90,
+        "height": 60
+      }
+    },
+    "node4_solenoid": {
+      "page_oem_12v": {
+        "width": 90,
+        "height": 60
+      },
+      "page_harness_ecu_1": {
+        "width": 90,
+        "height": 60
+      }
+    },
+    "node5_pump": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node5_relay": {
+      "page_harness_ecu_1": {
+        "width": 90,
+        "height": 60
+      }
+    },
+    "node6_boostflying": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 30
+      }
+    },
+    "node7_launchflying": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 30
+      }
+    },
+    "node9_o2ctrl": {
+      "page_harness_ecu_1": {
+        "width": 80,
+        "height": 50
+      }
+    },
+    "node_0002": {
+      "page_harness_ecu_1": {
+        "width": 220,
+        "height": 140
+      }
+    },
+    "node_0028": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node_0031": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node_0034": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node_0037": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    },
+    "node_0070": {
+      "page_harness_ecu_1": {
+        "width": 60,
+        "height": 40
+      }
+    }
+  },
+  "viewState": {
+    "schematicPagePositions": {
+      "page_harness_ecu_1": {
+        "comp_1787426922757_4mzlqoip0": {
+          "x": 1180,
+          "y": 210
+        },
+        "comp_1787426922757_7akpxxva6": {
+          "x": 1180,
+          "y": 70
+        },
+        "comp_1787426922757_hvhcf6ydq": {
+          "x": 1180,
+          "y": 270
+        },
+        "comp_1787426922757_q481zzwac": {
+          "x": 1180,
+          "y": 150
+        },
+        "comp_1787426922757_v38dobw2r": {
+          "x": 1680,
+          "y": 150
+        },
+        "comp_1787426922757_wuwheflga": {
+          "x": 1680,
+          "y": 70
+        },
+        "comp_1787428753721_tmps9o16f": {
+          "x": 3600,
+          "y": 150
+        },
+        "comp_1787428753721_xjfozi6wj": {
+          "x": 3600,
+          "y": 270
+        },
+        "comp_1787428753722_ivthtnuey": {
+          "x": 3600,
+          "y": 70
+        },
+        "comp_1787428753722_y4bi1kh3j": {
+          "x": 3600,
+          "y": 210
+        },
+        "comp_1787471095698_z9240sx5u": {
+          "x": 3600,
+          "y": 330
+        },
+        "comp_1787473167756_gah89v4sn": {
+          "x": 3600,
+          "y": 390
+        },
+        "node10_tps": {
+          "x": 2530,
+          "y": 470
+        },
+        "node11_cltflying": {
+          "x": 480,
+          "y": 460
+        },
+        "node12_iatflying": {
+          "x": 480,
+          "y": 560
+        },
+        "node13_tacho": {
+          "x": 480,
+          "y": 660
+        },
+        "node2_0003": {
+          "x": 470,
+          "y": 730
+        },
+        "node2_0004": {
+          "x": 1330,
+          "y": 100
+        },
+        "node2_0008": {
+          "x": 1820,
+          "y": 80
+        },
+        "node2_0017": {
+          "x": 1330,
+          "y": 240
+        },
+        "node2_0021": {
+          "x": 1820,
+          "y": 200
+        },
+        "node3_coilsplice": {
+          "x": 1810,
+          "y": 310
+        },
+        "node3_ecuflag": {
+          "x": 3750,
+          "y": 80
+        },
+        "node3_fusebox": {
+          "x": 3260,
+          "y": 120
+        },
+        "node4_batt": {
+          "x": 2890,
+          "y": 80
+        },
+        "node4_gndmain": {
+          "x": 3250,
+          "y": 200
+        },
+        "node4_gndsplice": {
+          "x": 3250,
+          "y": 130
+        },
+        "node4_neiman": {
+          "x": 2900,
+          "y": 200
+        },
+        "node4_regulator": {
+          "x": 2900,
+          "y": 510
+        },
+        "node4_solenoid": {
+          "x": 2900,
+          "y": 310
+        },
+        "node4_wsplice": {
+          "x": 3250,
+          "y": 70
+        },
+        "node5_pump": {
+          "x": 2540,
+          "y": 340
+        },
+        "node5_relay": {
+          "x": 2540,
+          "y": 190
+        },
+        "node5_relaypwrsplice": {
+          "x": 2530,
+          "y": 70
+        },
+        "node6_boostflying": {
+          "x": 480,
+          "y": 280
+        },
+        "node7_launchflying": {
+          "x": 480,
+          "y": 360
+        },
+        "node8_5vsplice": {
+          "x": 470,
+          "y": 810
+        },
+        "node9_o2ctrl": {
+          "x": 2530,
+          "y": 610
+        },
+        "node_0002": {
+          "x": 120,
+          "y": 310
+        },
+        "node_0028": {
+          "x": 840,
+          "y": 80
+        },
+        "node_0031": {
+          "x": 840,
+          "y": 320
+        },
+        "node_0034": {
+          "x": 840,
+          "y": 440
+        },
+        "node_0037": {
+          "x": 840,
+          "y": 200
+        },
+        "node_0040": {
+          "x": 470,
+          "y": 70
+        },
+        "node_0041": {
+          "x": 470,
+          "y": 190
+        },
+        "node_0042": {
+          "x": 470,
+          "y": 130
+        },
+        "node_0070": {
+          "x": 2180,
+          "y": 80
+        }
+      },
+      "page_oem_12v": {
+        "comp_1787426922757_4mzlqoip0": {
+          "x": 1180,
+          "y": 210
+        },
+        "comp_1787426922757_7akpxxva6": {
+          "x": 1180,
+          "y": 70
+        },
+        "comp_1787426922757_hvhcf6ydq": {
+          "x": 1180,
+          "y": 270
+        },
+        "comp_1787426922757_q481zzwac": {
+          "x": 1180,
+          "y": 150
+        },
+        "comp_1787426922757_v38dobw2r": {
+          "x": 1680,
+          "y": 150
+        },
+        "comp_1787426922757_wuwheflga": {
+          "x": 1680,
+          "y": 70
+        },
+        "comp_1787428753721_tmps9o16f": {
+          "x": 3600,
+          "y": 150
+        },
+        "comp_1787428753721_xjfozi6wj": {
+          "x": 3600,
+          "y": 270
+        },
+        "comp_1787428753722_ivthtnuey": {
+          "x": 3600,
+          "y": 70
+        },
+        "comp_1787428753722_y4bi1kh3j": {
+          "x": 3600,
+          "y": 210
+        },
+        "comp_1787471095698_z9240sx5u": {
+          "x": 3600,
+          "y": 330
+        },
+        "comp_1787473167756_gah89v4sn": {
+          "x": 3600,
+          "y": 390
+        },
+        "node10_tps": {
+          "x": 2520,
+          "y": 470
+        },
+        "node11_cltflying": {
+          "x": 470,
+          "y": 460
+        },
+        "node12_iatflying": {
+          "x": 470,
+          "y": 560
+        },
+        "node13_tacho": {
+          "x": 470,
+          "y": 660
+        },
+        "node2_0003": {
+          "x": 470,
+          "y": 725
+        },
+        "node2_0004": {
+          "x": 1320,
+          "y": 100
+        },
+        "node2_0008": {
+          "x": 1810,
+          "y": 80
+        },
+        "node2_0017": {
+          "x": 1320,
+          "y": 240
+        },
+        "node2_0021": {
+          "x": 1810,
+          "y": 200
+        },
+        "node3_coilsplice": {
+          "x": 1810,
+          "y": 305
+        },
+        "node3_ecuflag": {
+          "x": 3740,
+          "y": 80
+        },
+        "node3_fusebox": {
+          "x": 3250,
+          "y": 120
+        },
+        "node4_batt": {
+          "x": 2880,
+          "y": 80
+        },
+        "node4_gndmain": {
+          "x": 3250,
+          "y": 200
+        },
+        "node4_gndsplice": {
+          "x": 3250,
+          "y": 125
+        },
+        "node4_neiman": {
+          "x": 2890,
+          "y": 200
+        },
+        "node4_regulator": {
+          "x": 2890,
+          "y": 510
+        },
+        "node4_solenoid": {
+          "x": 2890,
+          "y": 310
+        },
+        "node4_wsplice": {
+          "x": 3250,
+          "y": 65
+        },
+        "node5_pump": {
+          "x": 2530,
+          "y": 340
+        },
+        "node5_relay": {
+          "x": 2530,
+          "y": 190
+        },
+        "node5_relaypwrsplice": {
+          "x": 2530,
+          "y": 65
+        },
+        "node6_boostflying": {
+          "x": 470,
+          "y": 280
+        },
+        "node7_launchflying": {
+          "x": 470,
+          "y": 360
+        },
+        "node8_5vsplice": {
+          "x": 470,
+          "y": 805
+        },
+        "node9_o2ctrl": {
+          "x": 2520,
+          "y": 610
+        },
+        "node_0002": {
+          "x": 110,
+          "y": 310
+        },
+        "node_0028": {
+          "x": 830,
+          "y": 80
+        },
+        "node_0031": {
+          "x": 830,
+          "y": 320
+        },
+        "node_0034": {
+          "x": 830,
+          "y": 440
+        },
+        "node_0037": {
+          "x": 830,
+          "y": 200
+        },
+        "node_0040": {
+          "x": 470,
+          "y": 65
+        },
+        "node_0041": {
+          "x": 470,
+          "y": 185
+        },
+        "node_0042": {
+          "x": 470,
+          "y": 125
+        },
+        "node_0070": {
+          "x": 2170,
+          "y": 80
+        }
+      }
+    },
+    "schematicPageSizes": {
+      "page_harness_ecu_1": {
+        "comp_1787426922757_4mzlqoip0": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_7akpxxva6": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_hvhcf6ydq": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_q481zzwac": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_v38dobw2r": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_wuwheflga": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753721_tmps9o16f": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753721_xjfozi6wj": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753722_ivthtnuey": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753722_y4bi1kh3j": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787471095698_z9240sx5u": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787473167756_gah89v4sn": {
+          "width": 40,
+          "height": 20
+        },
+        "node10_tps": {
+          "width": 80,
+          "height": 60
+        },
+        "node11_cltflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node12_iatflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node13_tacho": {
+          "width": 60,
+          "height": 40
+        },
+        "node2_0004": {
+          "width": 80,
+          "height": 40
+        },
+        "node2_0008": {
+          "width": 60,
+          "height": 40
+        },
+        "node2_0017": {
+          "width": 80,
+          "height": 40
+        },
+        "node2_0021": {
+          "width": 60,
+          "height": 40
+        },
+        "node3_ecuflag": {
+          "width": 80,
+          "height": 40
+        },
+        "node3_fusebox": {
+          "width": 100,
+          "height": 40
+        },
+        "node4_batt": {
+          "width": 80,
+          "height": 40
+        },
+        "node4_gndmain": {
+          "width": 100,
+          "height": 40
+        },
+        "node4_neiman": {
+          "width": 100,
+          "height": 40
+        },
+        "node4_regulator": {
+          "width": 100,
+          "height": 60
+        },
+        "node4_solenoid": {
+          "width": 100,
+          "height": 60
+        },
+        "node5_pump": {
+          "width": 60,
+          "height": 40
+        },
+        "node5_relay": {
+          "width": 100,
+          "height": 60
+        },
+        "node6_boostflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node7_launchflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node9_o2ctrl": {
+          "width": 80,
+          "height": 60
+        },
+        "node_0002": {
+          "width": 220,
+          "height": 140
+        },
+        "node_0028": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0031": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0034": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0037": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0070": {
+          "width": 60,
+          "height": 40
+        },
+        "node2_0003": {
+          "width": 100,
+          "height": 60
+        },
+        "node3_coilsplice": {
+          "width": 100,
+          "height": 60
+        },
+        "node4_gndsplice": {
+          "width": 100,
+          "height": 60
+        },
+        "node4_wsplice": {
+          "width": 100,
+          "height": 60
+        },
+        "node5_relaypwrsplice": {
+          "width": 100,
+          "height": 60
+        },
+        "node8_5vsplice": {
+          "width": 100,
+          "height": 60
+        },
+        "node_0040": {
+          "width": 100,
+          "height": 60
+        },
+        "node_0041": {
+          "width": 100,
+          "height": 60
+        },
+        "node_0042": {
+          "width": 100,
+          "height": 60
+        }
+      },
+      "page_oem_12v": {
+        "comp_1787426922757_4mzlqoip0": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_7akpxxva6": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_hvhcf6ydq": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_q481zzwac": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_v38dobw2r": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787426922757_wuwheflga": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753721_tmps9o16f": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753721_xjfozi6wj": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753722_ivthtnuey": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787428753722_y4bi1kh3j": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787471095698_z9240sx5u": {
+          "width": 40,
+          "height": 20
+        },
+        "comp_1787473167756_gah89v4sn": {
+          "width": 40,
+          "height": 20
+        },
+        "node10_tps": {
+          "width": 80,
+          "height": 60
+        },
+        "node11_cltflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node12_iatflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node13_tacho": {
+          "width": 60,
+          "height": 40
+        },
+        "node2_0004": {
+          "width": 80,
+          "height": 40
+        },
+        "node2_0008": {
+          "width": 60,
+          "height": 40
+        },
+        "node2_0017": {
+          "width": 80,
+          "height": 40
+        },
+        "node2_0021": {
+          "width": 60,
+          "height": 40
+        },
+        "node3_ecuflag": {
+          "width": 80,
+          "height": 40
+        },
+        "node3_fusebox": {
+          "width": 100,
+          "height": 40
+        },
+        "node4_batt": {
+          "width": 80,
+          "height": 40
+        },
+        "node4_gndmain": {
+          "width": 100,
+          "height": 40
+        },
+        "node4_neiman": {
+          "width": 100,
+          "height": 40
+        },
+        "node4_regulator": {
+          "width": 100,
+          "height": 60
+        },
+        "node4_solenoid": {
+          "width": 100,
+          "height": 60
+        },
+        "node5_pump": {
+          "width": 60,
+          "height": 40
+        },
+        "node5_relay": {
+          "width": 100,
+          "height": 60
+        },
+        "node6_boostflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node7_launchflying": {
+          "width": 60,
+          "height": 40
+        },
+        "node9_o2ctrl": {
+          "width": 80,
+          "height": 60
+        },
+        "node_0002": {
+          "width": 220,
+          "height": 140
+        },
+        "node_0028": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0031": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0034": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0037": {
+          "width": 60,
+          "height": 40
+        },
+        "node_0070": {
+          "width": 60,
+          "height": 40
+        }
+      }
+    },
+    "gridEnabled": true,
+    "gridSpacing": 20,
+    "snapToGrid": true,
+    "gridOpacity": 0.7
+  },
+  "splice_kind": "project",
+  "assemblies": []
+}

@@ -1,0 +1,17 @@
+{
+  "origin": "sample/splice-cad/native (the maintainer's own Splice CAD project, anonymized before commit)",
+  "fixtures": [
+    {
+      "filename": "SampleHarness.spliceproject",
+      "sha256": "302be655f3c553d4555d120f001f47f3cf95f8f1e714131519b8bbf031f5490a",
+      "schema_version": 3,
+      "splice_kind": "project",
+      "node_count": 47,
+      "link_count": 50,
+      "conductor_count": 52,
+      "conductor_splice_count": 9,
+      "mate_count": 12,
+      "bom_count": 21
+    }
+  ]
+}
