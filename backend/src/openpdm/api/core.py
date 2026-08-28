@@ -390,6 +390,11 @@ class SignInRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class CreateOrganizationRequest(BaseModel):
     name: str
     slug: str
@@ -945,6 +950,22 @@ def sign_in(
         token=session_token.token,
         user=serialize_user(user),
     )
+
+
+@router.post("/auth/password", response_model=UserResponse)
+def change_password(
+    payload: ChangePasswordRequest,
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> UserResponse:
+    user = AuthModule.change_password(
+        db,
+        actor=context.user,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+    db.commit()
+    return serialize_user(user)
 
 
 @router.get("/auth/session", response_model=SessionResponse)

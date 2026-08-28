@@ -144,7 +144,13 @@ export function AssetDetailPanel({
               {activeTab === "metadata" ? (
                 <MetadataAnalysisSection busyAction={busyAction} {...sectionProps} />
               ) : null}
-              {activeTab === "relationships" ? <RelationshipsGraphSection {...sectionProps} /> : null}
+              {activeTab === "relationships" ? (
+                <RelationshipsGraphSection
+                  {...sectionProps}
+                  busyAction={busyAction}
+                  selectedAssetId={selectedAssetId}
+                />
+              ) : null}
               {activeTab === "history" ? (
                 <HistoryCollaborationSection busyAction={busyAction} {...sectionProps} />
               ) : null}

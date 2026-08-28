@@ -184,12 +184,28 @@ uv run python scripts/seed_official_plugins.py
 
 It registers (or signs back into) a seed local account, which ADR-0035
 promotes to Platform Administrator automatically as the first user of an
-empty deployment, then installs and enables each plugin listed in that
-script's `DEFAULT_PLUGINS` (currently just the reference plugin) through the
-same public API a human would use from the Plugin Administration screen. The
-seed account's credentials can be overridden with `OPENPDM_SEED_ADMIN_EMAIL`,
+empty deployment, then installs and enables every Official Plugin
+auto-discovered under `plugins/` (see `discover_official_plugins()` in that
+script — currently `reference` and `freecad`; `dummy-categories` is excluded
+as an API-test fixture, not a real Official Plugin) through the same public
+API a human would use from the Plugin Administration screen. Adding a new
+Official Plugin only needs its `scripts/build_<name>_plugin.py`; nothing in
+this script needs editing. The seed account's credentials can be overridden
+with `OPENPDM_SEED_ADMIN_EMAIL`,
 `OPENPDM_SEED_ADMIN_PASSWORD` and `OPENPDM_SEED_ADMIN_DISPLAY_NAME` (see
 `.env.example`). Safe to re-run; it skips plugins that are already installed.
+
+`scripts/start_all.py` (and the desktop launcher) run this automatically on
+every start unless `--skip-plugins` is passed, which means the seed account
+-- not whoever registers through the web UI afterward -- is always the
+deployment's actual first user, and ADR-0035's first-user-becomes-admin
+bootstrap always resolves to it. Treat the seed account
+(`admin@openpdm.local` by default) as the deployment's default Platform
+Administrator login rather than expecting your own web UI registration to
+become one automatically. Sign in with it and change its password from the
+Account screen (click your name in the top bar, or `/account`) the first
+time you use a deployment for real, rather than leaving the seed password in
+place.
 
 To grant Platform Administrator authority to another account (e.g. an
 Organization Owner who should also administer plugins — Organization and

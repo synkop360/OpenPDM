@@ -89,6 +89,56 @@ def test_health_and_foundation_expose_core_platform_metadata(tmp_path: Path) -> 
     assert foundation.json()["architecture"] == "Modular Monolith"
 
 
+def test_change_password_requires_current_password_and_updates_credentials(
+    tmp_path: Path,
+) -> None:
+    client = build_client(tmp_path)
+    token = register_and_sign_in(
+        client,
+        email="admin@example.com",
+        display_name="Admin",
+        password="original-secret",
+    )
+
+    wrong_current = client.post(
+        "/auth/password",
+        headers=auth_header(token),
+        json={"current_password": "not-the-password", "new_password": "new-secret-123"},
+    )
+    assert wrong_current.status_code == 401
+
+    same_password = client.post(
+        "/auth/password",
+        headers=auth_header(token),
+        json={"current_password": "original-secret", "new_password": "original-secret"},
+    )
+    assert same_password.status_code == 400
+
+    changed = client.post(
+        "/auth/password",
+        headers=auth_header(token),
+        json={"current_password": "original-secret", "new_password": "new-secret-123"},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["email"] == "admin@example.com"
+
+    old_password_sign_in = client.post(
+        "/auth/sign-in", json={"email": "admin@example.com", "password": "original-secret"}
+    )
+    assert old_password_sign_in.status_code == 401
+
+    new_password_sign_in = client.post(
+        "/auth/sign-in", json={"email": "admin@example.com", "password": "new-secret-123"}
+    )
+    assert new_password_sign_in.status_code == 200
+
+    with session_scope() as db:
+        password_change_audits = list(
+            db.scalars(select(AuditRecord).where(AuditRecord.action == "user.password_changed"))
+        )
+        assert len(password_change_audits) == 1
+
+
 def test_access_and_membership_flow(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     owner_token = register_and_sign_in(

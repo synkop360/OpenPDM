@@ -80,9 +80,12 @@ import {
   signOut,
   type ReferenceRecord,
   type Relationship,
+  type RelationshipType,
   unlockAsset,
   updateAssetStatus,
   cancelBlobUploadSession,
+  changePassword,
+  createRelationship,
   type Asset,
   type BlobRecord,
   type CollaborationState,
@@ -274,6 +277,11 @@ function OpenPdmApp() {
   const [assetGraph, setAssetGraph] = useState<Loadable<AssetGraph | null>>(
     createLoadable<AssetGraph | null>(null),
   );
+  const [relationshipForm, setRelationshipForm] = useState<{
+    targetAssetId: string;
+    relationshipType: RelationshipType;
+  }>({ targetAssetId: "", relationshipType: "related_to" });
+  const [relationshipFormError, setRelationshipFormError] = useState<string | null>(null);
   const [projectGraph, setProjectGraph] = useState<Loadable<AssetGraph | null>>(
     createLoadable<AssetGraph | null>(null),
   );
@@ -327,6 +335,12 @@ function OpenPdmApp() {
     password: "",
     displayName: "",
   });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  });
+  const [passwordFormError, setPasswordFormError] = useState<string | null>(null);
   const [bootstrapOrg, setBootstrapOrg] = useState({ name: "", slug: "" });
   const [bootstrapProject, setBootstrapProject] = useState({ name: "", description: "" });
   const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
@@ -1225,6 +1239,33 @@ function OpenPdmApp() {
     }
   }
 
+  async function handleChangePassword(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token) return;
+    setPasswordFormError(null);
+    if (passwordForm.newPassword !== passwordForm.confirmNewPassword) {
+      setPasswordFormError("New password and confirmation do not match.");
+      return;
+    }
+    setBusyAction("change-password");
+    setBanner(null);
+    try {
+      await changePassword(
+        session.data.token,
+        passwordForm.currentPassword,
+        passwordForm.newPassword,
+      );
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
+      setBanner("Password changed.");
+    } catch (error: unknown) {
+      setPasswordFormError(
+        error instanceof Error ? error.message : "Password could not be changed.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleBootstrapOrganization(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!session.data?.token) {
@@ -1771,6 +1812,40 @@ function OpenPdmApp() {
     }
   }
 
+  async function handleCreateRelationship(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!session.data?.token || !selectedAssetId || !relationshipForm.targetAssetId) {
+      return;
+    }
+    setRelationshipFormError(null);
+    setBusyAction("create-relationship");
+    setBanner(null);
+    try {
+      await createRelationship(session.data.token, selectedAssetId, {
+        target_asset_id: relationshipForm.targetAssetId,
+        relationship_type: relationshipForm.relationshipType,
+      });
+      const [nextRelationships, nextIncoming, nextOutgoing, nextGraph] = await Promise.all([
+        listAssetRelationships(session.data.token, selectedAssetId),
+        listIncomingAssetRelationships(session.data.token, selectedAssetId),
+        listOutgoingAssetRelationships(session.data.token, selectedAssetId),
+        getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
+      ]);
+      setAssetRelationships({ status: "ready", data: nextRelationships, error: null });
+      setIncomingRelationships({ status: "ready", data: nextIncoming, error: null });
+      setOutgoingRelationships({ status: "ready", data: nextOutgoing, error: null });
+      setAssetGraph({ status: "ready", data: nextGraph, error: null });
+      setRelationshipForm((current) => ({ ...current, targetAssetId: "" }));
+      setBanner("Relationship created.");
+    } catch (error: unknown) {
+      setRelationshipFormError(
+        error instanceof Error ? error.message : "Relationship could not be created.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleRefreshAssetState(): Promise<void> {
     if (!session.data?.token || !selectedAssetId || !selectedProjectId) {
       return;
@@ -2160,6 +2235,7 @@ function OpenPdmApp() {
     }
     if (view === "notifications") return [{ key: "notifications", label: "Notifications" }];
     if (view === "plugin-administration") return [{ key: "admin", label: "Plugin administration" }];
+    if (view === "account") return [{ key: "account", label: "Account" }];
     if (view === "projects") return [{ key: "projects", label: "Projects" }];
     return [{ key: "home", label: "Home" }];
   })();
@@ -2176,6 +2252,7 @@ function OpenPdmApp() {
             breadcrumb={breadcrumbItems}
             displayName={session.data.user.display_name}
             email={session.data.user.email}
+            onAccount={() => navigate("/account")}
             onNotifications={() => navigate("/notifications")}
             onOpenNavigation={() => setMobileNavigationOpen(true)}
             onSignOut={() => void handleSignOut()}
@@ -2947,6 +3024,70 @@ function OpenPdmApp() {
               </section>
             ) : null}
 
+            {view === "account" ? (
+              <section className="panel admin-panel content-span">
+                <header className="panel-header">
+                  <div>
+                    <p className="eyebrow">Account</p>
+                    <h2>{session.data?.user.display_name}</h2>
+                    <p className="muted-text">{session.data?.user.email}</p>
+                  </div>
+                </header>
+                <form className="form-grid compact-form" onSubmit={handleChangePassword}>
+                  <h3>Change password</h3>
+                  <label>
+                    Current password
+                    <input
+                      autoComplete="current-password"
+                      required
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(event) =>
+                        setPasswordForm((current) => ({
+                          ...current,
+                          currentPassword: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    New password
+                    <input
+                      autoComplete="new-password"
+                      required
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(event) =>
+                        setPasswordForm((current) => ({
+                          ...current,
+                          newPassword: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Confirm new password
+                    <input
+                      autoComplete="new-password"
+                      required
+                      type="password"
+                      value={passwordForm.confirmNewPassword}
+                      onChange={(event) =>
+                        setPasswordForm((current) => ({
+                          ...current,
+                          confirmNewPassword: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  {passwordFormError ? <InlineAlert tone="danger">{passwordFormError}</InlineAlert> : null}
+                  <button className="primary-button" disabled={busyAction === "change-password"} type="submit">
+                    {busyAction === "change-password" ? "Changing..." : "Change password"}
+                  </button>
+                </form>
+              </section>
+            ) : null}
+
             {view === "project" ? (
               <section aria-labelledby="project-workspace-title" className="panel project-workspace content-span">
                 <header className="project-header">
@@ -3437,6 +3578,7 @@ function OpenPdmApp() {
               assetNameById={assetNameById}
               assetReferences={assetReferences}
               assetRelationships={assetRelationships}
+              assets={assets.data}
               assetTimeline={assetTimeline}
               busyAction={busyAction}
               collaborationError={collaborationError}
@@ -3448,6 +3590,7 @@ function OpenPdmApp() {
               onApplyMetadataProvider={(provider) => void handleApplyMetadataProvider(provider)}
               onCancelTransfer={() => void handleCancelTransfer()}
               onCheckout={() => void handleCheckout()}
+              onCreateRelationship={(event) => void handleCreateRelationship(event)}
               onClose={() => selectAsset(null)}
               onDiscardTransfer={() => void handleDiscardTransfer()}
               onDownload={(blobId, filename) => void handleDownload(blobId, filename)}
@@ -3457,6 +3600,12 @@ function OpenPdmApp() {
               }
               onOpenCheckIn={() => setShowCheckInForm(true)}
               onRefreshAssetState={() => void handleRefreshAssetState()}
+              onRelationshipTargetChange={(value) =>
+                setRelationshipForm((current) => ({ ...current, targetAssetId: value }))
+              }
+              onRelationshipTypeChange={(value) =>
+                setRelationshipForm((current) => ({ ...current, relationshipType: value }))
+              }
               onRetryCheckin={handleRetryCheckin}
               onSelectAsset={(assetId) => selectAsset(assetId)}
               onSubmitUpload={handleUpload}
@@ -3473,6 +3622,8 @@ function OpenPdmApp() {
               providerOptions={providerOptions}
               providers={providers}
               providerSelections={providerSelections}
+              relationshipForm={relationshipForm}
+              relationshipFormError={relationshipFormError}
               selectedAnalysisRepresentation={selectedAnalysisRepresentation}
               selectedAssetId={selectedAssetId}
               onCheckInFormOpenChange={setShowCheckInForm}

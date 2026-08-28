@@ -3,7 +3,8 @@ export type AppView =
   | "notifications"
   | "projects"
   | "project"
-  | "plugin-administration";
+  | "plugin-administration"
+  | "account";
 
 export const projectTabs = [
   "overview",
@@ -34,13 +35,15 @@ export function parseAppRoute(pathname: string): AppRoute {
     view:
       routeParts[0] === "administration" && routeParts[1] === "plugins"
         ? "plugin-administration"
-        : routeParts[0] === "notifications"
-          ? "notifications"
-          : routeParts[0] === "projects"
-          ? isProjectRoute
-            ? "project"
-            : "projects"
-          : "home",
+        : routeParts[0] === "account"
+          ? "account"
+          : routeParts[0] === "notifications"
+            ? "notifications"
+            : routeParts[0] === "projects"
+              ? isProjectRoute
+                ? "project"
+                : "projects"
+              : "home",
     projectId: isProjectRoute ? routeParts[1] : null,
     projectTab,
     assetId: isProjectRoute && requestedTab === projectTab ? routeParts[3] || null : null,

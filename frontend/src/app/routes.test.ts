@@ -44,6 +44,15 @@ describe("parseAppRoute", () => {
       assetId: null,
     });
   });
+
+  it("recognizes the account view", () => {
+    expect(parseAppRoute("/account")).toEqual({
+      view: "account",
+      projectId: null,
+      projectTab: "overview",
+      assetId: null,
+    });
+  });
 });
 
 describe("projectAssetPath", () => {
