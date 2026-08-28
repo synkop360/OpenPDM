@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     blob_upload_max_size_bytes: int = Field(default=5 * 1024 * 1024 * 1024, gt=0)
     blob_upload_session_ttl_seconds: int = Field(default=24 * 60 * 60, gt=0)
     plugin_package_root: str = ".openpdm-data/plugins"
+    plugin_runtime_cache_dir: str | None = None
     plugin_runtime_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     plugin_runtime_fuel: int = Field(default=25_000_000, gt=0, le=100_000_000)
     plugin_analysis_provider_fuel: int = Field(default=200_000_000, gt=0, le=500_000_000)
