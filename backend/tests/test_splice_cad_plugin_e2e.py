@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -11,13 +12,15 @@ from fastapi.testclient import TestClient
 from openpdm.infrastructure.blob_storage import reset_blob_storage_cache
 from openpdm.infrastructure.database import dispose_engines
 
-PLUGIN_ID = "org.openpdm.freecad"
+PLUGIN_ID = "org.openpdm.splice-cad"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-ASSEMBLY_FIXTURE = REPOSITORY_ROOT / "sample" / "freecad" / "native" / "AssemblyExample.FCStd"
+SAMPLE_FIXTURE = (
+    REPOSITORY_ROOT / "sample" / "splice-cad" / "native" / "SampleHarness.spliceproject"
+)
 
 
 def build_client(tmp_path: Path) -> TestClient:
-    os.environ["OPENPDM_DATABASE_URL"] = f"sqlite+pysqlite:///{tmp_path / 'freecad.db'}"
+    os.environ["OPENPDM_DATABASE_URL"] = f"sqlite+pysqlite:///{tmp_path / 'splice-cad.db'}"
     os.environ["OPENPDM_S3_ENDPOINT_URL"] = "file://local"
     os.environ["OPENPDM_BLOB_LOCAL_ROOT"] = str(tmp_path / "blobs")
     os.environ["OPENPDM_PLUGIN_PACKAGE_ROOT"] = str(tmp_path / "plugins")
@@ -43,7 +46,7 @@ def build_package(output: Path) -> None:
     subprocess.run(
         [
             sys.executable,
-            str(REPOSITORY_ROOT / "scripts" / "build_freecad_plugin.py"),
+            str(REPOSITORY_ROOT / "scripts" / "build_splice_cad_plugin.py"),
             "--output",
             str(output),
         ],
@@ -86,9 +89,11 @@ def invoke_analysis(
     return response.json()
 
 
-def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path: Path) -> None:
-    package_path = tmp_path / "freecad.openpdm-plugin"
+def test_splice_cad_official_plugin_exercises_the_public_analysis_journey(tmp_path: Path) -> None:
+    package_path = tmp_path / "splice-cad.openpdm-plugin"
     build_package(package_path)
+    mapped_bom_entry_id = json.loads(SAMPLE_FIXTURE.read_text(encoding="utf-8"))["bom"][0]["id"]
+    mapping_key = f"bom.{mapped_bom_entry_id}"
     client = build_client(tmp_path)
     try:
         registered = client.post(
@@ -106,23 +111,23 @@ def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path:
         project = client.post(
             "/projects",
             headers=headers,
-            json={"organization_id": organization["id"], "name": "Mechanical", "description": ""},
+            json={"organization_id": organization["id"], "name": "Electrical", "description": ""},
         ).json()
-        source_asset = create_asset(client, headers, project["id"], "Assembly")
-        target_asset = create_asset(client, headers, project["id"], "Mapped dependency")
+        source_asset = create_asset(client, headers, project["id"], "Wiring harness")
+        target_asset = create_asset(client, headers, project["id"], "Mapped part")
         revision = client.post(
             f"/assets/{source_asset['id']}/revisions",
             headers=headers,
-            json={"comment": "Initial document"},
+            json={"comment": "Initial project"},
         ).json()
         blob = client.post(
             "/blobs/uploads",
             headers=headers,
             files={
                 "file": (
-                    ASSEMBLY_FIXTURE.name,
-                    ASSEMBLY_FIXTURE.read_bytes(),
-                    "application/octet-stream",
+                    SAMPLE_FIXTURE.name,
+                    SAMPLE_FIXTURE.read_bytes(),
+                    "application/json",
                 )
             },
         ).json()
@@ -131,7 +136,7 @@ def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path:
             headers=headers,
             json={
                 "name": "native",
-                "media_type": "application/octet-stream",
+                "media_type": "application/json",
                 "blob_id": blob["id"],
             },
         )
@@ -161,10 +166,14 @@ def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path:
         discovered = client.get("/providers", headers=headers)
         assert discovered.status_code == 200
         assert discovered.json() == [
-            {"id": PLUGIN_ID, "name": "FreeCAD Analysis", "capabilities": ["analysis_provider"]}
+            {
+                "id": PLUGIN_ID,
+                "name": "Splice CAD Analysis",
+                "capabilities": ["analysis_provider"],
+            }
         ]
 
-        mapping = {"document.link.Base": target_asset["id"]}
+        mapping = {mapping_key: target_asset["id"]}
         first = invoke_analysis(
             client,
             headers,
@@ -174,9 +183,10 @@ def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path:
             relationship_mappings=mapping,
         )
         metadata = {entry["key"]: entry for entry in first["metadata"]}
-        assert metadata["freecad.document.label"]["value"] == "AssemblyExample"
-        assert metadata["freecad.document.object_count"]["value"] == 53
-        assert len(first["references"]) == 12
+        assert metadata["splicecad.plan.node_count"]["value"] == 47
+        assert metadata["splicecad.plan.conductor_count"]["value"] == 52
+        assert metadata["splicecad.plan.bom_count"]["value"] == 21
+        assert len(first["references"]) == 20
         assert len(first["relationships"]) == 1
         assert first["relationships"][0]["source_asset_id"] == source_asset["id"]
         assert first["relationships"][0]["target_asset_id"] == target_asset["id"]
@@ -189,13 +199,13 @@ def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path:
             organization_id=organization["id"],
             relationship_mappings=mapping,
         )
-        assert len(repeated["metadata"]) == 3
-        assert len(repeated["references"]) == 12
+        assert len(repeated["metadata"]) == 6
+        assert len(repeated["references"]) == 20
         assert len(repeated["relationships"]) == 1
-        assert len(client.get(f"/metadata/asset/{source_asset['id']}", headers=headers).json()) == 3
+        assert len(client.get(f"/metadata/asset/{source_asset['id']}", headers=headers).json()) == 6
         assert (
             len(client.get(f"/assets/{source_asset['id']}/references", headers=headers).json())
-            == 12
+            == 20
         )
         assert (
             len(client.get(f"/assets/{source_asset['id']}/relationships", headers=headers).json())
@@ -210,7 +220,7 @@ def test_freecad_official_plugin_exercises_the_public_analysis_journey(tmp_path:
             organization_id=organization["id"],
             relationship_mappings={},
         )
-        assert len(unmapped["references"]) == 13
+        assert len(unmapped["references"]) == 21
         assert unmapped["relationships"] == []
     finally:
         client.__exit__(None, None, None)

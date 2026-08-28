@@ -1,0 +1,8 @@
+{
+  "id": "org.openpdm.splice-cad",
+  "name": "Splice CAD Analysis",
+  "version": "0.1.0",
+  "extension_api_versions": [1],
+  "capabilities": ["analysis_provider"],
+  "component": "splice_cad_plugin.wasm"
+}

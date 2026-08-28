@@ -39,8 +39,16 @@ services:
       OPENPDM_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-openpdm}
       OPENPDM_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-openpdm-secret}
       OPENPDM_PLUGIN_PACKAGE_ROOT: /var/lib/openpdm/plugins
+      # Persist Wasmtime's compiled-artifact cache across restarts. The first
+      # activation of a CPython-based plugin component compiles for seconds; a
+      # warm cache turns that into a millisecond deserialize so a cold `enable`
+      # or `analyze` does not race OPENPDM_PLUGIN_RUNTIME_TIMEOUT_SECONDS. The
+      # raised deadline below is headroom for the first (cold) invocation.
+      OPENPDM_PLUGIN_RUNTIME_CACHE_DIR: /var/lib/openpdm/plugin-cache
+      OPENPDM_PLUGIN_RUNTIME_TIMEOUT_SECONDS: "30"
     volumes:
       - plugin-packages:/var/lib/openpdm/plugins
+      - plugin-cache:/var/lib/openpdm/plugin-cache
     ports:
       - "${OPENPDM_BACKEND_HOST_PORT:-18000}:8000"
     depends_on:
@@ -53,3 +61,4 @@ volumes:
   postgres-data:
   minio-data:
   plugin-packages:
+  plugin-cache:

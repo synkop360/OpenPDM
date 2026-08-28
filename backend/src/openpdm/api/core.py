@@ -820,6 +820,7 @@ def activate_installed_plugin(db: Session, plugin: Any) -> Any:
             timeout_seconds=runtime_settings.plugin_runtime_timeout_seconds,
             fuel=runtime_settings.plugin_runtime_fuel,
             memory_bytes=runtime_settings.plugin_runtime_memory_bytes,
+            cache_directory=runtime_settings.plugin_runtime_cache_dir,
         ).activate(validated.component)
         return PluginsModule.record_runtime_state(
             db,
@@ -845,6 +846,7 @@ def plugin_invocation_services() -> PluginInvocationServices:
             timeout_seconds=settings.plugin_runtime_timeout_seconds,
             fuel=settings.plugin_runtime_fuel,
             memory_bytes=settings.plugin_runtime_memory_bytes,
+            cache_directory=settings.plugin_runtime_cache_dir,
         ),
     )
 
@@ -2678,6 +2680,7 @@ def _dispatch_plugin_events_once() -> None:
                 timeout_seconds=settings.plugin_runtime_timeout_seconds,
                 fuel=settings.plugin_runtime_fuel,
                 memory_bytes=settings.plugin_runtime_memory_bytes,
+                cache_directory=settings.plugin_runtime_cache_dir,
             ),
         )
 

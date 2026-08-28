@@ -1,0 +1,5 @@
+# Immutable, hash-verified fixture content -- never let git rewrite line
+# endings on checkout (core.autocrlf=true, a common Windows default, would
+# otherwise silently convert LF to CRLF and break the SHA-256 fixture check
+# in plugins/splice-cad/tests/test_parser.py on every fresh Windows checkout).
+sample/splice-cad/native/*.spliceproject -text
