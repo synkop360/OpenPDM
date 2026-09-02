@@ -8,7 +8,7 @@ import {
   ChevronsUpDown,
   FolderKanban,
   Inbox,
-  Home,
+  Lock,
   LogOut,
   Menu,
   Network,
@@ -18,6 +18,7 @@ import {
   Search,
   Package,
   Trash2,
+  CircleUser,
   Users,
   X,
 } from "lucide-react";
@@ -26,9 +27,11 @@ import {
   ApiError,
   addOrganizationMember,
   addProjectMember,
+  type ActorLock,
   type AnalysisResult,
   type AssetGraph,
   type GraphNode,
+  listMyCheckouts,
   checkinAsset,
   checkoutAsset,
   addRepresentation,
@@ -128,6 +131,7 @@ import {
   readStoredValue,
   writeStoredValue,
 } from "./app/storage";
+import { useMediaQuery } from "./app/useMediaQuery";
 import { useRouteFocus } from "./app/useRouteFocus";
 import { InlineAlert } from "./components/feedback/InlineAlert";
 import { ProjectTabs } from "./components/navigation/ProjectTabs";
@@ -137,6 +141,9 @@ import { AuthenticatedHeader, type BreadcrumbItem } from "./components/shell/Aut
 import { GuestHeader } from "./components/shell/GuestHeader";
 import { AssetDetailPanel } from "./features/assets/AssetDetailPanel";
 import { AssetGraphDiagram } from "./features/assets/AssetGraphDiagram";
+import { AssetGraphMode } from "./features/assets/AssetGraphMode";
+import { AssetLockCell } from "./features/assets/AssetLockCell";
+import { ActivityHome } from "./features/activity/ActivityHome";
 import { useFoundationStatus } from "./hooks/useFoundationStatus";
 import { type TransferPhase } from "./features/transfers/TransferStatus";
 import {
@@ -189,6 +196,18 @@ const ROLE_IMPACT: Record<string, string> = {
   Viewer: "Read-only access to the workspace.",
 };
 
+// Built-in asset "workspaces" surfaced in the sidebar, mirroring the redesign
+// mock. `status` ones map to query params the assets route already understands;
+// `pending` ones are lock/review-scoped filters the API cannot express yet — they
+// render exactly like the mock and explain themselves when clicked.
+const WORKSPACE_PRESETS = [
+  { id: "all", label: "All assets", hint: "Everything in this project", status: "" },
+  { id: "mine", label: "Checked out to me", hint: "Your open locks", pending: true },
+  { id: "review", label: "Awaiting review", hint: "Submitted for approval", pending: true },
+  { id: "drafts", label: "Drafts, last 7 days", hint: "Recent work in progress", status: "draft" },
+  { id: "stale", label: "Stale locks", hint: "Needs attention", pending: true },
+] as const;
+
 function configurationProperties(configuration: PluginConfiguration): Record<string, ConfigurationProperty> {
   const properties = configuration.configuration_schema?.properties;
   return properties && typeof properties === "object" && !Array.isArray(properties)
@@ -232,6 +251,7 @@ function OpenPdmApp() {
   const assetStatusFilter = assetSearchParams.get("status") ?? "";
   const assetSort = assetSearchParams.get("sort") ?? "updated_at";
   const assetDirection = assetSearchParams.get("direction") === "asc" ? "asc" : "desc";
+  const assetViewMode = assetSearchParams.get("mode") === "graph" ? "graph" : "table";
   useRouteFocus();
   const foundation = useFoundationStatus();
   const [session, setSession] = useState<Loadable<SessionInfo | null>>(
@@ -294,6 +314,10 @@ function OpenPdmApp() {
   const [notifications, setNotifications] = useState<Loadable<NotificationRecord[]>>(
     createLoadable<NotificationRecord[]>([]),
   );
+  const [myCheckouts, setMyCheckouts] = useState<Loadable<ActorLock[]>>(
+    createLoadable<ActorLock[]>([]),
+  );
+  const [myCheckoutsReloadKey, setMyCheckoutsReloadKey] = useState(0);
   const [notificationNextCursor, setNotificationNextCursor] = useState<string | null>(null);
   const [notificationCursor, setNotificationCursor] = useState<string | null>(null);
   const [notificationCursorHistory, setNotificationCursorHistory] = useState<string[]>([]);
@@ -317,6 +341,7 @@ function OpenPdmApp() {
   );
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [pluginPackage, setPluginPackage] = useState<File | null>(null);
+  const [pluginInstallType, setPluginInstallType] = useState<"community" | "official">("community");
   const [pluginConfigurations, setPluginConfigurations] = useState<Record<string, PluginConfiguration>>({});
   const [pluginConfigurationDrafts, setPluginConfigurationDrafts] = useState<Record<string, Record<string, unknown>>>({});
   const [pluginConfigurationJson, setPluginConfigurationJson] = useState<Record<string, string>>({});
@@ -438,12 +463,19 @@ function OpenPdmApp() {
       pendingAssetNavigation.current = assetId;
       setSelectedAssetId(assetId);
       if (selectedProjectId) {
-        navigate(projectAssetPath(selectedProjectId, options?.tab ?? projectTab, assetId), {
-          replace: options?.replace,
-        });
+        // Preserve the query string (asset filters, sidebar workspace, table/graph
+        // mode) when selecting or clearing an Asset — only the path's asset segment
+        // changes.
+        navigate(
+          {
+            pathname: projectAssetPath(selectedProjectId, options?.tab ?? projectTab, assetId),
+            search: location.search,
+          },
+          { replace: options?.replace },
+        );
       }
     },
-    [navigate, projectTab, selectedProjectId],
+    [location.search, navigate, projectTab, selectedProjectId],
   );
 
   useEffect(() => {
@@ -611,7 +643,12 @@ function OpenPdmApp() {
 
   useEffect(() => {
     const token = session.data?.token;
-    if (!token || !selectedProjectId || view !== "project" || projectTab !== "relationships") {
+    // The project-wide graph backs both the Relationships tab and the asset
+    // workspace's Graph view mode.
+    const graphNeeded =
+      projectTab === "relationships" ||
+      (projectTab === "assets" && assetViewMode === "graph");
+    if (!token || !selectedProjectId || view !== "project" || !graphNeeded) {
       setProjectGraph(createLoadable(null));
       return;
     }
@@ -668,7 +705,7 @@ function OpenPdmApp() {
     return () => {
       cancelled = true;
     };
-  }, [assets.data, projectTab, selectedProjectId, session.data?.token, view]);
+  }, [assets.data, assetViewMode, projectTab, selectedProjectId, session.data?.token, view]);
 
   useEffect(() => {
     const token = session.data?.token;
@@ -698,6 +735,33 @@ function OpenPdmApp() {
         }));
       });
   }, [notificationCursor, notificationFilter, notificationProjectFilter, session.data?.token]);
+
+  useEffect(() => {
+    const token = session.data?.token;
+    if (!token) {
+      setMyCheckouts(createLoadable([]));
+      return;
+    }
+    let cancelled = false;
+    setMyCheckouts((current) => ({ ...current, status: "loading", error: null }));
+    listMyCheckouts(token)
+      .then((result) => {
+        if (!cancelled) setMyCheckouts({ status: "ready", data: result, error: null });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setMyCheckouts((current) => ({
+            status: "error",
+            data: current.data,
+            error: error instanceof Error ? error.message : "Checkouts could not be loaded.",
+          }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [myCheckoutsReloadKey, session.data?.token]);
+
   useEffect(() => {
     const token = session.data?.token;
     if (!token || view !== "plugin-administration" || !session.data?.user.is_platform_admin) {
@@ -1024,7 +1088,9 @@ function OpenPdmApp() {
   const canManageProjectMembers = currentProjectRole === "Owner" || currentProjectRole === "Maintainer";
   const hasAssets = assets.data.length > 0;
   const unreadNotifications = notifications.data.filter((item) => !item.is_read).length;
-  const analysisBusy = busyAction?.startsWith("provider-analysis-") ?? false;
+  const analysisBusy =
+    (busyAction?.startsWith("provider-analysis-") || busyAction?.startsWith("analysis-map-")) ??
+    false;
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
   const organizationOwnerCount = organizationMembers.data.filter((membership) => membership.role === "Owner").length;
   const projectOwnerCount = projectMembers.data.filter((membership) => membership.role === "Owner").length;
@@ -1058,6 +1124,61 @@ function OpenPdmApp() {
     setAssetCursorHistory([]);
     navigate({ pathname: location.pathname, search: next.toString() ? `?${next}` : "" }, { replace: true });
   }
+
+  function setAssetViewMode(mode: "table" | "graph"): void {
+    const next = new URLSearchParams(location.search);
+    if (mode === "graph") next.set("mode", "graph");
+    else next.delete("mode");
+    navigate(
+      { pathname: location.pathname, search: next.toString() ? `?${next}` : "" },
+      { replace: true },
+    );
+  }
+
+  function applyWorkspacePreset(preset: (typeof WORKSPACE_PRESETS)[number]): void {
+    if (!selectedProjectId) return;
+    if ("pending" in preset && preset.pending) {
+      setBanner(`“${preset.label}” isn’t available yet — this workspace needs a backend filter.`);
+      return;
+    }
+    const status = "status" in preset ? preset.status : "";
+    const search = new URLSearchParams();
+    if (status) search.set("status", status);
+    setMobileNavigationOpen(false);
+    navigate({
+      pathname: `/projects/${selectedProjectId}/assets`,
+      search: search.toString() ? `?${search}` : "",
+    });
+  }
+
+  function applySavedViewWorkspace(savedView: ProjectAssetView): void {
+    if (!selectedProjectId) return;
+    const search = new URLSearchParams();
+    const query = typeof savedView.filters.query === "string" ? savedView.filters.query : "";
+    const status = typeof savedView.filters.status === "string" ? savedView.filters.status : "";
+    if (query) search.set("q", query);
+    if (status) search.set("status", status);
+    search.set("sort", savedView.sort.field);
+    search.set("direction", savedView.sort.direction);
+    setMobileNavigationOpen(false);
+    navigate({ pathname: `/projects/${selectedProjectId}/assets`, search: `?${search}` });
+    setBanner(`Saved view “${savedView.name}” applied.`);
+  }
+
+  function startNewWorkspace(): void {
+    if (!selectedProjectId) return;
+    setMobileNavigationOpen(false);
+    navigate({ pathname: `/projects/${selectedProjectId}/assets`, search: "" });
+    setBanner("Filter the Assets table, then use “Save view” in the toolbar to keep it as a workspace.");
+  }
+
+  const activeWorkspaceId =
+    view === "project" && projectTab === "assets"
+      ? WORKSPACE_PRESETS.find((preset) => {
+          if (!("status" in preset)) return false;
+          return preset.status === assetStatusFilter && (preset.status !== "" || !assetFilterQuery);
+        })?.id ?? null
+      : null;
 
   function handleNextAssetPage(): void {
     if (!assetNextCursor) return;
@@ -1551,6 +1672,7 @@ function OpenPdmApp() {
     setBanner(null);
     try {
       await refreshNotifications(session.data.token);
+      setMyCheckoutsReloadKey((current) => current + 1);
       setBanner("Notifications refreshed.");
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Notifications could not be refreshed.");
@@ -1737,20 +1859,25 @@ function OpenPdmApp() {
     form?.requestSubmit();
   }
 
-  async function handleCheckout(): Promise<void> {
-    if (!session.data?.token || !selectedAssetId) {
-      return;
+  async function handleCheckout(assetId: string | null = selectedAssetId): Promise<boolean> {
+    if (!session.data?.token || !assetId) {
+      return false;
     }
     setBusyAction("checkout");
     setBanner(null);
     setCollaborationError(null);
     try {
-      const nextState = await checkoutAsset(session.data.token, selectedAssetId);
+      const nextState = await checkoutAsset(session.data.token, assetId);
       setCollaborationState({ status: "ready", data: nextState, error: null });
-      const nextTimeline = await getAssetTimeline(session.data.token, selectedAssetId);
+      const nextTimeline = await getAssetTimeline(session.data.token, assetId);
       await refreshNotifications(session.data.token);
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+      if (selectedProjectId) {
+        await refreshAssetPage(session.data.token, selectedProjectId);
+      }
+      setMyCheckoutsReloadKey((current) => current + 1);
       setBanner("Asset checked out for collaboration.");
+      return true;
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         await refreshNotifications(session.data.token);
@@ -1759,25 +1886,34 @@ function OpenPdmApp() {
       } else {
         setBanner(error instanceof Error ? error.message : "Checkout failed.");
       }
+      return false;
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function handleUnlock(force: boolean): Promise<void> {
-    if (!session.data?.token || !selectedAssetId) {
-      return;
+  async function handleUnlock(
+    force: boolean,
+    assetId: string | null = selectedAssetId,
+  ): Promise<boolean> {
+    if (!session.data?.token || !assetId) {
+      return false;
     }
     setBusyAction(force ? "force-unlock" : "unlock");
     setBanner(null);
     setCollaborationError(null);
     try {
-      const nextState = await unlockAsset(session.data.token, selectedAssetId, { force });
+      const nextState = await unlockAsset(session.data.token, assetId, { force });
       setCollaborationState({ status: "ready", data: nextState, error: null });
-      const nextTimeline = await getAssetTimeline(session.data.token, selectedAssetId);
+      const nextTimeline = await getAssetTimeline(session.data.token, assetId);
       await refreshNotifications(session.data.token);
       setAssetTimeline({ status: "ready", data: nextTimeline, error: null });
+      if (selectedProjectId) {
+        await refreshAssetPage(session.data.token, selectedProjectId);
+      }
+      setMyCheckoutsReloadKey((current) => current + 1);
       setBanner(force ? "Asset force-unlocked." : "Asset unlocked.");
+      return true;
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         await refreshNotifications(session.data.token);
@@ -1786,8 +1922,19 @@ function OpenPdmApp() {
       } else {
         setBanner(error instanceof Error ? error.message : "Unlock failed.");
       }
+      return false;
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  // "Take over" a stale lock from the Assets table: force-release the dead lock,
+  // then immediately check the Asset out to the current user. Stops if the
+  // force-unlock is rejected (its own collaboration guidance is already shown).
+  async function handleTakeOverLock(assetId: string): Promise<void> {
+    const released = await handleUnlock(true, assetId);
+    if (released) {
+      await handleCheckout(assetId);
     }
   }
 
@@ -1999,7 +2146,12 @@ function OpenPdmApp() {
     }
   }
 
-  async function handleInvokeAnalysisProvider(provider: ProviderDescriptor): Promise<void> {
+  async function runAnalysisProvider(
+    providerId: string,
+    relationshipMappings: Record<string, string>,
+    busyKey: string,
+    successMessage: string,
+  ): Promise<void> {
     if (
       !session.data?.token ||
       !selectedAssetId ||
@@ -2007,24 +2159,29 @@ function OpenPdmApp() {
       !selectedOrganizationId ||
       !selectedAnalysisRepresentation
     ) return;
+    const token = session.data.token;
+    const assetId = selectedAssetId;
     const operation = analysisOperation.current + 1;
     analysisOperation.current = operation;
-    setBusyAction(`provider-analysis-${provider.id}`);
+    setBusyAction(busyKey);
     setBanner(null);
     setAnalysisResult(null);
     try {
-      const result = await invokeAnalysisProvider(session.data.token, provider.id, {
+      const result = await invokeAnalysisProvider(token, providerId, {
         representation_id: selectedAnalysisRepresentation.id,
         project_id: selectedProjectId,
         organization_id: selectedOrganizationId,
+        ...(Object.keys(relationshipMappings).length > 0
+          ? { relationship_mappings: relationshipMappings }
+          : {}),
       });
       const [metadata, relationships, incoming, outgoing, references, graph] = await Promise.all([
-        listMetadata(session.data.token, "asset", selectedAssetId),
-        listAssetRelationships(session.data.token, selectedAssetId),
-        listIncomingAssetRelationships(session.data.token, selectedAssetId),
-        listOutgoingAssetRelationships(session.data.token, selectedAssetId),
-        listAssetReferences(session.data.token, selectedAssetId),
-        getAssetGraph(session.data.token, selectedAssetId, { direction: "both", maxDepth: 3 }),
+        listMetadata(token, "asset", assetId),
+        listAssetRelationships(token, assetId),
+        listIncomingAssetRelationships(token, assetId),
+        listOutgoingAssetRelationships(token, assetId),
+        listAssetReferences(token, assetId),
+        getAssetGraph(token, assetId, { direction: "both", maxDepth: 3 }),
       ]);
       if (operation !== analysisOperation.current) return;
       setAssetMetadata({ status: "ready", data: metadata, error: null });
@@ -2034,7 +2191,7 @@ function OpenPdmApp() {
       setAssetReferences({ status: "ready", data: references, error: null });
       setAssetGraph({ status: "ready", data: graph, error: null });
       setAnalysisResult(result);
-      setBanner(`${provider.name} analysis completed.`);
+      setBanner(successMessage);
     } catch (error: unknown) {
       if (operation !== analysisOperation.current) return;
       setAnalysisResult(null);
@@ -2044,16 +2201,42 @@ function OpenPdmApp() {
     }
   }
 
+  async function handleInvokeAnalysisProvider(provider: ProviderDescriptor): Promise<void> {
+    await runAnalysisProvider(
+      provider.id,
+      {},
+      `provider-analysis-${provider.id}`,
+      `${provider.name} analysis completed.`,
+    );
+  }
+
+  async function handleMapAnalysisReference(input: {
+    providerId: string;
+    contributionKey: string;
+    targetAssetId: string;
+  }): Promise<void> {
+    await runAnalysisProvider(
+      input.providerId,
+      { [input.contributionKey]: input.targetAssetId },
+      `analysis-map-${input.contributionKey}`,
+      "Dependency mapped from the analysis contribution.",
+    );
+  }
+
   async function handleInstallPlugin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!session.data?.token || !pluginPackage) return;
     setBusyAction("install-plugin");
     setBanner(null);
     try {
-      await installPluginPackage(session.data.token, pluginPackage);
+      await installPluginPackage(session.data.token, pluginPackage, pluginInstallType);
       await refreshPlugins();
       setPluginPackage(null);
-      setBanner("Community Plugin installed.");
+      setBanner(
+        pluginInstallType === "official"
+          ? "Official Plugin installed."
+          : "Community Plugin installed.",
+      );
     } catch (error: unknown) {
       setBanner(error instanceof Error ? error.message : "Plugin installation failed.");
     } finally {
@@ -2215,6 +2398,10 @@ function OpenPdmApp() {
     members: "Members",
   };
 
+  // Below the 980px shell breakpoint the docked side column has no room, so the
+  // Asset detail falls back to the centred modal sheet.
+  const assetDetailPresentation = useMediaQuery("(max-width: 980px)") ? "overlay" : "dock";
+
   const breadcrumbItems: BreadcrumbItem[] = (() => {
     if (view === "project" && selectedProjectId) {
       const items: BreadcrumbItem[] = [
@@ -2237,7 +2424,7 @@ function OpenPdmApp() {
     if (view === "plugin-administration") return [{ key: "admin", label: "Plugin administration" }];
     if (view === "account") return [{ key: "account", label: "Account" }];
     if (view === "projects") return [{ key: "projects", label: "Projects" }];
-    return [{ key: "home", label: "Home" }];
+    return [{ key: "home", label: "Activity" }];
   })();
 
   return (
@@ -2270,13 +2457,19 @@ function OpenPdmApp() {
               <div className="sidebar-brand-row">
                 <button className="sidebar-brand" onClick={() => { setMobileNavigationOpen(false); navigate("/"); }} type="button">
                   <span className="sidebar-brand-mark"><Boxes /></span>
-                  <span><strong>OpenPDM</strong><small>Engineering collaboration</small></span>
+                  <span>
+                    <strong>OpenPDM</strong>
+                    <small>
+                      {organizations.data.find((membership) => membership.organization?.id === selectedOrganizationId)
+                        ?.organization?.name ?? "Engineering collaboration"}
+                    </small>
+                  </span>
                 </button>
                 <button aria-label="Close navigation" className="icon-button close-nav-button" onClick={() => setMobileNavigationOpen(false)} type="button"><X /></button>
               </div>
 
               <button className="sidebar-search" type="button">
-                <Search aria-hidden="true" /><span>Search or jump to…</span>
+                <Search aria-hidden="true" /><span>Search</span>
                 <span className="sidebar-search-hint">⌘K</span>
               </button>
 
@@ -2286,7 +2479,7 @@ function OpenPdmApp() {
                   onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
                   type="button"
                 >
-                  <Home /> Home
+                  <Activity /> Activity
                 </button>
 
                 <button
@@ -2294,10 +2487,16 @@ function OpenPdmApp() {
                   onClick={() => { setMobileNavigationOpen(false); navigate("/notifications"); }}
                   type="button"
                 >
-                  <Inbox /> Notifications <span>{unreadNotifications}</span>
+                  <Inbox /> Inbox {unreadNotifications ? <span>{unreadNotifications}</span> : null}
                 </button>
 
-                <button className={view === "projects" ? "sidebar-link is-active" : "sidebar-link"} onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }} type="button"><FolderKanban /> Projects <span>{projects.data.length}</span></button>
+                <button
+                  className="sidebar-link"
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/"); }}
+                  type="button"
+                >
+                  <Lock /> My checkouts {myCheckouts.data.length ? <span>{myCheckouts.data.length}</span> : null}
+                </button>
               </div>
 
               {organizations.status === "error" ? (
@@ -2341,36 +2540,38 @@ function OpenPdmApp() {
                 </form>
               ) : (
                 <>
-                  <div className="sidebar-section">
-                    <span className="sidebar-section-label">Organization</span>
-                    <div className="sidebar-org-list">
-                      {organizations.data.map((membership) => {
-                        const organization = membership.organization;
-                        if (!organization) {
-                          return null;
-                        }
-                        return (
-                          <button
-                            className={
-                              selectedOrganizationId === organization.id
-                                ? "sidebar-switcher-card is-selected"
-                                : "sidebar-switcher-card"
-                            }
-                            key={membership.id}
-                            onClick={() => setSelectedOrganizationId(organization.id)}
-                            type="button"
-                          >
-                            <span className="sidebar-switcher-avatar">{organization.name.slice(0, 2).toUpperCase()}</span>
-                            <span className="sidebar-switcher-text">
-                              <strong>{organization.name}</strong>
-                              <small>{membership.role} · {organization.slug}</small>
-                            </span>
-                            {organizations.data.length > 1 ? <ChevronsUpDown aria-hidden="true" className="ic14" /> : null}
-                          </button>
-                        );
-                      })}
+                  {organizations.data.length > 1 ? (
+                    <div className="sidebar-section">
+                      <span className="sidebar-section-label">Organization</span>
+                      <div className="sidebar-org-list">
+                        {organizations.data.map((membership) => {
+                          const organization = membership.organization;
+                          if (!organization) {
+                            return null;
+                          }
+                          return (
+                            <button
+                              className={
+                                selectedOrganizationId === organization.id
+                                  ? "sidebar-switcher-card is-selected"
+                                  : "sidebar-switcher-card"
+                              }
+                              key={membership.id}
+                              onClick={() => setSelectedOrganizationId(organization.id)}
+                              type="button"
+                            >
+                              <span className="sidebar-switcher-avatar">{organization.name.slice(0, 2).toUpperCase()}</span>
+                              <span className="sidebar-switcher-text">
+                                <strong>{organization.name}</strong>
+                                <small>{membership.role} · {organization.slug}</small>
+                              </span>
+                              <ChevronsUpDown aria-hidden="true" className="ic14" />
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   {selectedOrganizationId && !hasProjects ? (
                     <form className="form-grid compact-form" onSubmit={handleBootstrapProject}>
@@ -2455,16 +2656,117 @@ function OpenPdmApp() {
                     </Dialog>
                   ) : null}
 
-                  {hasProjects ? (
+                  {view === "project" && selectedProjectId && hasProjects ? (
+                    <>
+                      <div className="sidebar-section">
+                        <span className="sidebar-section-label">Project</span>
+                        <div className="sidebar-org-list">
+                          <button
+                            className="sidebar-switcher-card is-selected"
+                            onClick={() => { setMobileNavigationOpen(false); navigate("/projects"); }}
+                            title="Switch project"
+                            type="button"
+                          >
+                            <span className="sidebar-switcher-avatar">
+                              {(projects.data.find((item) => item.id === selectedProjectId)?.name ?? "PR")
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </span>
+                            <span className="sidebar-switcher-text">
+                              <strong>
+                                {projects.data.find((item) => item.id === selectedProjectId)?.name ?? "Project"}
+                              </strong>
+                              <small>
+                                {(currentProjectRole ?? "member").toLowerCase()} · {assets.data.length} assets
+                              </small>
+                            </span>
+                            <ChevronsUpDown aria-hidden="true" className="ic14" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="sidebar-section sidebar-section-flex">
+                        <div className="sidebar-section-header">
+                          <span className="sidebar-section-label">Workspaces</span>
+                          <button
+                            aria-label="New workspace"
+                            className="icon-button icon-button-sm"
+                            onClick={startNewWorkspace}
+                            title="New workspace"
+                            type="button"
+                          >
+                            <Plus />
+                          </button>
+                        </div>
+                        <div className="sidebar-project-list">
+                          {WORKSPACE_PRESETS.map((preset) => (
+                            <button
+                              className={
+                                activeWorkspaceId === preset.id
+                                  ? "sidebar-project-card is-selected"
+                                  : "sidebar-project-card"
+                              }
+                              key={preset.id}
+                              onClick={() => applyWorkspacePreset(preset)}
+                              type="button"
+                            >
+                              <span className="sidebar-project-dot" />
+                              <span className="sidebar-project-text">
+                                <strong>{preset.label}</strong>
+                                <small>{preset.hint}</small>
+                              </span>
+                            </button>
+                          ))}
+                          {assetViews.data.map((savedView) => (
+                            <button
+                              className="sidebar-project-card"
+                              key={savedView.id}
+                              onClick={() => applySavedViewWorkspace(savedView)}
+                              type="button"
+                            >
+                              <span className="sidebar-project-dot" />
+                              <span className="sidebar-project-text">
+                                <strong>{savedView.name}</strong>
+                                <small>Saved view</small>
+                              </span>
+                            </button>
+                          ))}
+                          {projects.data.some((project) => project.id !== selectedProjectId) ? (
+                            <span className="sidebar-section-label sidebar-section-label--sub">Other projects</span>
+                          ) : null}
+                          {projects.data
+                            .filter((project) => project.id !== selectedProjectId)
+                            .map((project) => (
+                              <button
+                                className="sidebar-project-card"
+                                key={project.id}
+                                onClick={() => {
+                                  setSelectedProjectId(project.id);
+                                  setMobileNavigationOpen(false);
+                                  navigate(`/projects/${project.id}/assets`);
+                                }}
+                                type="button"
+                              >
+                                <span className="sidebar-project-dot" />
+                                <span className="sidebar-project-text">
+                                  <strong>{project.name}</strong>
+                                  <small>{project.description || "No description"}</small>
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : hasProjects ? (
                     <div className="sidebar-section sidebar-section-flex">
                       <div className="sidebar-section-header">
                         <span className="sidebar-section-label">Projects</span>
                         {selectedOrganizationId ? (
                           <button
-                            aria-label="New Project"
+                            aria-label="New project"
                             className="icon-button icon-button-sm"
                             onClick={() => setShowCreateProjectForm((current) => !current)}
-                            title="New Project"
+                            title="New project"
                             type="button"
                           >
                             <Plus />
@@ -2514,6 +2816,13 @@ function OpenPdmApp() {
                   type="button"
                 >
                   <Package /> Plugin administration
+                </button>
+                <button
+                  className={view === "account" ? "sidebar-link is-active" : "sidebar-link"}
+                  onClick={() => { setMobileNavigationOpen(false); navigate("/account"); }}
+                  type="button"
+                >
+                  <CircleUser /> Account
                 </button>
               </div>
             </aside>
@@ -2600,6 +2909,30 @@ function OpenPdmApp() {
       ) : (
         <>
           <section className="workspace-grid">
+            {view === "home" ? (
+              <div className="content-span">
+                <ActivityHome
+                  checkouts={myCheckouts}
+                  displayName={session.data?.user.display_name ?? "you"}
+                  notifications={notifications.data}
+                  notificationsBusy={
+                    busyAction === "refresh-notifications" || notifications.status === "loading"
+                  }
+                  notificationsError={
+                    notifications.status === "error" ? notifications.error : null
+                  }
+                  onOpenAsset={(projectId, assetId) => {
+                    setSelectedProjectId(projectId);
+                    navigate(projectAssetPath(projectId, "assets", assetId));
+                  }}
+                  onOpenProjectAssets={(projectId) => {
+                    setSelectedProjectId(projectId);
+                    navigate(projectAssetPath(projectId, "assets", null));
+                  }}
+                  onRefresh={() => void handleRefreshNotifications()}
+                />
+              </div>
+            ) : null}
             {view === "home" || view === "projects" ? (
               <section className="panel home-panel content-span">
                 <header className="panel-header">
@@ -2693,57 +3026,6 @@ function OpenPdmApp() {
                 {view === "home" && !selectedProjectId && projects.status === "ready" ? (
                   <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>No recent Project context</h3><p>Create or select a Project to surface recent Engineering Assets here.</p></div>
                 ) : null}
-                {view === "home" ? <article className="detail-card notification-card">
-                  <div className="detail-row">
-                    <div>
-                      <h3>Notifications</h3>
-                      <p>Recent collaboration activity for your account.</p>
-                    </div>
-                    <button
-                      className="secondary-button"
-                      disabled={busyAction === "refresh-notifications"}
-                      onClick={() => void handleRefreshNotifications()}
-                      type="button"
-                    >
-                      Refresh
-                    </button>
-                  </div>
-                  {notifications.data.length ? (
-                    <div className="timeline">
-                      {notifications.data.slice(0, 8).map((notification) => (
-                        <article key={notification.id} className="timeline-card notification-item">
-                          <div className="timeline-header">
-                            <div>
-                              <h3>{formatNotificationEvent(notification.event_type)}</h3>
-                              <p>{notificationSummary(notification)}</p>
-                            </div>
-                            <small>{formatTimestamp(notification.created_at)}</small>
-                          </div>
-                          <span
-                            className={
-                              notification.is_read
-                                ? "status-pill notification-pill notification-read"
-                                : "status-pill notification-pill notification-unread"
-                            }
-                          >
-                            {notification.is_read ? "read" : "unread"}
-                          </span>
-                          {!notification.is_read ? (
-                            <button
-                              className="secondary-button"
-                              onClick={() => void handleMarkNotificationRead(notification.id)}
-                              type="button"
-                            >
-                              Mark as read
-                            </button>
-                          ) : null}
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-state">No notifications yet.</p>
-                  )}
-                </article> : null}
               </section>
             ) : null}
 
@@ -2956,7 +3238,7 @@ function OpenPdmApp() {
                   </form>
                 </section>
                 <form className="form-grid compact-form" onSubmit={handleInstallPlugin}>
-                  <h3>Install Community Plugin</h3>
+                  <h3>Install plugin</h3>
                   <label>
                     OpenPDM plugin package
                     <input
@@ -2966,6 +3248,22 @@ function OpenPdmApp() {
                       onChange={(event) => setPluginPackage(event.target.files?.[0] ?? null)}
                     />
                   </label>
+                  <label>
+                    Plugin type
+                    <select
+                      value={pluginInstallType}
+                      onChange={(event) =>
+                        setPluginInstallType(event.target.value === "official" ? "official" : "community")
+                      }
+                    >
+                      <option value="community">Community Plugin</option>
+                      <option value="official">Official Plugin</option>
+                    </select>
+                  </label>
+                  <p className="muted-text">
+                    The type is a provenance label only. Official and Community Plugins use the same
+                    validation, sandbox and lifecycle controls.
+                  </p>
                   <button
                     className="primary-button"
                     disabled={!pluginPackage || busyAction === "install-plugin"}
@@ -3114,6 +3412,24 @@ function OpenPdmApp() {
                   </div>
                   {projectTab === "assets" ? (
                     <div className="project-header-actions">
+                      <div aria-label="Asset view mode" className="segmented-control" role="group">
+                        <button
+                          aria-pressed={assetViewMode === "table"}
+                          className={assetViewMode === "table" ? "is-active" : undefined}
+                          onClick={() => setAssetViewMode("table")}
+                          type="button"
+                        >
+                          Table
+                        </button>
+                        <button
+                          aria-pressed={assetViewMode === "graph"}
+                          className={assetViewMode === "graph" ? "is-active" : undefined}
+                          onClick={() => setAssetViewMode("graph")}
+                          type="button"
+                        >
+                          Graph
+                        </button>
+                      </div>
                       <button className="primary-button" onClick={() => setShowCreateAssetForm(true)} type="button">
                         <Plus /> New Asset
                       </button>
@@ -3436,7 +3752,10 @@ function OpenPdmApp() {
                 ) : null}
 
                 {projectTab === "assets" ? (
-                  <>
+                  <div className={selectedAssetId && assetDetail.data && assetDetailPresentation === "dock" ? "asset-workspace" : "asset-workspace asset-workspace--solo"}>
+            {assetViewMode === "graph" ? (
+              <AssetGraphMode graph={projectGraph} onSelectAsset={(assetId) => selectAsset(assetId)} />
+            ) : (
             <section className="panel asset-panel asset-collection" aria-labelledby="asset-collection-title">
               <header className="panel-header operational-header">
                 <div>
@@ -3541,12 +3860,22 @@ function OpenPdmApp() {
                   {hasAssets ? (
                     <div className="asset-table-region" aria-busy={assets.status === "loading"} tabIndex={0}>
                       <table className="asset-table">
-                        <thead><tr><th>Name</th><th>Status</th><th>Updated</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Status</th><th>Lock</th><th>Updated</th></tr></thead>
                         <tbody>
                           {assets.data.map((asset) => (
                             <tr className={selectedAssetId === asset.id ? "is-selected" : ""} key={asset.id}>
                               <td><button aria-current={selectedAssetId === asset.id ? "true" : undefined} className="text-button asset-name-button" onClick={() => selectAsset(asset.id)} type="button"><strong>{asset.name}</strong><small>{asset.description || "No description"}</small></button></td>
                               <td><span className="status-pill">{asset.status}</span></td>
+                              <td>
+                                <AssetLockCell
+                                  asset={asset}
+                                  busy={busyAction !== null}
+                                  currentUserId={session.data?.user.id}
+                                  onCheckOut={(assetId) => { selectAsset(assetId); void handleCheckout(assetId); }}
+                                  onOpenCheckIn={(assetId) => { selectAsset(assetId); setShowCheckInForm(true); }}
+                                  onTakeOver={(assetId) => { selectAsset(assetId); void handleTakeOverLock(assetId); }}
+                                />
+                              </td>
                               <td>{formatTimestamp(asset.updated_at)}</td>
                             </tr>
                           ))}
@@ -3567,7 +3896,10 @@ function OpenPdmApp() {
                 <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>Select a Project</h3><p>Choose a Project before browsing or creating Engineering Assets.</p></div>
               )}
             </section>
+            )}
             <AssetDetailPanel
+              presentation={assetDetailPresentation}
+              onOpenFullPage={() => setBanner("A full-page Asset view is coming soon — the docked panel has everything for now.")}
               analysisBusy={analysisBusy}
               analysisRepresentations={analysisRepresentations}
               analysisResult={analysisResult}
@@ -3595,6 +3927,7 @@ function OpenPdmApp() {
               onDiscardTransfer={() => void handleDiscardTransfer()}
               onDownload={(blobId, filename) => void handleDownload(blobId, filename)}
               onInvokeAnalysisProvider={(provider) => void handleInvokeAnalysisProvider(provider)}
+              onMapAnalysisReference={(input) => void handleMapAnalysisReference(input)}
               onProviderSelectionChange={(providerId, value) =>
                 setProviderSelections((current) => ({ ...current, [providerId]: value }))
               }
@@ -3631,7 +3964,7 @@ function OpenPdmApp() {
               transfer={transfer}
               uploadForm={uploadForm}
             />
-                  </>
+                  </div>
                 ) : null}
               </section>
             ) : null}

@@ -286,6 +286,15 @@ export type AssetGraph = {
   relationships: Relationship[];
 };
 
+export type AssetLockSummary = {
+  state: "available" | "locked" | "stale_lock";
+  owner_user_id: string | null;
+  owner_display_name: string | null;
+  locked_at: string | null;
+  is_mine: boolean;
+  can_take_over: boolean;
+};
+
 export type Asset = {
   id: string;
   project_id: string;
@@ -296,6 +305,8 @@ export type Asset = {
   created_at: string;
   updated_at: string;
   revisions: Revision[];
+  /** Present on list/detail responses; older cached payloads may omit it. */
+  lock?: AssetLockSummary | null;
 };
 
 export class ApiError extends Error {
@@ -1067,6 +1078,20 @@ export async function listPluginsPage(
     }),
     { token },
   );
+}
+
+export type ActorLock = {
+  asset_id: string;
+  asset_name: string;
+  project_id: string;
+  project_name: string;
+  state: "available" | "locked" | "stale_lock";
+  locked_at: string;
+};
+
+/** Every collaboration lock currently held by the signed-in user, across all Projects. */
+export async function listMyCheckouts(token: string): Promise<ActorLock[]> {
+  return request<ActorLock[]>("/users/me/checkouts", { token });
 }
 
 export async function listProjectAssetViews(

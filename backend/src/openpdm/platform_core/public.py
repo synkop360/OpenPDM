@@ -26,6 +26,30 @@ class CollaborationStateView:
 
 
 @dataclass(frozen=True, slots=True)
+class AssetLockSummaryView:
+    """Lightweight collaboration-lock summary attached to an Asset in list views."""
+
+    state: str
+    owner_user_id: str | None
+    owner_display_name: str | None
+    locked_at: datetime | None
+    is_mine: bool
+    can_take_over: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ActorLockView:
+    """One collaboration lock held by the requesting user, with its Asset/Project context."""
+
+    asset_id: str
+    asset_name: str
+    project_id: str
+    project_name: str
+    state: str
+    locked_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class TimelineEntryView:
     event_type: str
     occurred_at: datetime

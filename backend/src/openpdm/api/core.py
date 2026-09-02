@@ -39,6 +39,7 @@ from openpdm.infrastructure.plugin_secrets import PluginSecretCipher
 from openpdm.infrastructure.settings import Settings
 from openpdm.platform_core.composition import MODULES
 from openpdm.platform_core.public import (
+    AssetLockSummaryView,
     CollaborationStateView,
     GraphQueryResultView,
     SessionContextView,
@@ -191,6 +192,15 @@ class RevisionResponse(ApiModel):
     representations: list[RepresentationResponse] = Field(default_factory=list)
 
 
+class AssetLockResponse(ApiModel):
+    state: str
+    owner_user_id: str | None = None
+    owner_display_name: str | None = None
+    locked_at: str | None = None
+    is_mine: bool = False
+    can_take_over: bool = False
+
+
 class AssetResponse(ApiModel):
     id: str
     project_id: str
@@ -201,6 +211,7 @@ class AssetResponse(ApiModel):
     created_at: str
     updated_at: str
     revisions: list[RevisionResponse] = Field(default_factory=list)
+    lock: AssetLockResponse | None = None
 
 
 class MetadataResponse(ApiModel):
@@ -348,6 +359,15 @@ class ProjectAssetViewResponse(BaseModel):
     selected_columns: list[str]
     created_at: str
     updated_at: str
+
+
+class ActorLockResponse(BaseModel):
+    asset_id: str
+    asset_name: str
+    project_id: str
+    project_name: str
+    state: str
+    locked_at: str
 
 
 class ProjectAssetViewRequest(BaseModel):
@@ -669,7 +689,20 @@ def serialize_revision(revision: Any) -> RevisionResponse:
     )
 
 
-def serialize_asset(asset: Any) -> AssetResponse:
+def serialize_asset_lock(summary: AssetLockSummaryView | None) -> AssetLockResponse | None:
+    if summary is None:
+        return None
+    return AssetLockResponse(
+        state=summary.state,
+        owner_user_id=summary.owner_user_id,
+        owner_display_name=summary.owner_display_name,
+        locked_at=_iso(summary.locked_at) if summary.locked_at is not None else None,
+        is_mine=summary.is_mine,
+        can_take_over=summary.can_take_over,
+    )
+
+
+def serialize_asset(asset: Any, *, lock: AssetLockSummaryView | None = None) -> AssetResponse:
     ordered_revisions = sorted(asset.revisions, key=lambda item: item.number)
     return AssetResponse(
         id=asset.id,
@@ -681,6 +714,7 @@ def serialize_asset(asset: Any) -> AssetResponse:
         created_at=_iso(asset.created_at),
         updated_at=_iso(asset.updated_at),
         revisions=[serialize_revision(item) for item in ordered_revisions],
+        lock=serialize_asset_lock(lock),
     )
 
 
@@ -1301,6 +1335,24 @@ def get_project(
     )
 
 
+@router.get("/users/me/checkouts", response_model=list[ActorLockResponse])
+def list_my_checkouts(
+    context: SessionContext = Depends(get_authenticated_session),
+    db: Session = Depends(get_db_session),
+) -> list[ActorLockResponse]:
+    return [
+        ActorLockResponse(
+            asset_id=lock.asset_id,
+            asset_name=lock.asset_name,
+            project_id=lock.project_id,
+            project_name=lock.project_name,
+            state=lock.state,
+            locked_at=_iso(lock.locked_at),
+        )
+        for lock in CollaborationModule.list_actor_locks(db, actor=context.user)
+    ]
+
+
 @router.get("/users/me/project-views", response_model=list[ProjectAssetViewResponse])
 def list_project_asset_views(
     project_id: str | None = None,
@@ -1780,10 +1832,9 @@ def list_assets(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> list[AssetResponse]:
-    return [
-        serialize_asset(item)
-        for item in AssetsModule.list_assets(db, project_id=project_id, actor=context.user)
-    ]
+    assets = AssetsModule.list_assets(db, project_id=project_id, actor=context.user)
+    locks = CollaborationModule.resolve_lock_summaries(db, assets=assets, actor=context.user)
+    return [serialize_asset(item, lock=locks.get(item.id)) for item in assets]
 
 
 @router.get("/projects/{project_id}/assets/page", response_model=AssetPageResponse)
@@ -1809,8 +1860,9 @@ def list_assets_page(
         sort=sort,
         direction=direction,
     )
+    locks = CollaborationModule.resolve_lock_summaries(db, assets=page.items, actor=context.user)
     return AssetPageResponse(
-        items=[serialize_asset(item) for item in page.items],
+        items=[serialize_asset(item, lock=locks.get(item.id)) for item in page.items],
         next_cursor=page.next_cursor,
     )
 
@@ -1821,7 +1873,9 @@ def get_asset(
     context: SessionContext = Depends(get_authenticated_session),
     db: Session = Depends(get_db_session),
 ) -> AssetResponse:
-    return serialize_asset(AssetsModule.get_asset(db, asset_id=asset_id, actor=context.user))
+    asset = AssetsModule.get_asset(db, asset_id=asset_id, actor=context.user)
+    locks = CollaborationModule.resolve_lock_summaries(db, assets=[asset], actor=context.user)
+    return serialize_asset(asset, lock=locks.get(asset.id))
 
 
 @router.post(
