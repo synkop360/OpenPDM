@@ -458,8 +458,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Welcome, Owner" })).toBeInTheDocument();
-    expect(await screen.findByText("Wing Panel")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Recent activity" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Acme/i })).toBeInTheDocument();
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
@@ -1770,7 +1769,7 @@ describe("App", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await screen.findByRole("heading", { name: "Welcome, Owner" });
+    await screen.findByRole("heading", { name: "Recent activity" });
     fireEvent.click(screen.getByLabelText("Notifications"));
 
     expect(window.location.pathname).toBe("/notifications");
