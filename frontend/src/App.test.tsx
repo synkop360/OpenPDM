@@ -19,9 +19,11 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
 }
 
 async function switchAssetDetailTab(
-  name: "Metadata & Analysis" | "Relationships & Graph" | "History & Collaboration",
+  name: "Overview" | "Analysis" | "Graph" | "History" | "Files",
 ): Promise<void> {
-  fireEvent.click(await screen.findByRole("button", { name }));
+  // The workspace also has a Table/Graph toggle, so scope to the detail-sheet tab strip.
+  const tabs = await screen.findByRole("navigation", { name: "Asset detail sections" });
+  fireEvent.click(within(tabs).getByRole("button", { name }));
 }
 
 describe("App", () => {
@@ -178,13 +180,13 @@ describe("App", () => {
                 {
                   id: "representation-1",
                   revision_id: "revision-1",
-                  name: "native.fcstd",
+                  name: "native.dat",
                   media_type: "application/octet-stream",
                   blob_id: "blob-1",
                   created_at: "2026-01-02T00:00:00",
                   blob: {
                     id: "blob-1",
-                    filename: "native.fcstd",
+                    filename: "native.dat",
                     media_type: "application/octet-stream",
                     size_bytes: 1234,
                     checksum_sha256: "abc",
@@ -468,22 +470,22 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
     expect((await screen.findAllByText(/Wing Panel/i)).length).toBeGreaterThan(0);
     expect(window.location.pathname).toBe("/projects/project-1/assets/asset-1");
-    await switchAssetDetailTab("History & Collaboration");
+    await switchAssetDetailTab("History");
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
-    await switchAssetDetailTab("Metadata & Analysis");
+    expect(await screen.findByRole("button", { name: "Release lock" })).toBeInTheDocument();
+    await switchAssetDetailTab("Analysis");
     expect(await screen.findByText("Asset Categories API Test Plugin")).toBeInTheDocument();
     expect(await screen.findByLabelText("Asset category")).toBeInTheDocument();
     expect(screen.queryByText("No running Metadata Provider is available.")).not.toBeInTheDocument();
     expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
-    await switchAssetDetailTab("Relationships & Graph");
+    await switchAssetDetailTab("Graph");
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();
-    await switchAssetDetailTab("History & Collaboration");
+    await switchAssetDetailTab("History");
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
-    await switchAssetDetailTab("Metadata & Analysis");
+    await switchAssetDetailTab("Analysis");
     expect(await screen.findByLabelText("Representation to analyze")).toHaveValue("representation-1");
     const analysisButtons = screen.getAllByRole("button", { name: "Analyze representation" });
     fireEvent.click(analysisButtons[0]);
@@ -504,10 +506,10 @@ describe("App", () => {
     ]));
     expect(await screen.findByText("plugin.analysis.status")).toBeInTheDocument();
     expect(await screen.findByText("Analysis reference")).toBeInTheDocument();
-    await switchAssetDetailTab("Relationships & Graph");
+    await switchAssetDetailTab("Graph");
     expect(screen.getByText("2 links")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^(command|executable|launch)/i })).not.toBeInTheDocument();
-    await switchAssetDetailTab("Metadata & Analysis");
+    await switchAssetDetailTab("Analysis");
     fireEvent.click(screen.getAllByRole("button", { name: "Analyze representation" })[0]);
     expect(screen.queryByText("Analysis complete: 1 metadata, 1 references, 1 relationships.")).not.toBeInTheDocument();
     expect(await screen.findByText("Analysis unavailable.")).toBeInTheDocument();
@@ -862,16 +864,17 @@ describe("App", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Check in" }));
       expect(await screen.findByText("Select wing.step to resume the interrupted transfer.")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
-      await switchAssetDetailTab("Relationships & Graph");
+      await switchAssetDetailTab("Graph");
     } else {
-      await switchAssetDetailTab("Relationships & Graph");
+      await switchAssetDetailTab("Graph");
       const openButtons = await screen.findAllByRole("button", { name: "Open asset" });
       fireEvent.click(openButtons[0]);
     }
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     if (!runDiscardRace) {
       expect(await screen.findByText((_content, element) =>
-        element?.tagName.toLowerCase() === "p" && element.textContent === "Load-bearing support"))
+        element?.tagName.toLowerCase() === "p" &&
+        (element.textContent ?? "").startsWith("Load-bearing support")))
         .toBeInTheDocument();
       return;
     }
@@ -898,7 +901,7 @@ describe("App", () => {
     // already has one incoming relationship from asset-1 (Wing Panel) and no
     // outgoing ones -- Wing Panel is therefore the only candidate target.
     await exerciseRelationshipAndDiscardRace("resolve", false);
-    await switchAssetDetailTab("Relationships & Graph");
+    await switchAssetDetailTab("Graph");
 
     expect(await screen.findByText("From Wing Panel")).toBeInTheDocument();
     expect(screen.getByText("This Asset has no outgoing relationships yet.")).toBeInTheDocument();
@@ -930,13 +933,14 @@ describe("App", () => {
   it("allows a new analysis after the selected Asset changes during an in-flight analysis", async () => {
     await exerciseRelationshipAndDiscardRace("resolve", false);
 
-    await switchAssetDetailTab("Metadata & Analysis");
+    await switchAssetDetailTab("Analysis");
     fireEvent.click(await screen.findByRole("button", { name: "Analyze representation" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled());
 
     fireEvent.click(document.querySelectorAll<HTMLButtonElement>("button.asset-name-button")[0]);
     expect(await screen.findByText((_content, element) =>
-      element?.tagName.toLowerCase() === "p" && element.textContent === "Primary structure"))
+      element?.tagName.toLowerCase() === "p" &&
+      (element.textContent ?? "").startsWith("Primary structure")))
       .toBeInTheDocument();
 
     const analysisButton = await screen.findByRole("button", { name: "Analyze representation" });
@@ -1113,7 +1117,7 @@ describe("App", () => {
     const projectButtons = await screen.findAllByRole("button", { name: /Rocket/i });
     fireEvent.click(projectButtons[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Assets" }));
-    await switchAssetDetailTab("History & Collaboration");
+    await switchAssetDetailTab("History");
     const checkoutButton = await screen.findByRole("button", { name: "Check out" });
     fireEvent.click(checkoutButton);
 
@@ -1237,8 +1241,11 @@ describe("App", () => {
 
     render(<App />);
 
+    // The Activity home surfaces the event in its feed...
     expect(await screen.findByText("Conflict detected")).toBeInTheDocument();
-    const readButton = await screen.findByRole("button", { name: "Mark as read" });
+    // ...but marking it read lives in the Notifications inbox.
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    const readButton = await screen.findByRole("button", { name: "Mark read" });
     fireEvent.click(readButton);
     expect(await screen.findByText("read")).toBeInTheDocument();
   });
@@ -1405,6 +1412,22 @@ describe("App", () => {
           updated_at: "2026-01-01T00:00:00",
         });
       }
+      if (path.startsWith("/plugins/packages") && method === "POST") {
+        return jsonResponse({
+          id: "org.openpdm.freecad",
+          name: "FreeCAD Analysis",
+          version: "0.1.0",
+          plugin_type: "official",
+          capabilities: ["analysis_provider"],
+          extension_api_versions: [1],
+          lifecycle_state: "disabled",
+          diagnostic_reason: null,
+          enabled: false,
+          package_digest: "b".repeat(64),
+          created_at: "2026-01-02T00:00:00",
+          updated_at: "2026-01-02T00:00:00",
+        }, 201);
+      }
       throw new Error(`Unexpected request: ${method} ${path}`);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -1438,6 +1461,22 @@ describe("App", () => {
         body: JSON.stringify({ values: { prefix: "updated", token: "replacement-secret" } }),
       }),
     ));
+
+    // Install an Official Plugin package through the browser (provenance label reaches the API).
+    fireEvent.change(screen.getByLabelText("Plugin type"), { target: { value: "official" } });
+    fireEvent.change(screen.getByLabelText("OpenPDM plugin package"), {
+      target: { files: [new File(["pkg"], "freecad.openpdm-plugin")] },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: "Install package" }).closest("form")!,
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/plugins/packages?plugin_type=official",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    expect(await screen.findByText("Official Plugin installed.")).toBeInTheDocument();
   });
 
   it("grants and revokes Platform Administrator authority by email", async () => {

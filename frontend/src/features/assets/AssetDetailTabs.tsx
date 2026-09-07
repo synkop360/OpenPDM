@@ -1,11 +1,13 @@
-export const assetDetailTabs = ["metadata", "relationships", "history"] as const;
+export const assetDetailTabs = ["overview", "analysis", "graph", "history", "files"] as const;
 
 export type AssetDetailTab = (typeof assetDetailTabs)[number];
 
 const labels: Record<AssetDetailTab, string> = {
-  metadata: "Metadata & Analysis",
-  relationships: "Relationships & Graph",
-  history: "History & Collaboration",
+  overview: "Overview",
+  analysis: "Analysis",
+  graph: "Graph",
+  history: "History",
+  files: "Files",
 };
 
 type AssetDetailTabsProps = {

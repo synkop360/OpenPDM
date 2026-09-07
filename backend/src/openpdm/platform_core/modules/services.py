@@ -6,7 +6,7 @@ import base64
 import hashlib
 import secrets
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -61,7 +61,11 @@ from openpdm.platform_core.modules.models import (
     User,
 )
 from openpdm.platform_core.pagination import PageResult, paginate
-from openpdm.platform_core.public import PluginEventDeliveryView
+from openpdm.platform_core.public import (
+    ActorLockView,
+    AssetLockSummaryView,
+    PluginEventDeliveryView,
+)
 from openpdm.platform_core.request_context import get_request_id
 
 ORG_ROLE_PRIORITY = {"Owner": 4, "Maintainer": 3, "Contributor": 2, "Viewer": 1}
@@ -3980,6 +3984,100 @@ class CollaborationModule:
             can_unlock=is_owner and state in {"locked", "stale_lock"},
             can_force_unlock=can_force_unlock,
         )
+
+    @staticmethod
+    def resolve_lock_summaries(
+        db: Session, *, assets: Iterable[Asset], actor: User
+    ) -> dict[str, AssetLockSummaryView]:
+        """Batch-resolve a display lock summary for each Asset in ``assets``.
+
+        Used by list endpoints so a table can show a Lock column without one
+        collaboration-state request per row. The full per-Asset authority
+        (``get_collaboration_state``) stays the source of truth for mutations.
+        """
+        asset_list = list(assets)
+        if not asset_list:
+            return {}
+
+        lock_by_asset: dict[str, AssetCollaborationLock] = {
+            lock.asset_id: lock
+            for lock in db.scalars(
+                select(AssetCollaborationLock)
+                .options(joinedload(AssetCollaborationLock.owner))
+                .where(AssetCollaborationLock.asset_id.in_([asset.id for asset in asset_list]))
+            )
+        }
+
+        actor_role_by_project: dict[str, str | None] = {}
+
+        def actor_project_role(project_id: str) -> str | None:
+            if project_id not in actor_role_by_project:
+                actor_role_by_project[project_id] = CollaborationModule._get_project_role(
+                    db, project_id=project_id, user_id=actor.id
+                )
+            return actor_role_by_project[project_id]
+
+        summaries: dict[str, AssetLockSummaryView] = {}
+        for asset in asset_list:
+            lock = lock_by_asset.get(asset.id)
+            if lock is None:
+                summaries[asset.id] = AssetLockSummaryView(
+                    state="available",
+                    owner_user_id=None,
+                    owner_display_name=None,
+                    locked_at=None,
+                    is_mine=False,
+                    can_take_over=False,
+                )
+                continue
+
+            state = CollaborationModule._resolve_state(db, asset)
+            is_mine = lock.owner_user_id == actor.id
+            role = actor_project_role(asset.project_id)
+            can_take_over = (not is_mine) and (
+                role in FORCE_UNLOCK_ROLES
+                or (state == "stale_lock" and role in LOCK_OWNER_WRITE_ROLES)
+            )
+            summaries[asset.id] = AssetLockSummaryView(
+                state=state,
+                owner_user_id=lock.owner_user_id,
+                owner_display_name=lock.owner.display_name if lock.owner is not None else None,
+                locked_at=lock.created_at,
+                is_mine=is_mine,
+                can_take_over=can_take_over,
+            )
+        return summaries
+
+    @staticmethod
+    def list_actor_locks(db: Session, *, actor: User) -> list[ActorLockView]:
+        """Every collaboration lock currently held by ``actor``, across all Projects.
+
+        Backs the account-wide "my checkouts" surface. Resolved state distinguishes
+        a healthy lock from one that has gone stale (owner lost write access, Asset
+        archived) and is safe for anyone to take over.
+        """
+        locks = db.scalars(
+            select(AssetCollaborationLock)
+            .options(joinedload(AssetCollaborationLock.asset).joinedload(Asset.project))
+            .where(AssetCollaborationLock.owner_user_id == actor.id)
+            .order_by(AssetCollaborationLock.created_at.desc())
+        )
+        summaries: list[ActorLockView] = []
+        for lock in locks:
+            asset = lock.asset
+            if asset is None or asset.project is None:
+                continue
+            summaries.append(
+                ActorLockView(
+                    asset_id=asset.id,
+                    asset_name=asset.name,
+                    project_id=asset.project_id,
+                    project_name=asset.project.name,
+                    state=CollaborationModule._resolve_state(db, asset),
+                    locked_at=lock.created_at,
+                )
+            )
+        return summaries
 
     @staticmethod
     def _record_conflict(

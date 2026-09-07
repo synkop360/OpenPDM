@@ -4,12 +4,19 @@ import { SkipLink } from "../navigation/SkipLink";
 
 type AppShellProps = {
   announcement?: string | null;
+  onAnnouncementDismiss?: () => void;
   children: ReactNode;
   header: ReactNode;
   sidebar?: ReactNode;
 };
 
-export function AppShell({ announcement, children, header, sidebar }: AppShellProps) {
+export function AppShell({
+  announcement,
+  onAnnouncementDismiss,
+  children,
+  header,
+  sidebar,
+}: AppShellProps) {
   return (
     <div className={sidebar ? "app-frame" : "app-frame app-frame--no-sidebar"}>
       <SkipLink />
@@ -17,7 +24,11 @@ export function AppShell({ announcement, children, header, sidebar }: AppShellPr
       <div className="app-main">
         {header}
         <main className="app-content" id="main-content" tabIndex={-1}>
-          {announcement ? <InlineAlert tone="info">{announcement}</InlineAlert> : null}
+          {announcement ? (
+            <InlineAlert onDismiss={onAnnouncementDismiss} tone="info">
+              {announcement}
+            </InlineAlert>
+          ) : null}
           {children}
         </main>
       </div>

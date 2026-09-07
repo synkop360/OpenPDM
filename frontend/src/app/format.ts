@@ -4,6 +4,21 @@ export function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString();
 }
 
+/** Compact "just now" / "3m" / "5h" / "2d" / "6w" label for a past ISO timestamp. */
+export function formatRelativeTime(value: string, now: number = Date.now()): string {
+  const elapsedMs = now - new Date(value).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 45_000) {
+    return "just now";
+  }
+  const minutes = Math.round(elapsedMs / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d`;
+  return `${Math.round(days / 7)}w`;
+}
+
 export function formatNotificationEvent(eventType: string): string {
   switch (eventType) {
     case "asset.checked_out":

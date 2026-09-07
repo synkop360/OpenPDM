@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { InlineAlert } from "../../components/feedback/InlineAlert";
 import { describeMetadataEntry, describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
 import type {
   AnalysisResult,
+  Asset,
   MetadataEntry,
   ProviderDescriptor,
   ProviderOptionSet,
   ReferenceRecord,
+  Relationship,
   Representation,
   Revision,
 } from "../../api";
@@ -15,6 +18,21 @@ type AnalysisRepresentationOption = {
   representation: Representation;
   revision: Revision;
 };
+
+type AnalysisReferenceEntry = {
+  reference: ReferenceRecord;
+  providerId: string;
+  contributionKey: string;
+};
+
+function readAnalysisProvenance(reference: ReferenceRecord): AnalysisReferenceEntry | null {
+  const providerId = reference.metadata["analysis_provider_id"];
+  const contributionKey = reference.metadata["analysis_contribution_key"];
+  if (typeof providerId !== "string" || typeof contributionKey !== "string") {
+    return null;
+  }
+  return { reference, providerId, contributionKey };
+}
 
 function ProvenanceNote({ metadata }: { metadata: Record<string, unknown> }) {
   const summary = describeProvenanceMetadata(metadata);
@@ -45,15 +63,24 @@ export type MetadataAnalysisSectionProps = {
   analysisResult: AnalysisResult | null;
   assetMetadata: Loadable<MetadataEntry[]>;
   assetReferences: Loadable<ReferenceRecord[]>;
+  assetRelationships: Loadable<Relationship[]>;
+  assetNameById: Map<string, string>;
+  assets: Asset[];
   busyAction: string | null;
   onAnalysisRepresentationChange: (representationId: string) => void;
   onApplyMetadataProvider: (provider: ProviderDescriptor) => void;
   onInvokeAnalysisProvider: (provider: ProviderDescriptor) => void;
+  onMapAnalysisReference: (input: {
+    providerId: string;
+    contributionKey: string;
+    targetAssetId: string;
+  }) => void;
   onProviderSelectionChange: (providerId: string, value: string) => void;
   providerOptions: Record<string, ProviderOptionSet[]>;
   providers: Loadable<ProviderDescriptor[]>;
   providerSelections: Record<string, string>;
   selectedAnalysisRepresentation: Representation | null;
+  selectedAssetId: string | null;
 };
 
 export function MetadataAnalysisSection({
@@ -62,16 +89,38 @@ export function MetadataAnalysisSection({
   analysisResult,
   assetMetadata,
   assetReferences,
+  assetRelationships,
+  assetNameById,
+  assets,
   busyAction,
   onAnalysisRepresentationChange,
   onApplyMetadataProvider,
   onInvokeAnalysisProvider,
+  onMapAnalysisReference,
   onProviderSelectionChange,
   providerOptions,
   providers,
   providerSelections,
   selectedAnalysisRepresentation,
+  selectedAssetId,
 }: MetadataAnalysisSectionProps) {
+  const [mappingTargets, setMappingTargets] = useState<Record<string, string>>({});
+
+  const analysisReferenceEntries = assetReferences.data
+    .map(readAnalysisProvenance)
+    .filter((entry): entry is AnalysisReferenceEntry => entry !== null);
+
+  const mappedTargetByContributionKey = new Map(
+    assetRelationships.data.flatMap((relationship) => {
+      const key = relationship.metadata["analysis_contribution_key"];
+      return typeof key === "string" ? [[key, relationship.target_asset_id] as const] : [];
+    }),
+  );
+
+  const relationshipTargets = assets
+    .filter((asset) => asset.id !== selectedAssetId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <>
       <article className="detail-card provider-card">
@@ -221,6 +270,89 @@ export function MetadataAnalysisSection({
               Analysis complete: {analysisResult.metadata.length} metadata, {analysisResult.references.length} references, {analysisResult.relationships.length} relationships.
             </p>
           ) : null}
+        </article>
+      ) : null}
+
+      {analysisReferenceEntries.length > 0 ? (
+        <article className="detail-card relationship-card">
+          <div className="detail-row">
+            <div>
+              <h3>Map analysis dependencies</h3>
+              <p>
+                Promote a plugin-extracted reference to a generic <code>depends_on</code> Asset Graph
+                edge by pointing its stable contribution key at an existing Engineering Asset. The
+                provider re-runs the mapped contribution; the reference itself is retained.
+              </p>
+            </div>
+            <span className="status-pill">{analysisReferenceEntries.length} mappable</span>
+          </div>
+
+          {!selectedAnalysisRepresentation ? (
+            <p className="empty-state">
+              Select a Representation to analyze above before mapping its contributions.
+            </p>
+          ) : null}
+
+          <div className="reference-list">
+            {analysisReferenceEntries.map(({ reference, providerId, contributionKey }) => {
+              const mappedTargetId = mappedTargetByContributionKey.get(contributionKey);
+              const busyKey = `analysis-map-${contributionKey}`;
+              return (
+                <article className="relationship-item reference-item" key={reference.id}>
+                  <div>
+                    <strong>{reference.label || reference.reference_type}</strong>
+                    <p><code>{contributionKey}</code></p>
+                    <small>{providerId}</small>
+                  </div>
+                  {mappedTargetId ? (
+                    <p className="muted-text" role="status">
+                      Mapped as dependency on{" "}
+                      {assetNameById.get(mappedTargetId) ?? mappedTargetId}.
+                    </p>
+                  ) : (
+                    <div className="provider-control">
+                      <label>
+                        <span className="sr-only">Target Asset for {contributionKey}</span>
+                        <select
+                          disabled={relationshipTargets.length === 0 || analysisBusy}
+                          value={mappingTargets[contributionKey] ?? ""}
+                          onChange={(event) =>
+                            setMappingTargets((current) => ({
+                              ...current,
+                              [contributionKey]: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">Select an Asset</option>
+                          {relationshipTargets.map((asset) => (
+                            <option key={asset.id} value={asset.id}>{asset.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        className="secondary-button"
+                        disabled={
+                          !selectedAnalysisRepresentation ||
+                          !mappingTargets[contributionKey] ||
+                          analysisBusy
+                        }
+                        onClick={() =>
+                          onMapAnalysisReference({
+                            providerId,
+                            contributionKey,
+                            targetAssetId: mappingTargets[contributionKey] ?? "",
+                          })
+                        }
+                        type="button"
+                      >
+                        {busyAction === busyKey ? "Mapping..." : "Map as dependency"}
+                      </button>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         </article>
       ) : null}
 

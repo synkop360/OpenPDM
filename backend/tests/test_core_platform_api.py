@@ -2123,3 +2123,60 @@ def test_asset_graph_audit_and_events_cover_relationship_and_reference_mutations
 
         assert db.get(AssetRelationship, relationship_id) is not None
         assert db.get(AssetReference, reference_id) is None
+
+
+def test_asset_list_carries_lock_summary_and_my_checkouts(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    owner_token = register_and_sign_in(
+        client, email="lock-owner@example.com", display_name="Lock Owner", password="secret123"
+    )
+    organization = client.post(
+        "/organizations",
+        headers=auth_header(owner_token),
+        json={"name": "Acme", "slug": "acme-checkouts"},
+    ).json()
+    project = client.post(
+        "/projects",
+        headers=auth_header(owner_token),
+        json={"organization_id": organization["id"], "name": "Rotor", "description": "Phase 2"},
+    ).json()
+    held = client.post(
+        f"/projects/{project['id']}/assets",
+        headers=auth_header(owner_token),
+        json={"name": "Held", "description": "checked out"},
+    ).json()
+    assert (
+        client.post(
+            f"/projects/{project['id']}/assets",
+            headers=auth_header(owner_token),
+            json={"name": "Free", "description": "available"},
+        ).status_code
+        == 201
+    )
+
+    assert (
+        client.post(f"/assets/{held['id']}/checkout", headers=auth_header(owner_token)).status_code
+        == 200
+    )
+
+    page = client.get(
+        f"/projects/{project['id']}/assets/page", headers=auth_header(owner_token)
+    ).json()
+    lock_by_name = {item["name"]: item["lock"] for item in page["items"]}
+    assert lock_by_name["Held"]["state"] == "locked"
+    assert lock_by_name["Held"]["is_mine"] is True
+    assert lock_by_name["Free"]["state"] == "available"
+    assert lock_by_name["Free"]["owner_user_id"] is None
+
+    checkouts = client.get("/users/me/checkouts", headers=auth_header(owner_token))
+    assert checkouts.status_code == 200
+    body = checkouts.json()
+    assert [entry["asset_name"] for entry in body] == ["Held"]
+    assert body[0]["project_name"] == "Rotor"
+    assert body[0]["state"] == "locked"
+
+    # A different user sees none of the first user's checkouts.
+    other_token = register_and_sign_in(
+        client, email="lock-other@example.com", display_name="Other", password="secret123"
+    )
+    assert client.get("/users/me/checkouts", headers=auth_header(other_token)).json() == []
