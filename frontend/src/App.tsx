@@ -2844,11 +2844,13 @@ function OpenPdmApp() {
                           ) : null}
                         </div>
                         <div className="sidebar-project-list">
-                          {projects.data
-                            .filter((project) => project.id !== selectedProjectId)
-                            .map((project) => (
+                          {projects.data.map((project) => (
                               <button
-                                className="sidebar-project-card"
+                                className={
+                                  selectedProjectId === project.id
+                                    ? "sidebar-project-card is-selected"
+                                    : "sidebar-project-card"
+                                }
                                 key={project.id}
                                 onClick={() => {
                                   setSelectedProjectId(project.id);
