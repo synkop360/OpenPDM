@@ -2167,6 +2167,13 @@ textarea {
   gap: 8px;
 }
 
+/* Directional explainer under the relationship-type picker in the create form. */
+.relationship-type-hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: -4px 0 0;
+}
+
 .relationship-item {
   align-items: start;
   background: var(--surface-raised);

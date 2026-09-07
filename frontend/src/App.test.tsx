@@ -906,10 +906,25 @@ describe("App", () => {
     expect(await screen.findByText("From Wing Panel")).toBeInTheDocument();
     expect(screen.getByText("This Asset has no outgoing relationships yet.")).toBeInTheDocument();
 
+    // The picker carries a plain-language gloss per option and a directional
+    // hint line that tracks the current selection (default: related to).
+    const typeSelect = screen.getByLabelText("Relationship type");
+    expect(
+      within(typeSelect).getByRole("option", { name: "depends on — needs the linked Asset" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This Asset is loosely associated with the linked Asset — use when no other type fits.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(typeSelect, { target: { value: "depends_on" } });
+    expect(
+      screen.getByText("This Asset needs the linked Asset to be complete or to function."),
+    ).toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText("Target Asset"), { target: { value: "asset-1" } });
-    fireEvent.change(screen.getByLabelText("Relationship type"), {
-      target: { value: "related_to" },
-    });
+    fireEvent.change(typeSelect, { target: { value: "related_to" } });
     fireEvent.click(screen.getByRole("button", { name: "Link Asset" }));
 
     await waitFor(() =>

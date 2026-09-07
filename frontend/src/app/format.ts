@@ -53,3 +53,46 @@ export function notificationSummary(notification: NotificationRecord): string {
 export function formatRelationshipType(value: string): string {
   return value.replace(/_/g, " ");
 }
+
+/**
+ * Short gloss shown next to a relationship type in a picker, and a fuller
+ * directional sentence for a hint line. Both read from the perspective of the
+ * Asset the relationship starts at ("this Asset") pointing at the linked Asset.
+ */
+const RELATIONSHIP_TYPE_COPY: Record<string, { gloss: string; hint: string }> = {
+  depends_on: {
+    gloss: "needs the linked Asset",
+    hint: "This Asset needs the linked Asset to be complete or to function.",
+  },
+  references: {
+    gloss: "points to it for context",
+    hint: "This Asset points to the linked Asset for context, without relying on it.",
+  },
+  derived_from: {
+    gloss: "was created from it",
+    hint: "This Asset was created from the linked Asset as its source.",
+  },
+  generates: {
+    gloss: "produces it as output",
+    hint: "This Asset produces the linked Asset as an output.",
+  },
+  supersedes: {
+    gloss: "replaces an older Asset",
+    hint: "This Asset replaces the linked Asset, which is now outdated.",
+  },
+  related_to: {
+    gloss: "general association",
+    hint: "This Asset is loosely associated with the linked Asset — use when no other type fits.",
+  },
+};
+
+/** One-line label for a relationship type option, e.g. "depends on — needs the linked Asset". */
+export function formatRelationshipTypeOption(value: string): string {
+  const copy = RELATIONSHIP_TYPE_COPY[value];
+  return copy ? `${formatRelationshipType(value)} — ${copy.gloss}` : formatRelationshipType(value);
+}
+
+/** Directional sentence describing what a relationship type means. */
+export function describeRelationshipType(value: string): string {
+  return RELATIONSHIP_TYPE_COPY[value]?.hint ?? "";
+}

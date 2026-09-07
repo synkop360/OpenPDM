@@ -1,6 +1,11 @@
 import type { FormEvent } from "react";
 import { InlineAlert } from "../../components/feedback/InlineAlert";
-import { formatRelationshipType, formatTimestamp } from "../../app/format";
+import {
+  describeRelationshipType,
+  formatRelationshipType,
+  formatRelationshipTypeOption,
+  formatTimestamp,
+} from "../../app/format";
 import { describeProvenanceMetadata } from "../../app/provenance";
 import type { Loadable } from "../../app/loadable";
 import { RELATIONSHIP_TYPES, type Asset, type AssetGraph, type Relationship, type RelationshipType } from "../../api";
@@ -116,10 +121,13 @@ export function RelationshipsGraphSection({
               value={relationshipForm.relationshipType}
             >
               {RELATIONSHIP_TYPES.map((type) => (
-                <option key={type} value={type}>{formatRelationshipType(type)}</option>
+                <option key={type} value={type}>{formatRelationshipTypeOption(type)}</option>
               ))}
             </select>
           </label>
+          <p className="muted-text relationship-type-hint">
+            {describeRelationshipType(relationshipForm.relationshipType)}
+          </p>
           {relationshipFormError ? <InlineAlert tone="danger">{relationshipFormError}</InlineAlert> : null}
           {candidateTargets.length === 0 ? (
             <p className="muted-text">
