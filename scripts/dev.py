@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -135,14 +136,16 @@ def run_backend() -> None:
     )
 
 
-def compose_up() -> None:
+def compose_up(project: str | None = None, env_file: str = ".env.example") -> None:
     require_tool("docker")
+    project_args = ["-p", project] if project else []
     run(
         [
             "docker",
             "compose",
+            *project_args,
             "--env-file",
-            ".env.example",
+            env_file,
             "-f",
             "deployment/compose.yaml",
             "up",
@@ -160,24 +163,48 @@ def validate() -> None:
     )
 
 
+def _compose_up_for_deployment(name: str) -> None:
+    """Resolve a named launcher deployment and bring its Compose stack up."""
+    spec = importlib.util.spec_from_file_location(
+        "openpdm_deployments", ROOT / "scripts" / "deployments.py"
+    )
+    if spec is None or spec.loader is None:
+        raise CommandError("unable to import scripts/deployments.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        deployment = module.load(name)
+    except module.DeploymentError as exc:
+        raise CommandError(str(exc)) from exc
+    project = None if deployment.is_default else deployment.compose_project
+    compose_up(project=project, env_file=str(deployment.env_file))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="OpenPDM developer commands.")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    for command in ["install", "lint", "test", "run-backend", "compose-up", "validate"]:
+    for command in ["install", "lint", "test", "run-backend", "validate"]:
         subcommands.add_parser(command)
+    compose_parser = subcommands.add_parser("compose-up")
+    compose_parser.add_argument(
+        "--deployment",
+        default="default",
+        help="Named launcher deployment to start (default: the built-in stack).",
+    )
 
     args = parser.parse_args()
-    commands = {
-        "install": install,
-        "lint": lint,
-        "test": test,
-        "run-backend": run_backend,
-        "compose-up": compose_up,
-        "validate": validate,
-    }
 
     try:
-        commands[args.command]()
+        if args.command == "compose-up":
+            _compose_up_for_deployment(args.deployment)
+        else:
+            {
+                "install": install,
+                "lint": lint,
+                "test": test,
+                "run-backend": run_backend,
+                "validate": validate,
+            }[args.command]()
     except CommandError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

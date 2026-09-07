@@ -6,11 +6,14 @@ import { API_PROXY_PATHS } from "./src/apiRoutes";
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, ".", "");
   const apiProxyTarget = environment.VITE_API_PROXY_TARGET || "http://localhost:18000";
+  // The launcher sets VITE_DEV_PORT per named deployment so several Web UIs can
+  // run at once; unset (the default deployment) keeps the historical 5173.
+  const devPort = Number(environment.VITE_DEV_PORT) || 5173;
 
   return {
     plugins: [react()],
     server: {
-      port: 5173,
+      port: devPort,
       // Every path below is also a prefix the Web UI's own client-side routes can use
       // (e.g. /projects/:id/:tab). A browser page navigation (hard refresh, bookmark,
       // direct URL) must fall through to the SPA shell instead of being proxied to the

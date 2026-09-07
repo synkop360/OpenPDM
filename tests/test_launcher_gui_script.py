@@ -61,3 +61,21 @@ def test_vite_local_url_pattern_extracts_address() -> None:
 
 def test_default_check_interval_is_five_minutes() -> None:
     assert launcher_gui.DEFAULT_CONTAINER_CHECK_INTERVAL_SECONDS == 300
+
+
+def test_new_deployment_dialog_is_available() -> None:
+    assert hasattr(launcher_gui, "NewDeploymentDialog")
+
+
+def test_run_startup_sequence_accepts_a_deployment() -> None:
+    import inspect
+
+    params = inspect.signature(launcher_gui.run_startup_sequence).parameters
+    assert "deployment" in params
+
+
+def test_main_accepts_a_preselected_deployment_name() -> None:
+    import inspect
+
+    params = inspect.signature(launcher_gui.main).parameters
+    assert "deployment_name" in params

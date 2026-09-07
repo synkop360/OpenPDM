@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-openpdm}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openpdm}
     ports:
-      - "5432:5432"
+      - "${OPENPDM_PG_HOST_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
@@ -22,8 +22,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-openpdm}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-openpdm-secret}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${OPENPDM_MINIO_HOST_PORT:-9000}:9000"
+      - "${OPENPDM_MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
 
@@ -34,10 +34,15 @@ services:
     environment:
       OPENPDM_ENV: development
       OPENPDM_DATABASE_URL: postgresql+psycopg://openpdm:openpdm@postgres:5432/openpdm
-      OPENPDM_S3_ENDPOINT_URL: http://minio:9000
-      OPENPDM_S3_BUCKET: openpdm-blobs
-      OPENPDM_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-openpdm}
-      OPENPDM_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-openpdm-secret}
+      # Blob storage target. Defaults reproduce the bundled-MinIO stack; a named
+      # deployment's env file overrides these to point at external S3 or the
+      # local filesystem (see scripts/deployments.py).
+      OPENPDM_S3_ENDPOINT_URL: ${OPENPDM_S3_ENDPOINT_URL:-http://minio:9000}
+      OPENPDM_S3_BUCKET: ${OPENPDM_S3_BUCKET:-openpdm-blobs}
+      OPENPDM_S3_ACCESS_KEY: ${OPENPDM_S3_ACCESS_KEY:-openpdm}
+      OPENPDM_S3_SECRET_KEY: ${OPENPDM_S3_SECRET_KEY:-openpdm-secret}
+      OPENPDM_BLOB_LOCAL_ROOT: /var/lib/openpdm/blobs
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       OPENPDM_PLUGIN_PACKAGE_ROOT: /var/lib/openpdm/plugins
       # Persist Wasmtime's compiled-artifact cache across restarts. The first
       # activation of a CPython-based plugin component compiles for seconds; a
@@ -49,6 +54,10 @@ services:
     volumes:
       - plugin-packages:/var/lib/openpdm/plugins
       - plugin-cache:/var/lib/openpdm/plugin-cache
+      # Only read when OPENPDM_S3_ENDPOINT_URL is a file:// URL (local storage
+      # deployments). Otherwise an inert mount. Source is a named volume by
+      # default; a deployment may point it at an absolute host path instead.
+      - ${OPENPDM_BLOB_LOCAL_SOURCE:-openpdm-blobs-data}:/var/lib/openpdm/blobs
     ports:
       - "${OPENPDM_BACKEND_HOST_PORT:-18000}:8000"
     depends_on:
@@ -62,3 +71,4 @@ volumes:
   minio-data:
   plugin-packages:
   plugin-cache:
+  openpdm-blobs-data:

@@ -165,6 +165,41 @@ If the direct backend command is used instead of Compose, confirm
 `http://127.0.0.1:8000/health`, `http://127.0.0.1:8000/foundation` and set
 `VITE_API_PROXY_TARGET=http://localhost:8000` before starting Vite.
 
+### Named Deployments
+
+A *deployment* is one isolated Compose stack: its own Compose project (so
+containers, network and volumes never collide), its own published host ports,
+and its own blob storage target. Run real work on one deployment and throwaway
+or test work on another; neither can reach the other's database or blobs. The
+built-in `default` deployment is the single stack described above and needs no
+configuration.
+
+Create one — interactively naming it and choosing where its blob content lives
+(bundled MinIO, an external S3-compatible bucket, or a local directory/volume):
+
+```bash
+python scripts/start_all.py --new-deployment
+```
+
+or use the **New deployment…** button in `python scripts/start_all.py --gui`.
+The launcher allocates a free, non-overlapping port block and writes a
+git-ignored `deployments/<name>.env` (see `deployments/README.md` and
+`deployments/example.env`).
+
+Run and list deployments:
+
+```bash
+python scripts/start_all.py --deployment <name>
+python scripts/start_all.py --list-deployments
+python scripts/dev.py compose-up --deployment <name>
+```
+
+Each deployment gets its own Vite Web UI port as well as its own backend port,
+so several stacks (and their Web UIs) run side by side. `start_all.py
+--deployment <name>` starts Vite on that deployment's port with its proxy
+pointed at that deployment's backend; the GUI's **Open Web UI** button and the
+readiness checks follow the selected deployment.
+
 Startup failure notes:
 
 * missing Docker prevents PostgreSQL, MinIO and the Compose backend from starting;

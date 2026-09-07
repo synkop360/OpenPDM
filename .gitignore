@@ -11,6 +11,8 @@ coverage/
 .env
 .env.*
 !.env.example
+deployments/*.env
+!deployments/example.env
 .openpdm-data/
 *.log
 .tmp/
