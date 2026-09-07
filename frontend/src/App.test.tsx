@@ -19,7 +19,7 @@ function jsonResponse(payload: unknown, status = 200): JsonResponse {
 }
 
 async function switchAssetDetailTab(
-  name: "Overview" | "Graph" | "History" | "Files",
+  name: "Overview" | "Analysis" | "Graph" | "History" | "Files",
 ): Promise<void> {
   // The workspace also has a Table/Graph toggle, so scope to the detail-sheet tab strip.
   const tabs = await screen.findByRole("navigation", { name: "Asset detail sections" });
@@ -180,13 +180,13 @@ describe("App", () => {
                 {
                   id: "representation-1",
                   revision_id: "revision-1",
-                  name: "native.fcstd",
+                  name: "native.dat",
                   media_type: "application/octet-stream",
                   blob_id: "blob-1",
                   created_at: "2026-01-02T00:00:00",
                   blob: {
                     id: "blob-1",
-                    filename: "native.fcstd",
+                    filename: "native.dat",
                     media_type: "application/octet-stream",
                     size_bytes: 1234,
                     checksum_sha256: "abc",
@@ -473,12 +473,11 @@ describe("App", () => {
     await switchAssetDetailTab("History");
     expect(await screen.findByRole("heading", { name: "Collaboration state" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Release lock" })).toBeInTheDocument();
-    await switchAssetDetailTab("Overview");
+    await switchAssetDetailTab("Analysis");
     expect(await screen.findByText("Asset Categories API Test Plugin")).toBeInTheDocument();
     expect(await screen.findByLabelText("Asset category")).toBeInTheDocument();
     expect(screen.queryByText("No running Metadata Provider is available.")).not.toBeInTheDocument();
-    // Appears in the Overview key-facts card and again in the full metadata table below it.
-    expect((await screen.findAllByText("Supplier specification")).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Supplier specification")).toBeInTheDocument();
     await switchAssetDetailTab("Graph");
     expect(await screen.findByRole("heading", { name: "Asset relationships" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Bounded graph summary" })).toBeInTheDocument();
@@ -486,7 +485,7 @@ describe("App", () => {
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
     expect(await screen.findByText("AssetCreated")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
-    await switchAssetDetailTab("Overview");
+    await switchAssetDetailTab("Analysis");
     expect(await screen.findByLabelText("Representation to analyze")).toHaveValue("representation-1");
     const analysisButtons = screen.getAllByRole("button", { name: "Analyze representation" });
     fireEvent.click(analysisButtons[0]);
@@ -510,7 +509,7 @@ describe("App", () => {
     await switchAssetDetailTab("Graph");
     expect(screen.getByText("2 links")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^(command|executable|launch)/i })).not.toBeInTheDocument();
-    await switchAssetDetailTab("Overview");
+    await switchAssetDetailTab("Analysis");
     fireEvent.click(screen.getAllByRole("button", { name: "Analyze representation" })[0]);
     expect(screen.queryByText("Analysis complete: 1 metadata, 1 references, 1 relationships.")).not.toBeInTheDocument();
     expect(await screen.findByText("Analysis unavailable.")).toBeInTheDocument();
@@ -934,7 +933,7 @@ describe("App", () => {
   it("allows a new analysis after the selected Asset changes during an in-flight analysis", async () => {
     await exerciseRelationshipAndDiscardRace("resolve", false);
 
-    await switchAssetDetailTab("Overview");
+    await switchAssetDetailTab("Analysis");
     fireEvent.click(await screen.findByRole("button", { name: "Analyze representation" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled());
 

@@ -278,21 +278,21 @@ export function AssetDetailPanel({
       <AssetDetailTabs onValueChange={setActiveTab} value={activeTab} />
 
       {activeTab === "overview" ? (
-        <>
-          <AssetOverview
-            asset={asset}
-            busyAction={busyAction}
-            describeActor={sectionProps.describeActor}
-            history={sectionProps.assetHistory}
-            metadata={sectionProps.assetMetadata}
-            onDownload={sectionProps.onDownload}
-          />
-          <MetadataAnalysisSection
-            busyAction={busyAction}
-            selectedAssetId={selectedAssetId}
-            {...sectionProps}
-          />
-        </>
+        <AssetOverview
+          asset={asset}
+          busyAction={busyAction}
+          describeActor={sectionProps.describeActor}
+          history={sectionProps.assetHistory}
+          metadata={sectionProps.assetMetadata}
+          onDownload={sectionProps.onDownload}
+        />
+      ) : null}
+      {activeTab === "analysis" ? (
+        <MetadataAnalysisSection
+          busyAction={busyAction}
+          selectedAssetId={selectedAssetId}
+          {...sectionProps}
+        />
       ) : null}
       {activeTab === "graph" ? (
         <RelationshipsGraphSection

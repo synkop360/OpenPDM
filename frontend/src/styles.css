@@ -1050,9 +1050,14 @@ textarea {
   border-radius: 0;
   box-shadow: none;
   display: grid;
+  /* Fill the content area and split into a fixed header row + a bounded body row
+     so the workspace scrolls inside its regions instead of the whole page. */
+  flex: 1;
   gap: 0;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   margin: 0;
+  min-height: 0;
   padding: 0;
 }
 
@@ -1105,6 +1110,8 @@ textarea {
   border-radius: var(--radius-panel);
   grid-column: 1 / -1;
   margin: 16px;
+  min-height: 0;
+  overflow-y: auto;
   padding: 18px;
 }
 
@@ -1458,6 +1465,7 @@ textarea {
   border-radius: 0;
   flex: 1;
   min-height: 0;
+  overflow: auto;
 }
 
 .asset-collection .pagination-bar {
@@ -1638,6 +1646,27 @@ textarea {
   width: 14px;
 }
 
+/* ---------- Dismissible announcement banner ---------- */
+
+.inline-alert__dismiss {
+  align-self: start;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+
+.inline-alert__dismiss:hover {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
 /* ---------- Asset detail sheet: Overview tab summary ---------- */
 
 .asset-overview {
@@ -1698,28 +1727,32 @@ textarea {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .asset-workspace--solo {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* When the sheet is docked it is a static grid column, not a fixed overlay. It
-   keeps its own scroll and sticks to the top of the scrolling content area so
-   the table beside it stays fully usable. */
+/* When the sheet is docked it is a static grid column that fills the bounded
+   workspace row and scrolls on its own, so the table beside it stays usable
+   and the page itself never scrolls. */
 .asset-detail-sheet.is-docked {
-  align-self: start;
+  align-self: stretch;
   border-radius: 0;
   border-width: 0 0 0 1px;
   box-shadow: none;
+  height: 100%;
   inset: auto;
   margin: 0;
-  max-height: 100vh;
+  max-height: none;
   max-width: none;
-  position: sticky;
-  top: 0;
+  min-height: 0;
+  overflow-y: auto;
+  position: static;
   transform: none;
   width: auto;
   z-index: auto;

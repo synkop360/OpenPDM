@@ -131,6 +131,7 @@ import {
   readStoredValue,
   writeStoredValue,
 } from "./app/storage";
+import { isAnalyzableRepresentation } from "./app/analysis";
 import { useMediaQuery } from "./app/useMediaQuery";
 import { useRouteFocus } from "./app/useRouteFocus";
 import { InlineAlert } from "./components/feedback/InlineAlert";
@@ -401,6 +402,9 @@ function OpenPdmApp() {
   const transferOperation = useRef(0);
   const activeTransferOperation = useRef<{ id: number; controller: AbortController } | null>(null);
   const analysisOperation = useRef(0);
+  // Representation id the extension-based auto-analysis has already fired for, so
+  // it runs once per Representation and never fights a manual re-run.
+  const autoAnalyzedRepresentationId = useRef<string | null>(null);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(
     readStoredValue(ORG_KEY),
   );
@@ -940,6 +944,7 @@ function OpenPdmApp() {
   useEffect(() => {
     const token = session.data?.token;
     analysisOperation.current += 1;
+    autoAnalyzedRepresentationId.current = null;
     setBusyAction((current) => current?.startsWith("provider-analysis-") ? null : current);
     setAnalysisResult(null);
     setAnalysisRepresentationId("");
@@ -1091,6 +1096,32 @@ function OpenPdmApp() {
   const analysisBusy =
     (busyAction?.startsWith("provider-analysis-") || busyAction?.startsWith("analysis-map-")) ??
     false;
+
+  const firstAnalysisProvider =
+    providers.data.find((provider) => provider.capabilities.includes("analysis_provider")) ?? null;
+  // Newest Representation whose file extension an Analysis Provider should handle.
+  const autoAnalyzeRepresentation =
+    [...analysisRepresentations]
+      .sort((left, right) => right.revision.number - left.revision.number)
+      .find(({ representation }) =>
+        isAnalyzableRepresentation(representation.blob?.filename ?? representation.name),
+      )?.representation ?? null;
+
+  useEffect(() => {
+    if (
+      !firstAnalysisProvider ||
+      !autoAnalyzeRepresentation ||
+      analysisBusy ||
+      autoAnalyzedRepresentationId.current === autoAnalyzeRepresentation.id
+    ) {
+      return;
+    }
+    autoAnalyzedRepresentationId.current = autoAnalyzeRepresentation.id;
+    setAnalysisRepresentationId(autoAnalyzeRepresentation.id);
+    void handleInvokeAnalysisProvider(firstAnalysisProvider, autoAnalyzeRepresentation.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstAnalysisProvider?.id, autoAnalyzeRepresentation?.id, analysisBusy]);
+
   const assetNameById = new Map(assets.data.map((asset) => [asset.id, asset.name]));
   const organizationOwnerCount = organizationMembers.data.filter((membership) => membership.role === "Owner").length;
   const projectOwnerCount = projectMembers.data.filter((membership) => membership.role === "Owner").length;
@@ -2151,13 +2182,15 @@ function OpenPdmApp() {
     relationshipMappings: Record<string, string>,
     busyKey: string,
     successMessage: string,
+    representationIdOverride?: string,
   ): Promise<void> {
+    const representationId = representationIdOverride ?? selectedAnalysisRepresentation?.id ?? null;
     if (
       !session.data?.token ||
       !selectedAssetId ||
       !selectedProjectId ||
       !selectedOrganizationId ||
-      !selectedAnalysisRepresentation
+      !representationId
     ) return;
     const token = session.data.token;
     const assetId = selectedAssetId;
@@ -2168,7 +2201,7 @@ function OpenPdmApp() {
     setAnalysisResult(null);
     try {
       const result = await invokeAnalysisProvider(token, providerId, {
-        representation_id: selectedAnalysisRepresentation.id,
+        representation_id: representationId,
         project_id: selectedProjectId,
         organization_id: selectedOrganizationId,
         ...(Object.keys(relationshipMappings).length > 0
@@ -2201,12 +2234,16 @@ function OpenPdmApp() {
     }
   }
 
-  async function handleInvokeAnalysisProvider(provider: ProviderDescriptor): Promise<void> {
+  async function handleInvokeAnalysisProvider(
+    provider: ProviderDescriptor,
+    representationId?: string,
+  ): Promise<void> {
     await runAnalysisProvider(
       provider.id,
       {},
       `provider-analysis-${provider.id}`,
       `${provider.name} analysis completed.`,
+      representationId,
     );
   }
 
@@ -2430,6 +2467,7 @@ function OpenPdmApp() {
   return (
     <AppShell
       announcement={banner}
+      onAnnouncementDismiss={() => setBanner(null)}
       header={
         isAuthenticated && session.data ? (
           <AuthenticatedHeader

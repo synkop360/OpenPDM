@@ -1,9 +1,10 @@
-export const assetDetailTabs = ["overview", "graph", "history", "files"] as const;
+export const assetDetailTabs = ["overview", "analysis", "graph", "history", "files"] as const;
 
 export type AssetDetailTab = (typeof assetDetailTabs)[number];
 
 const labels: Record<AssetDetailTab, string> = {
   overview: "Overview",
+  analysis: "Analysis",
   graph: "Graph",
   history: "History",
   files: "Files",

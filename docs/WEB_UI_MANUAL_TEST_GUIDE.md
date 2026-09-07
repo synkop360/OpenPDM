@@ -525,6 +525,26 @@ Expected result:
 * package storage survives an ordinary backend image or container replacement;
 * disabling the plugin removes it from provider discovery without removing previously authorized metadata.
 
+## Verify Analysis-Provider Dependency Mapping
+
+Use an enabled `analysis_provider` (for example `org.openpdm.freecad` or
+`org.openpdm.splice-cad`) and an Engineering Asset with a Blob-backed
+Representation of a supported document.
+
+1. Open the Asset, go to **Metadata & Analysis**, pick the Representation under **Representation analysis**, and choose **Analyze representation**.
+2. Confirm the contributed plugin metadata and, under **Generic references**, one Reference per extracted dependency. Confirm the Asset relationships are unchanged.
+3. In **Map analysis dependencies**, confirm one row per analysis-derived Reference, each showing its stable contribution key and the contributing provider id.
+4. For one row, select a target Engineering Asset in the same Project and choose **Map as dependency**.
+5. Confirm the row changes to `Mapped as dependency on <Asset>`, an outgoing `depends_on` relationship to that Asset appears on the **Relationships & Graph** tab, and the Reference is still listed under **Generic references**.
+6. Repeat **Map as dependency** for the same row is not offered; re-running **Analyze representation** does not duplicate the relationship or the reference.
+
+Expected result:
+
+* the Web UI forwards only the operator-chosen contribution key and target Asset id; it never infers a mapping or interprets the plugin's engineering meaning;
+* the relationship is created by the provider through the same authorized analysis path as an API call with `relationship_mappings`;
+* mapping is available only when a Representation is selected for analysis;
+* a disabled analysis provider removes the **Representation analysis** and **Map analysis dependencies** controls while previously contributed metadata, references and relationships remain.
+
 ## Quick Negative Checks
 
 Run these short checks after the main flow:
