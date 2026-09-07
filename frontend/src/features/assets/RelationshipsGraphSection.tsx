@@ -100,20 +100,8 @@ export function RelationshipsGraphSection({
 
         <form className="form-grid compact-form relationship-create-form" onSubmit={onCreateRelationship}>
           <h4>Link to another Asset</h4>
-          <label>
-            Target Asset
-            <select
-              disabled={candidateTargets.length === 0}
-              onChange={(event) => onRelationshipTargetChange(event.target.value)}
-              required
-              value={relationshipForm.targetAssetId}
-            >
-              <option value="">Select an Asset</option>
-              {candidateTargets.map((asset) => (
-                <option key={asset.id} value={asset.id}>{asset.name}</option>
-              ))}
-            </select>
-          </label>
+          {/* Ordered type-then-target so the form reads as a sentence:
+              "this Asset  <relationship type>  <target Asset>". */}
           <label>
             Relationship type
             <select
@@ -128,6 +116,20 @@ export function RelationshipsGraphSection({
           <p className="muted-text relationship-type-hint">
             {describeRelationshipType(relationshipForm.relationshipType)}
           </p>
+          <label>
+            Target Asset
+            <select
+              disabled={candidateTargets.length === 0}
+              onChange={(event) => onRelationshipTargetChange(event.target.value)}
+              required
+              value={relationshipForm.targetAssetId}
+            >
+              <option value="">Select an Asset</option>
+              {candidateTargets.map((asset) => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+            </select>
+          </label>
           {relationshipFormError ? <InlineAlert tone="danger">{relationshipFormError}</InlineAlert> : null}
           {candidateTargets.length === 0 ? (
             <p className="muted-text">
