@@ -71,6 +71,56 @@ def test_start_all_documents_service_readiness_commands() -> None:
     assert "VITE_API_PROXY_TARGET=http://localhost:8000" in script
 
 
+def test_readiness_checks_follow_a_named_deployment_ports() -> None:
+    dep = start_all.deployments.Deployment(
+        name="acme",
+        env_file=ROOT / "deployments" / "acme.env",
+        compose_project="openpdm-acme",
+        backend_host_port=18010,
+        frontend_host_port=5183,
+        pg_host_port=5442,
+        minio_host_port=9010,
+        minio_console_host_port=9011,
+        storage=start_all.deployments.StorageConfig(kind="bundled"),
+    )
+
+    checks = dict(start_all.readiness_checks(dep))
+
+    assert checks["Backend health"] == "http://localhost:18010/health"
+    assert checks["Web UI"] == "http://localhost:5183"
+
+
+def test_get_compose_service_states_scopes_to_a_project(monkeypatch) -> None:
+    seen: dict[str, list[str]] = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return _FakeCompletedProcess("", returncode=1)
+
+    monkeypatch.setattr(start_all.subprocess, "run", fake_run)
+
+    start_all.get_compose_service_states("openpdm-acme")
+
+    assert seen["cmd"][:4] == ["docker", "compose", "-p", "openpdm-acme"]
+
+
+def test_build_dev_helper_command_threads_compose_project_and_env_file() -> None:
+    command = start_all.build_dev_helper_command(
+        "compose_up", compose_project="openpdm-acme", compose_env_file="deployments/acme.env"
+    )
+
+    payload = command[-1]
+    assert "project='openpdm-acme'" in payload
+    assert "env_file='deployments/acme.env'" in payload
+
+
+def test_build_dev_helper_command_defaults_to_the_example_env_file() -> None:
+    command = start_all.build_dev_helper_command("compose_up")
+
+    assert "project=None" in command[-1]
+    assert "env_file='.env.example'" in command[-1]
+
+
 class _FakeResponse:
     def __init__(self, status: int) -> None:
         self.status = status
