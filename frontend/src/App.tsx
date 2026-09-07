@@ -2796,44 +2796,79 @@ function OpenPdmApp() {
                       </div>
                     </>
                   ) : hasProjects ? (
-                    <div className="sidebar-section sidebar-section-flex">
-                      <div className="sidebar-section-header">
-                        <span className="sidebar-section-label">Projects</span>
-                        {selectedOrganizationId ? (
-                          <button
-                            aria-label="New project"
-                            className="icon-button icon-button-sm"
-                            onClick={() => setShowCreateProjectForm((current) => !current)}
-                            title="New project"
-                            type="button"
-                          >
-                            <Plus />
-                          </button>
-                        ) : null}
+                    <>
+                      {(() => {
+                        const selectedProject = projects.data.find(
+                          (project) => project.id === selectedProjectId,
+                        );
+                        return selectedProject ? (
+                          <div className="sidebar-section">
+                            <span className="sidebar-section-label">Project</span>
+                            <div className="sidebar-org-list">
+                              <button
+                                className="sidebar-switcher-card is-selected"
+                                onClick={() => {
+                                  setMobileNavigationOpen(false);
+                                  navigate(`/projects/${selectedProject.id}/overview`);
+                                }}
+                                title="Open project"
+                                type="button"
+                              >
+                                <span className="sidebar-switcher-avatar">
+                                  {selectedProject.name.slice(0, 2).toUpperCase()}
+                                </span>
+                                <span className="sidebar-switcher-text">
+                                  <strong>{selectedProject.name}</strong>
+                                  <small>{selectedProject.description || "No description"}</small>
+                                </span>
+                                <ChevronsUpDown aria-hidden="true" className="ic14" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      <div className="sidebar-section sidebar-section-flex">
+                        <div className="sidebar-section-header">
+                          <span className="sidebar-section-label">Projects</span>
+                          {selectedOrganizationId ? (
+                            <button
+                              aria-label="New project"
+                              className="icon-button icon-button-sm"
+                              onClick={() => setShowCreateProjectForm((current) => !current)}
+                              title="New project"
+                              type="button"
+                            >
+                              <Plus />
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="sidebar-project-list">
+                          {projects.data.map((project) => (
+                              <button
+                                className={
+                                  selectedProjectId === project.id
+                                    ? "sidebar-project-card is-selected"
+                                    : "sidebar-project-card"
+                                }
+                                key={project.id}
+                                onClick={() => {
+                                  setSelectedProjectId(project.id);
+                                  setMobileNavigationOpen(false);
+                                  navigate(`/projects/${project.id}/overview`);
+                                }}
+                                type="button"
+                              >
+                                <span className="sidebar-project-dot" />
+                                <span className="sidebar-project-text">
+                                  <strong>{project.name}</strong>
+                                  <small>{project.description || "No description"}</small>
+                                </span>
+                              </button>
+                            ))}
+                        </div>
                       </div>
-                      <div className="sidebar-project-list">
-                        {projects.data.map((project) => (
-                          <button
-                            className={
-                              selectedProjectId === project.id ? "sidebar-project-card is-selected" : "sidebar-project-card"
-                            }
-                            key={project.id}
-                            onClick={() => {
-                              setSelectedProjectId(project.id);
-                              setMobileNavigationOpen(false);
-                              navigate(`/projects/${project.id}/overview`);
-                            }}
-                            type="button"
-                          >
-                            <span className="sidebar-project-dot" />
-                            <span className="sidebar-project-text">
-                              <strong>{project.name}</strong>
-                              <small>{project.description || "No description"}</small>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    </>
                   ) : null}
                 </>
               )}
@@ -2971,18 +3006,18 @@ function OpenPdmApp() {
                 />
               </div>
             ) : null}
-            {view === "home" || view === "projects" ? (
+            {view === "projects" ? (
               <section className="panel home-panel content-span">
                 <header className="panel-header">
                   <div>
-                    <p className="eyebrow">{view === "home" ? "Home" : "Projects"}</p>
-                    <h2>{view === "home" ? `Welcome, ${session.data?.user.display_name}` : "Available Projects"}</h2>
+                    <p className="eyebrow">Projects</p>
+                    <h2>Available Projects</h2>
                     <p className="muted-text">
                       Choose a Project from the sidebar when you are ready to work with Engineering
                       Assets.
                     </p>
                   </div>
-                  {view === "projects" && selectedOrganizationId ? (
+                  {selectedOrganizationId ? (
                     <button className="primary-button" onClick={() => setShowCreateProjectForm(true)} type="button">
                       <Plus /> New Project
                     </button>
@@ -3027,43 +3062,7 @@ function OpenPdmApp() {
                       ))}
                     </ul>
                   </article>
-                  {view === "home" ? (
-                    <article className="detail-card">
-                      <h3>Recent Engineering Assets</h3>
-                      <p>{selectedProjectId ? "Updated in the selected Project" : "Select a Project to load recent Assets"}</p>
-                      <ul className="home-list">
-                        {assets.data.slice(0, 6).map((asset) => (
-                          <li key={asset.id}>
-                            <button
-                              className="text-button"
-                              onClick={() => {
-                                setSelectedAssetId(asset.id);
-                                navigate(projectAssetPath(asset.project_id, "assets", asset.id));
-                              }}
-                              type="button"
-                            >
-                              {asset.name}
-                            </button>
-                            <span>{asset.status} · {formatTimestamp(asset.updated_at)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  ) : null}                </div>
-
-                {view === "home" && (organizations.status === "loading" || projects.status === "loading" || assets.status === "loading" || notifications.status === "loading") ? (
-                  <InlineAlert tone="info"><RefreshCw aria-hidden="true" /> Refreshing operational context…</InlineAlert>
-                ) : null}
-                {view === "home" && (organizations.status === "error" || projects.status === "error" || assets.status === "error" || notifications.status === "error") ? (
-                  <article className="detail-card recovery-card" role="alert">
-                    <h3>Some workspace data needs attention</h3>
-                    <p>{organizations.error ?? projects.error ?? assets.error ?? notifications.error}</p>
-                    <p className="muted-text">Available data remains visible. Retry the affected workspace or verify that your permissions have not changed.</p>
-                  </article>
-                ) : null}
-                {view === "home" && !selectedProjectId && projects.status === "ready" ? (
-                  <div className="empty-state operational-empty"><FolderKanban aria-hidden="true" /><h3>No recent Project context</h3><p>Create or select a Project to surface recent Engineering Assets here.</p></div>
-                ) : null}
+                </div>
               </section>
             ) : null}
 

@@ -394,6 +394,32 @@ textarea {
   resize: vertical;
 }
 
+/* Native file inputs otherwise render an unstyled OS button that clashes with
+   the token-driven controls around them. */
+input[type="file"] {
+  align-items: center;
+  color: var(--text-secondary);
+  display: flex;
+  font-size: 0.82rem;
+  padding: 0 10px;
+}
+
+input[type="file"]::file-selector-button {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  margin-right: 10px;
+  padding: 5px 11px;
+}
+
+input[type="file"]::file-selector-button:hover {
+  border-color: var(--border-strong);
+}
+
 .form-grid {
   display: grid;
   gap: 12px;
@@ -1567,6 +1593,28 @@ textarea {
   margin: 0 20px 12px;
 }
 
+/* The detail sheet is a narrow column — docked (~360px) or the mobile overlay —
+   so its inner multi-column grids and split rows must always stack, regardless
+   of the viewport-width breakpoints the rest of the layout keys off. */
+.asset-detail-sheet .relationship-grid,
+.asset-detail-sheet .provider-control,
+.asset-detail-sheet .home-summary-grid {
+  grid-template-columns: 1fr;
+}
+
+.asset-detail-sheet .provider-control {
+  align-items: stretch;
+}
+
+.asset-detail-sheet .detail-row,
+.asset-detail-sheet .relationship-item {
+  flex-direction: column;
+}
+
+.asset-detail-sheet .relationship-item {
+  align-items: stretch;
+}
+
 /* ---------- Asset detail sheet: header, title, action grid (redesign) ---------- */
 
 .asset-detail__statusbar {
@@ -2195,6 +2243,36 @@ textarea {
   border-radius: var(--radius-panel);
   height: 420px;
   width: 100%;
+}
+
+/* @xyflow/react ships a light-theme stylesheet; align its chrome with the dark
+   canvas so the zoom controls are not a solid white block and the watermark
+   stays legible. */
+.react-flow__controls {
+  box-shadow: var(--shadow-panel);
+}
+
+.react-flow__controls-button {
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--surface-muted);
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.react-flow__attribution {
+  background: var(--surface-canvas);
+  border-radius: 4px 0 0;
+}
+
+.react-flow__attribution a {
+  color: var(--text-tertiary);
 }
 
 .asset-graph-node {
